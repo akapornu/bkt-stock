@@ -277,6 +277,22 @@ a.btn { text-decoration: none; color: inherit; }
 .ro-row .mv { width: 40px; height: 44px; border-radius: 10px; background: var(--bg); font-size: 18px; font-weight: 700; flex: none; }
 .ro-row .mv:active { background: var(--line); }
 
+/* ---------- สถานะตอนตรวจรหัส ---------- */
+.pin-dots.busy i { background: var(--brand); border-color: var(--brand); animation: pulse 1s infinite; }
+.pin-dots.busy i:nth-child(2) { animation-delay: .15s; }
+.pin-dots.busy i:nth-child(3) { animation-delay: .3s; }
+.pin-dots.busy i:nth-child(4) { animation-delay: .45s; }
+.pin-dots.busy i:nth-child(5) { animation-delay: .6s; }
+.pin-dots.busy i:nth-child(6) { animation-delay: .75s; }
+.pin-dots.bad { animation: shake .42s; }
+.pin-dots.bad i { border-color: var(--bad); }
+.pin-msg.busy { color: var(--brand); font-weight: 600; }
+.pin-msg.bad { font-weight: 700; }
+.kp-grid.busy { opacity: .4; pointer-events: none; }
+.pinpad button:active { background: var(--brand-soft); transform: scale(.96); }
+.spin-sm { display: inline-block; width: 15px; height: 15px; border: 2px solid var(--brand-soft); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 8px; }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-7px); } 80% { transform: translateX(7px); } }
+
 </style>
 </head>
 <body>
@@ -594,6 +610,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   var API_URL = window.BKT_API && window.BKT_API.indexOf('https://') === 0 ? window.BKT_API : '';
   function api(fn) {
     var args = Array.prototype.slice.call(arguments, 1);
+    S.lastApi = Date.now();
     if (MOCK) return MOCK.call(fn, args);
     if (API_URL) return postApi(fn, args);
     return new Promise(function (res, rej) {
@@ -782,6 +799,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   // ---------- วาดหน้าจอ ----------
   function go(screen) {
+    if (screen !== 'pin' && screen !== 'adminpin') { S.pinState = ''; S.pinBuf = ''; }
+    else warmUp();
     S.screen = screen;
     if (screen !== 'zone' && screen !== 'review') S.kp = null;
     render();
@@ -839,15 +858,42 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="wrap"><div id="offline-note" class="note bad' + (S.net === 'offline' ? '' : ' hidden') + '" style="margin-top:10px">📶 ' + bi1('offline') + '</div></div>' + (['pin', 'who', 'home'].indexOf(S.screen) >= 0 ? newLinkBanner() : '');
   }
 
+  // ป้อนรหัส: ครบหลักปุ๊บขึ้น "กำลังตรวจรหัส" ทันที (ล็อกแป้นกันกดซ้ำ) · ผิด = สั่น + แดง · ถูก = ไปหน้าถัดไป
   function pinPad(len, act) {
-    var dots = '';
+    var st = S.pinState || '', dots = '';
     for (var i = 0; i < len; i++) dots += '<i class="' + (i < S.pinBuf.length ? 'on' : '') + '"></i>';
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map(function (k) {
       if (!k) return '<span></span>';
       return '<button data-act="' + act + '" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : '') + '>' + k + '</button>';
     }).join('');
-    return '<div class="pin-dots">' + dots + '</div><div class="pin-msg">' + esc(S.pinMsg) + '</div>' +
-      '<div class="kp-grid pinpad" style="max-width:340px;margin:8px auto 0">' + keys + '</div>';
+    var msg = st === 'busy' ? '<span class="spin-sm"></span>กำลังตรวจรหัส… · <span class="mm">ခဏစောင့်ပါ…</span>' : esc(S.pinMsg);
+    return '<div class="pin-dots ' + st + '">' + dots + '</div><div class="pin-msg ' + st + '">' + msg + '</div>' +
+      '<div class="kp-grid pinpad' + (st === 'busy' ? ' busy' : '') + '" style="max-width:340px;margin:8px auto 0">' + keys + '</div>';
+  }
+
+  function pinInput(el, len, submit) {
+    if (S.pinState === 'busy') return;
+    var k = el.dataset.k;
+    if (S.pinState === 'bad') { S.pinState = ''; S.pinMsg = ''; }
+    if (k === '⌫') S.pinBuf = S.pinBuf.slice(0, -1);
+    else if (S.pinBuf.length < len) S.pinBuf += k;
+    buzz();
+    if (S.pinBuf.length === len) { S.pinState = 'busy'; render(); submit(S.pinBuf); }
+    else render();
+  }
+
+  function pinFail(e, badText) {
+    var m = errMsg(e);
+    S.pinBuf = '';
+    S.pinState = 'bad';
+    S.pinMsg = /BAD_PIN/.test(m) ? badText : isNetErr(e) ? tr('offline').th : m;
+    render();
+    try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (x) { /* */ }
+  }
+
+  // ปลุกหลังบ้านไว้ก่อนตอนเปิดหน้าใส่รหัส (Google หลับถ้าไม่มีคนใช้สักพัก ปลุกครั้งแรกช้า)
+  function warmUp() {
+    if (Date.now() - (S.lastApi || 0) > 45000) api('apiStatus').catch(function () { /* แค่ปลุก */ });
   }
 
   var SCREENS = {
@@ -1234,41 +1280,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
     toUrgent: function () { S.urgent = { type: '', q: '', item: '', qty: '', note: '', photos: [], busy: false }; go('urgent'); },
 
     pinKey: function (el) {
-      var k = el.dataset.k;
-      S.pinMsg = '';
-      if (k === '⌫') S.pinBuf = S.pinBuf.slice(0, -1);
-      else if (S.pinBuf.length < 4) S.pinBuf += k;
-      buzz();
-      render();
-      if (S.pinBuf.length === 4) {
-        var pin = S.pinBuf;
+      pinInput(el, 4, function (pin) {
         boot(pin).catch(function (e) {
-          var m = errMsg(e);
-          S.pinBuf = '';
-          if (/FIRST_RUN/.test(m)) return go('firstrun');
-          S.pinMsg = /BAD_PIN/.test(m) ? tr('wrongPin').th + ' · ' + tr('wrongPin').mm : m;
-          render();
+          if (/FIRST_RUN/.test(errMsg(e))) { S.pinState = ''; return go('firstrun'); }
+          pinFail(e, tr('wrongPin').th + ' · ' + tr('wrongPin').mm);
         });
-      }
+      });
     },
     toAdminPin: function () { S.pinBuf = ''; S.pinMsg = ''; go('adminpin'); },
     leaveAdminPin: function () { S.pinBuf = ''; S.pinMsg = ''; go(S.boot ? 'home' : 'pin'); },
     adminPinKey: function (el) {
-      var k = el.dataset.k;
-      S.pinMsg = '';
-      if (k === '⌫') S.pinBuf = S.pinBuf.slice(0, -1);
-      else if (S.pinBuf.length < 6) S.pinBuf += k;
-      render();
-      if (S.pinBuf.length === 6) {
-        var pin = S.pinBuf;
-        S.pinBuf = '';
+      pinInput(el, 6, function (pin) {
         loadAdmin(pin).catch(function (e) {
-          var m = errMsg(e);
-          if (/FIRST_RUN/.test(m)) return go('firstrun');
-          S.pinMsg = /BAD_PIN/.test(m) ? 'รหัสบอสไม่ถูก' : m;
-          render();
+          if (/FIRST_RUN/.test(errMsg(e))) { S.pinState = ''; return go('firstrun'); }
+          pinFail(e, 'รหัสบอสไม่ถูก ลองใหม่');
         });
-      }
+      });
     },
     firstRun: function () {
       var a = document.getElementById('f-admin').value.trim(), s = document.getElementById('f-staff').value.trim();
