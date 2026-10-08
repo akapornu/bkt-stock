@@ -178,6 +178,7 @@ input, textarea, select { font: inherit; color: var(--ink); }
 .kp-grid button:active { background: var(--line); }
 .pinpad button { background: var(--card); box-shadow: var(--shadow); height: 64px; }
 .kp-grid button.fn { font-size: 16px; }
+.kp-grid button.dot { font-size: 34px; line-height: 1; padding-bottom: 12px; }
 .kp-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; margin-top: 10px; }
 .kp-lv { display: grid; gap: 10px; margin: 12px 0 4px; }
 .kp-lv button { min-height: 62px; border-radius: 14px; font-size: 20px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; }
@@ -480,12 +481,11 @@ var Logic = (function () {
     return out;
   }
 
+  // แสดงเลขแบบเดียวกับที่พิมพ์ในแป้น: 0.5, 1.25, 1,500
   function fmtNum(n) {
     if (!isNum(n)) return '–';
-    var whole = Math.floor(n), frac = Math.round((n - whole) * 100) / 100;
-    if (frac === 0.5) return (whole ? whole : '') + '½';
-    var s = String(Math.round(n * 100) / 100);
-    return whole >= 1000 && frac === 0 ? whole.toLocaleString('en-US') : s;
+    var r = Math.round(n * 100) / 100;
+    return Math.abs(r) >= 1000 && r % 1 === 0 ? r.toLocaleString('en-US') : String(r);
   }
 
   function unitText(item) { return item.unit + (item.size ? ' (' + item.size + ')' : ''); }
@@ -501,12 +501,15 @@ var Logic = (function () {
     if (!sum.buy.length) {
       L.push('✅ รอบนี้ไม่มีของต้องซื้อ');
     } else {
+      L.push('(จำนวนสั่ง = เติมให้ถึง Max · ปรับเพิ่ม/ลดได้ตามยอดขายช่วงนั้น)');
+      L.push('');
       zones.forEach(function (z) {
         var rows = sum.buy.filter(function (r) { return r.item.zone === z.id; });
         if (!rows.length) return;
         L.push(z.icon + ' ' + z.th + ' (' + rows.length + ')');
         rows.forEach(function (r) {
-          L.push('• ' + r.item.name_th + ' — ซื้อ ' + fmtNum(r.need) + ' ' + unitText(r.item) + ' (เหลือ ' + fmtNum(r.qty) + ')');
+          L.push('• ' + r.item.name_th + ' → สั่ง ' + fmtNum(r.need) + ' ' + unitText(r.item));
+          L.push('   เหลือ ' + fmtNum(r.qty) + ' | Min ' + fmtNum(r.item.min) + ' | Max ' + fmtNum(r.item.max));
         });
       });
     }
@@ -1077,7 +1080,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!rs.length) return;
       h += '<div class="zone-label">' + z.icon + ' ' + esc(z.th) + '</div>';
       h += rs.map(function (r) {
-        return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>', esc(tr('left').th) + ' ' + L.fmtNum(r.qty) + (r.item.size ? ' · ' + esc(r.item.size) : ''));
+        return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>', esc(tr('left').th) + ' ' + L.fmtNum(r.qty) +
+          ' · Min ' + L.fmtNum(r.item.min) + ' · Max ' + L.fmtNum(r.item.max) + (r.item.size ? ' · ' + esc(r.item.size) : ''));
       }).join('');
     });
     return h;
@@ -1151,10 +1155,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var shown = buf !== '' ? buf : (L.hasCount(e) ? L.fmtNum(e.v) : '–');
     var val = buf !== '' ? parseBuf(buf) : null;
     var dcls = buf === '' ? ' empty' : (val !== null && L.needQty(it, val) > 0 ? ' below' : '');
-    var half = it.step % 1 !== 0 || it.unit === 'กล่อง' || it.unit === 'กิโล';
-    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', half ? '½' : '', '0', '⌫'].map(function (k) {
-      if (!k) return '<span></span>';
-      return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : '') + '>' + k + '</button>';
+    var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
+      return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
     }).join('');
     return h + '<div class="kp-disp' + dcls + '" id="kp-disp">' + esc(shown) + ' <small>' + esc(it.unit) + '</small></div>' +
       '<div class="kp-grid">' + keys + '</div><div class="kp-actions">' +
@@ -1163,9 +1165,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function parseBuf(buf) {
-    var half = buf.indexOf('½') >= 0;
-    var n = Number(buf.replace('½', '') || 0);
-    return n + (half ? 0.5 : 0);
+    var n = Number(buf.replace(/\.$/, '') || 0);
+    return isFinite(n) ? n : 0;
   }
 
   function openKp(id, from) {
@@ -1301,9 +1302,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     kpKey: function (el) {
       var k = el.dataset.k, b = S.kp.buf;
+      var dot = b.indexOf('.');
       if (k === '⌫') b = b.slice(0, -1);
-      else if (k === '½') { if (b.indexOf('½') < 0) b += '½'; }
-      else if (b.indexOf('½') < 0 && b.replace(/^0+/, '').length < 5) b = (b === '0' ? '' : b) + k;
+      else if (k === '.') { if (dot < 0) b = (b === '' ? '0' : b) + '.'; }
+      else if (dot >= 0) { if (b.length - dot - 1 < 2) b += k; }   // ทศนิยมได้ 2 ตำแหน่ง
+      else if (b.replace(/^0+/, '').length < 5) b = (b === '0' ? '' : b) + k;
       S.kp.buf = b;
       buzz();
       var it = itemById(S.kp.id), disp = document.getElementById('kp-disp');
