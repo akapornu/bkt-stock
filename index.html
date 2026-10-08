@@ -767,6 +767,24 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   // ---------- เริ่มต้น / เข้าระบบ ----------
   function start() {
+    // เปิดแอพทันทีด้วยข้อมูลที่เครื่องจำไว้ แล้วค่อยดึงของล่าสุดตามหลัง (ไม่ต้องรอ Google ตื่น)
+    var cached = S.pin && store.get('boot');
+    if (cached && cached.b && Date.now() - (cached.at || 0) < 7 * 86400000) {
+      var b = cached.b, today = L.businessDate();
+      if (b.date !== today) { b.date = today; b.draft = { entries: {} }; }
+      S.boot = b; S.bootAt = 0; S.publicUrl = b.publicUrl || '';
+      S.pending = store.get('pending:' + b.date) || {};
+      applyServerDraft(b.draft);
+      go(meStaff() ? 'home' : 'who');
+      setNet('saving');
+      boot(S.pin, true).then(function () { if (S.net === 'saving') setNet('ok'); }, function (e) {
+        var m = errMsg(e);
+        if (/FIRST_RUN/.test(m)) return go('firstrun');
+        if (/BAD_PIN/.test(m)) return logout();
+        setNet('offline');
+      });
+      return;
+    }
     if (S.pin) {
       boot(S.pin).catch(function (e) {
         var m = errMsg(e);
@@ -784,6 +802,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (S.boot && S.boot.date !== b.date) { S.note = ''; S.result = null; }
       S.boot = b; S.bootAt = Date.now(); S.pin = pin; S.publicUrl = b.publicUrl || '';
       store.set('pin', pin);
+      store.set('boot', { at: Date.now(), b: b });
       S.pending = store.get('pending:' + b.date) || {};
       applyServerDraft(b.draft);
       if (Object.keys(S.pending).length) scheduleSave(300);
@@ -793,7 +812,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function logout() {
-    store.del('pin'); S.pin = null; S.boot = null; S.pinBuf = ''; S.pinMsg = tr('wrongPin').th + ' · ' + tr('wrongPin').mm;
+    store.del('pin'); store.del('boot'); S.pin = null; S.boot = null; S.pinBuf = ''; S.pinMsg = tr('wrongPin').th + ' · ' + tr('wrongPin').mm;
     go('pin');
   }
 
