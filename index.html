@@ -448,6 +448,13 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .pl-item.on .pl-tick { background: var(--brand); border-color: var(--brand); }
 .tg.old { background: #efece7; color: var(--muted); }
 .kbtn { border: 0; cursor: pointer; flex: none; }
+/* ค้นหา */
+.search-box { margin-top: 14px; }
+.search-box .inp { margin: 0; }
+.found { padding: 12px 14px; }
+.found .nm b { display: block; font-size: 16px; }
+.found .nm .mm { display: block; font-size: 14px; color: var(--muted); }
+.found .tagc small { font-weight: 700; color: var(--ink); }
 
 </style>
 </head>
@@ -567,7 +574,12 @@ var I18N = {
   totalAll: ['รวมทุกที่ {total}', 'နေရာအားလုံးပေါင်း {total}'],
   stillAt: ['ยังไม่นับที่: {list}', 'မရေတွက်ရသေးတဲ့နေရာ: {list}'],
   countHere: ['นับเฉพาะที่นี่', 'ဒီမှာ ရှိတာပဲ ရေတွက်ပါ'],
-  todayHere: ['มีของต้องนับวันนี้ {n}', 'ဒီနေ့ ရေတွက်စရာ {n} ခု ရှိတယ်']
+  todayHere: ['มีของต้องนับวันนี้ {n}', 'ဒီနေ့ ရေတွက်စရာ {n} ခု ရှိတယ်'],
+  // ค้นหา (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69)
+  notFound: ['ไม่พบ "{q}"', '"{q}" ရှာမတွေ့ပါ'],
+  searchHere: ['ค้นหาในที่นี้', 'ဒီနေရာမှာ ရှာရန်'],
+  tapPlace: ['แตะที่เก็บเพื่อไปนับ', 'ရေတွက်ဖို့ နေရာကို နှိပ်ပါ'],
+  searchHint: ['พิมพ์ชื่อไทยหรือพม่าก็ได้', 'ထိုင်းလိုဖြစ်ဖြစ် မြန်မာလိုဖြစ်ဖြစ် ရိုက်ရှာလို့ရတယ်']
 };
 
 // โซนนับสต็อค (เรียงตามทางเดินในครัว) — weekly = นับเต็มรอบวันอาทิตย์
@@ -1222,6 +1234,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function zoneItems(zid) {
     return items().filter(function (i) { return L.itemLocs(i).indexOf(zid) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
   }
+  function normQ(t) { return String(t || '').toLowerCase().replace(/\s+/g, ''); }
+  function matchItem(it, q) {
+    q = normQ(q);
+    return !q || normQ(it.name_th).indexOf(q) >= 0 || normQ(it.name_mm).indexOf(q) >= 0;
+  }
   function itemById(id) { return ((S.boot && S.boot.items) || []).filter(function (i) { return i.id === id; })[0]; }
   // ผลนับรวมของรายการ (ของหลายที่ = รวมทุกที่ เมื่อนับครบ)
   function entry(id) { var it = itemById(id); return it ? L.itemEntry(it, S.draft.entries) : S.draft.entries[id]; }
@@ -1548,6 +1565,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
         (below ? '<div class="meta" style="margin-top:6px"><span class="tag bad">▼ ' + below + ' ' + bi1('belowMin') + '</span></div>' : '') +
         '</div></div>';
       h += recvCard();
+      h += '<div class="search-box"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.homeQ || '') + '">' +
+        '<div id="home-found">' + homeFound() + '</div></div>';
       h += '<div class="zones" style="margin-top:14px">' + due.map(function (z) { return zoneCard(z, sum, false); }).join('') + '</div>';
       if (later.length) {
         h += '<div class="section-h">📅 ' + bi1('weeklyZone') + '</div><p class="sub" style="margin-top:-6px">' + bi1('optionalToday') + '</p>' +
@@ -1565,10 +1584,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     zone: function () {
       var z = zoneOf(S.zone);
-      var list = zoneItems(S.zone).filter(function (it) { return !S.onlyUncounted || !L.hasCount(slotVal(it, S.zone)) || (S.kp && S.kp.id === it.id); });
+      var list = zoneItems(S.zone).filter(function (it) { return (!S.onlyUncounted || !L.hasCount(slotVal(it, S.zone)) || (S.kp && S.kp.id === it.id)) && matchItem(it, S.zoneQ); });
       var h = top({ th: z.icon + ' ' + z.th, mm: z.mm, back: 'toHome' }) + '<div class="wrap screen">' +
         '<div class="filter"><span id="zone-prog" class="muted"></span>' +
         '<button class="toggle' + (S.onlyUncounted ? ' on' : '') + '" data-act="toggleUncounted">' + (S.onlyUncounted ? '☑ ' : '☐ ') + bi('onlyUncounted') + '</button></div>' +
+        '<input class="inp" style="margin:0 0 10px" data-input="zoneQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchHere').th + ' · ' + tr('searchHere').mm) + '" value="' + esc(S.zoneQ || '') + '">' +
         '<div class="list">' + list.map(rowHtml).join('') + '</div>';
       if (!list.length) h += '<div class="note ok center" style="margin-top:20px">✅ ' + bi1('done') + '</div>';
       h += '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="toHome">✓ ' + bi1('zoneDone') + '</button></div></div>';
@@ -1704,6 +1724,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // ================= รับของ =================
+  // ผลค้นหาหน้าแรก: ชื่อ + ทุกที่ที่เก็บ (แตะที่ไหน = ไปตู้นั้น เปิดแป้นนับเลย)
+  function homeFound() {
+    var q = S.homeQ || '';
+    if (!normQ(q)) return '';
+    var hits = items().filter(function (it) { return matchItem(it, q); }).slice(0, 12);
+    if (!hits.length) return '<p class="muted" style="margin:8px 4px 0">' + bi1('notFound', { q: q.trim() }) + '</p>';
+    return '<p class="muted" style="margin:8px 4px 6px;font-size:13px">' + bi1('tapPlace') + '</p><div class="list">' + hits.map(function (it) {
+      return '<div class="card found"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span></div><div class="tagbox">' +
+        L.itemLocs(it).map(function (z) {
+          var zz = zoneOf(z), e = slotVal(it, z), has = L.hasCount(e);
+          return '<button class="tagc' + (has ? ' on' : '') + '" data-act="findGo" data-id="' + esc(it.id) + '" data-z="' + esc(z) + '">' + esc(zz.icon + ' ' + zz.th) +
+            ' <small>' + (has ? (L.isNum(e.v) ? L.fmtNum(e.v) : esc(tr(e.lv === 'ok' ? 'enough' : e.lv).th)) : '–') + '</small></button>';
+        }).join('') + '</div></div>';
+    }).join('') + '</div>';
+  }
+
   function recvCard() {
     var n = ((S.boot && S.boot.pos) || []).length;
     return '<button class="card recv-card' + (n ? ' has' : '') + '" data-act="toRecv"><span class="ic">📦</span><span class="tx"><b>' + esc(tr('receive').th) +
@@ -2124,7 +2160,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     who: function () { go('who'); },
     pickMe: function (el) { S.me = el.dataset.name; store.set('me', S.me); go('home'); },
     toHome: function () { flush(); go('home'); },
-    openZone: function (el) { S.zone = el.dataset.z; S.onlyUncounted = false; go('zone'); },
+    openZone: function (el) { S.zone = el.dataset.z; S.onlyUncounted = false; S.zoneQ = ''; go('zone'); },
+    findGo: function (el) {
+      S.zone = el.dataset.z; S.onlyUncounted = false; S.zoneQ = ''; S.homeQ = '';
+      go('zone');
+      openKp(el.dataset.id, 'zone');
+    },
     toggleUncounted: function () { S.onlyUncounted = !S.onlyUncounted; S.kp = null; render(); },
     toReview: function () { flush(); go('review'); },
     toUrgent: function () { S.urgent = { type: '', q: '', item: '', qty: '', note: '', photos: [], busy: false }; go('urgent'); },
@@ -2369,6 +2410,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   var INPUT = {
+    homeQ: function (el) {
+      S.homeQ = el.value;
+      var f = document.getElementById('home-found');
+      if (f) f.innerHTML = homeFound();
+    },
+    zoneQ: function (el) {
+      S.zoneQ = el.value;
+      zoneItems(S.zone).forEach(function (it) {
+        var r = document.getElementById('r-' + it.id);
+        if (r) r.classList.toggle('hidden', !matchItem(it, el.value));
+      });
+    },
     note: function (el) { S.note = el.value; },
     urgQ: function (el) {
       S.urgent.q = el.value;
@@ -2859,7 +2912,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
           }).join('') + '</div>';
       }
     } else if (A.tab === 'items') {
-      h += shopPlacesCard() + '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
+      h += shopPlacesCard() + '<input class="inp" style="margin:0 0 10px" data-input="aItemQ" type="search" autocomplete="off" placeholder="🔍 ค้นหาวัตถุดิบ (ทุกที่เก็บ)" value="' + esc(A.itemQ || '') + '">' +
+        '<div id="a-found">' + adminFound() + '</div><div id="a-zonewrap"' + (normQ(A.itemQ) ? ' class="hidden"' : '') + '>' +
+        '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
         return '<button class="' + (A.zone === z.id ? 'on' : '') + '" data-act="aZone" data-v="' + z.id + '">' + z.icon + ' ' + esc(z.th) + '</button>';
       }).join('') + '</div>';
       var list = d.items.filter(function (it) { return L.itemLocs(it).indexOf(A.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
@@ -2896,6 +2951,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
           '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="mvStart"' + (list.length ? '' : ' disabled') + '>🏷️ ติดแท็กหลายรายการ</button>' +
           '<button class="btn btn-ghost" data-act="zonesOpen">🗂️ จัดการที่เก็บ</button></div>';
       }
+      h += '</div>';
     } else if (A.tab === 'po') {
       h += poTab();
     } else if (A.tab === 'staff') {
@@ -2934,6 +2990,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
     { th: 'FREEZER-2', mm: 'ဖရီဇာ 2', icon: '❄️', weekly: false },
     { th: 'ของแห้ง', mm: 'အခြောက်ပစ္စည်း', icon: '📦', weekly: false }
   ];
+  // ค้นหาวัตถุดิบในหน้าบอส (ทุกที่เก็บ · ชื่อไทย/พม่า)
+  function adminFound() {
+    var q = S.admin.itemQ || '';
+    if (!normQ(q)) return '';
+    var hits = S.admin.data.items.filter(function (it) { return matchItem(it, q); });
+    return hits.length ? '<p class="muted" style="margin:0 0 8px;font-size:13.5px">พบ ' + hits.length + ' รายการ</p><div class="list">' + hits.map(function (it) { return adminItemBtn(it, true); }).join('') + '</div>'
+      : '<p class="muted">ไม่พบ "' + esc(q.trim()) + '" — ลองพิมพ์สั้นลง หรือกด ＋ เพิ่มรายการ</p>';
+  }
+
   function shopZoneIds() {
     return SHOP_PLACES.map(function (p) { var z = ZONES.filter(function (x) { return x.th === p.th; })[0]; return z ? z.id : null; }).filter(Boolean);
   }
@@ -3284,6 +3349,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var box = el.closest('.seg');
     if (box) box.querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', l.contains(el)); });
   };
+  INPUT.aItemQ = function (el) {
+    S.admin.itemQ = el.value;
+    var f = document.getElementById('a-found'), w = document.getElementById('a-zonewrap');
+    if (f) f.innerHTML = adminFound();
+    if (w) w.classList.toggle('hidden', !!normQ(el.value));
+  };
   INPUT.plQ = function (el) {
     S.admin.plAssign.q = el.value;
     var P = S.admin.plAssign, box = document.getElementById('pl-list');
@@ -3612,7 +3683,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         A.tab = 'items'; go('admin');
       }, function (e) { A.zoneSaving = false; rerenderKeepScroll(); toast(errMsg(e)); });
     },
-    mvStart: function () { S.admin.move = { zone: S.admin.zone, picked: {} }; rerenderKeepScroll(); },
+    mvStart: function () { S.admin.itemQ = ''; S.admin.move = { zone: S.admin.zone, picked: {} }; rerenderKeepScroll(); },
     mvCancel: function () { S.admin.move = null; rerenderKeepScroll(); },
     mvSave: function (el) {
       var A = S.admin, op = document.getElementById('mv-to').value.split(':'), act = op[0], to = op[1];
@@ -3643,6 +3714,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }, function (e) { el.disabled = false; el.textContent = 'ทำกับ ' + ids.length + ' รายการ'; toast(errMsg(e)); });
     },
     roStart: function () {
+      S.admin.itemQ = '';
       var list = S.admin.data.items.filter(function (i) { return L.itemLocs(i).indexOf(S.admin.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
       S.admin.reorder = { zone: S.admin.zone, order: list.map(function (i) { return i.id; }), dirty: false };
       rerenderKeepScroll();
