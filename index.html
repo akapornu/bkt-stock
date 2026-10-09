@@ -324,6 +324,12 @@ a.btn { text-decoration: none; color: inherit; }
 .tick { width: 50px; height: 50px; border-radius: 14px; border: 2.5px solid var(--line); background: var(--card); font-size: 26px; font-weight: 800; color: var(--line); flex: none; display: grid; place-items: center; }
 .tick.on, .rline.done .tick { background: var(--ok); border-color: var(--ok); color: #fff; }
 .rqty { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; font-size: 14px; }
+.inp.sm.wide { width: 120px; }
+.rq-in { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.full-btn { min-height: 44px; padding: 4px 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); line-height: 1.3; }
+.full-btn .mm { font-size: 12px; font-weight: 500; margin-left: 2px; }
+.full-btn.on { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+span.tick:empty::after { content: ''; }
 .inp.sm { height: 44px; width: 96px; font-size: 18px; font-weight: 700; padding: 0 10px; text-align: center; }
 .mini-x { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; background: var(--bg); color: var(--muted); font-size: 14px; }
 .pe-line { display: flex; align-items: center; gap: 10px; padding: 10px 12px; position: relative; flex-wrap: wrap; }
@@ -559,13 +565,11 @@ var I18N = {
   allArrived: ['มาครบ', 'အကုန်ရောက်'],
   notArrived: ['ไม่มา', 'မရောက်'],
   remaining: ['ค้าง', 'မရောက်သေး'],
-  tapToTick: ['ติ๊ก ✓ ของที่มา · ของชั่งน้ำหนักใส่ตามที่ชั่งได้', 'ရောက်လာတဲ့ပစ္စည်း ✓ ခြစ်ပါ · ချိန်ရတဲ့ပစ္စည်းဆိုရင် ထွက်တဲ့ အလေးချိန် ထည့်ပါ'],
   addItem: ['เพิ่มของที่มา', 'ပစ္စည်း ထပ်ထည့်'],
   billAmount: ['ยอดเงินตามบิล (ถ้ามี)', 'ဘေလ် စုစုပေါင်း (ရှိရင်)'],
   billPhoto: ['รูปบิล / รูปของ', 'ဘေလ်ပုံ / ပစ္စည်းပုံ'],
   confirmReceive: ['ยืนยันรับของ', 'လက်ခံတာ အတည်ပြုမယ်'],
   receivedSaved: ['บันทึกรับของแล้ว · บอสได้แจ้งแล้ว', 'လက်ခံတာ သိမ်းပြီးပြီ · ဘော့စ်ကို ပြောပြီးပြီ'],
-  nothingTicked: ['ยังไม่ได้ติ๊กของที่มา', 'ရောက်လာတဲ့ပစ္စည်း မခြစ်ရသေးဘူး'],
   fromShop: ['ร้าน', 'ဆိုင်'],
   unknownShop: ['ไม่รู้ว่าร้านไหน', 'ဘယ်ဆိုင်ကလဲ မသိဘူး'],
   partial: ['มาบางส่วน', 'တချို့ပဲ ရောက်'],
@@ -575,7 +579,12 @@ var I18N = {
   shortBy: ['น้อยกว่าที่สั่ง {n} {u}', 'မှာထားတာထက် {n} {um} လျော့နေတယ်'],
   countAsDone: ['ถือว่าครบ', 'စုံပြီလို့ မှတ်မယ်'],
   waitMore: ['รอของมาเพิ่ม', 'ကျန်တာ စောင့်မယ်'],
-  weighHint: ['ชั่งได้เท่าไหร่ใส่ตามจริง · ขาด/เกินนิดหน่อยไม่เป็นไร', 'ချိန်ပြီး ထွက်တဲ့ အလေးချိန်အတိုင်း ထည့်ပါ · နည်းနည်း လျော့/ပို ဖြစ်လည်း ရတယ်'],
+  // หน้ารับของแบบใส่ตัวเลข ไม่ต้องติ๊ก + ของชั่งใส่กรัม (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ကွက်တိပဲ, ချိန်/ရေတွက်, ချိန်လို့ ထွက်တာ, ဂဏန်း)
+  recvHow: ['ชั่งหรือนับของที่มา แล้วใส่ตัวเลข · ใส่แล้วขึ้น ✓ เอง ไม่ต้องกดติ๊ก', 'ရောက်လာတဲ့ပစ္စည်းကို ချိန်/ရေတွက်ပြီး ဂဏန်း ထည့်ပါ · ထည့်လိုက်တာနဲ့ ✓ အလိုလို ပေါ်လာမယ်၊ ခြစ်စရာ မလိုဘူး'],
+  weighGot: ['ชั่งได้', 'ချိန်လို့ ထွက်တာ'],
+  overBy: ['มากกว่าที่สั่ง {n} {u}', 'မှာထားတာထက် {n} {um} ပိုနေတယ်'],
+  exactOk: ['ตรงตามที่สั่ง', 'မှာထားတာနဲ့ ကွက်တိပဲ'],
+  nothingTicked: ['ยังไม่ได้ใส่ตัวเลขของที่มา', 'ရောက်လာတဲ့ပစ္စည်းအတွက် ဂဏန်း တစ်ခုမှ မထည့်ရသေးဘူး'],
   recentReceipts: ['รับไปล่าสุด — แตะเพื่อแก้', 'မကြာသေးခင်က လက်ခံထားတာ — ပြင်ချင်ရင် နှိပ်ပါ'],
   editReceipt: ['แก้ใบรับของ', 'လက်ခံစာရင်း ပြင်မယ်'],
   saveEdit: ['บันทึกการแก้ไข', 'ပြင်တာ သိမ်းမယ်'],
@@ -937,6 +946,11 @@ var Logic = (function () {
     var a = UNIT_BASE[from], b = UNIT_BASE[to];
     return a && b && a[0] === b[0] ? round2(a[1] / b[1]) : null;
   }
+  // หน่วยน้ำหนัก → 1 หน่วยกี่กรัม (กก. = 1000, ขีด = 100) · ไม่ใช่หน่วยน้ำหนัก = 0 — หน้ารับของให้น้องใส่กรัมตามตาชั่ง
+  function gramsPer(unit) {
+    var a = UNIT_BASE[String(unit || '').trim()];
+    return a && a[0] === 'g' ? a[1] : 0;
+  }
   // บรรทัดใบสั่งจากรายการที่จับคู่ได้: หน่วยตามที่สั่ง · factor = 1 หน่วยสั่ง ได้กี่หน่วยนับ (ไม่รู้ = นับตามหน่วยที่สั่ง)
   function poLineFromOrder(line, it, unitsMm) {
     var unit = line.unit || (it ? (it.buy_unit || it.unit) : '');
@@ -1215,7 +1229,7 @@ var Logic = (function () {
     buildReceiveMessage: buildReceiveMessage, round2: round2,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
-    parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, poLineFromOrder: poLineFromOrder,
+    parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
 })();
@@ -1890,7 +1904,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (ed) h += '<div class="note info" style="margin-bottom:12px">👤 ' + esc(ed.by) + ' · ' + poDateTh(ed.at) + ' ' + esc(L.bkkTime(ed.at)) + (R.po_id ? ' · ' + esc(po.th) + ' #' + R.po_id : '') + '</div>';
       if (R.po_id) {
         h += '<div class="card po-head"><div class="po-no">#' + R.po_id + '</div><div><b>' + esc(R.supplier_name || tr('unknownShop').th) + '</b>' +
-          '<div class="muted">' + bi1('fromShop') + '</div></div></div><p class="sub" style="margin-top:12px">' + bi1('tapToTick') + '</p>';
+          '<div class="muted">' + bi1('fromShop') + '</div></div></div><p class="sub" style="margin-top:12px">' + bi1('recvHow') + '</p>';
       } else {
         var sups = (S.boot && S.boot.suppliers) || [];
         h += '<div class="field" style="margin-top:0"><label>🏪 ' + esc(tr('fromShop').th) + '<span class="mm">' + esc(tr('fromShop').mm) + '</span></label>' +
@@ -1972,13 +1986,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
       po_id: po.id, supplier_name: po.supplier_name || '', amount: '', photos: [], note: '', q: '', busy: false, sending: false,
       lines: po.lines.filter(function (l) { return l.qty > 0; }).map(function (l) {
         var mine = mineByKey[l.key], prev = L.round2((l.received || 0) - (mine ? mine.qty : 0));
-        return {
+        return recvWeigh({
           key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm || '', order_name: l.order_name || '', unit: l.unit, unit_mm: l.unit_mm || UNITS[l.unit] || '',
           size: l.size || '', ordered: l.qty, prev: prev, remaining: Math.max(0, L.round2(l.qty - prev)),
           locked: !mine && L.lineDone(l), factor: l.factor || 1, count_unit: l.count_unit || l.unit,
           qty: mine ? String(mine.qty) : '', count: mine && mine.count ? String(mine.count) : '', ticked: !!mine,
           done: mine ? !!mine.done : L.isMeasured(l.unit), extra: false
-        };
+        });
       })
     };
   }
@@ -1993,9 +2007,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     rc.lines.forEach(function (l) {
       if (inPo[l.key]) return;
       var it = l.item_id ? itemById(l.item_id) : null;
-      R.lines.push({ key: l.key, item_id: l.item_id || '', name_th: l.name_th, name_mm: l.name_mm || '', unit: l.unit, unit_mm: UNITS[l.unit] || (it && it.unit_mm) || '',
+      R.lines.push(recvWeigh({ key: l.key, item_id: l.item_id || '', name_th: l.name_th, name_mm: l.name_mm || '', unit: l.unit, unit_mm: UNITS[l.unit] || (it && it.unit_mm) || '',
         size: l.size || '', ordered: 0, prev: 0, remaining: 0, factor: l.conv && l.qty ? L.round2(l.qty_count / l.qty) : 1, count_unit: l.count_unit || l.unit,
-        qty: String(l.qty), count: l.count ? String(l.count) : '', ticked: true, extra: true });
+        qty: String(l.qty), count: l.count ? String(l.count) : '', ticked: true, extra: true }));
     });
     R.amount = rc.amount ? String(rc.amount) : '';
     R.note = rc.note || '';
@@ -2029,13 +2043,28 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
-  function recvIsShort(l) { var q = Number(l.qty); return !l.extra && l.ordered > 0 && q > 0 && q < l.remaining - 1e-9; }
+  function recvIsShort(l) { var q = Number(l.qty); return !l.extra && l.ordered > 0 && q > 0 && q < l.remaining - 1e-9 && !(l.g && Math.round((l.remaining - q) * l.g) === 0); }
 
-  // ของมาน้อยกว่าที่สั่ง → ให้เลือก "ถือว่าครบ" (ค่าตั้งต้นของชั่งน้ำหนัก) หรือ "รอของมาเพิ่ม" (ค่าตั้งต้นของนับชิ้น)
+  // ของชั่งน้ำหนัก (สั่งเป็น กก./ขีด/กรัม): น้องใส่กรัมตามตาชั่ง แอพแปลงเป็นหน่วยที่สั่งเอง (l.g = 1 หน่วยสั่งกี่กรัม)
+  function recvWeigh(l) {
+    l.g = L.gramsPer(l.unit);
+    var cg = L.gramsPer(l.count_unit);
+    l.grams = !l.g || !(Number(l.qty) > 0) ? '' : String(L.round2(cg && Number(l.count) > 0 ? Number(l.count) * cg : Number(l.qty) * l.g));
+    return l;
+  }
+  function gramsTxt(n) { return L.fmtNum(L.round2(n)) + ' กรัม'; }
+
+  // ใส่จำนวนแล้ว: ตรง/เกิน = บอกเฉยๆ · ขาด = เลือก "ถือว่าครบ" (ค่าตั้งต้นของชั่งน้ำหนัก) หรือ "รอของมาเพิ่ม" (ค่าตั้งต้นของนับชิ้น)
   function recvShortHtml(l, i) {
-    if (!recvIsShort(l)) return '';
-    var d = L.round2(l.remaining - Number(l.qty));
-    return '<div class="short-pick"><div class="hint" style="color:var(--warn)">' + bi1('shortBy', { n: L.fmtNum(d), u: l.unit, um: l.unit_mm || l.unit }) + '</div>' +
+    var q = Number(l.qty);
+    if (l.extra || !(l.ordered > 0) || !(q > 0)) return '';
+    var d = l.remaining - q, n = l.g ? L.fmtNum(L.round2(Math.abs(d) * l.g)) : L.fmtNum(L.round2(Math.abs(d)));
+    var u = l.g ? 'กรัม' : l.unit, um = l.g ? (UNITS['กรัม'] || 'กรัม') : (l.unit_mm || l.unit);
+    if (!recvIsShort(l)) {
+      if (d < -1e-9 && !(l.g && Math.round(-d * l.g) === 0)) return '<div class="hint">➕ ' + bi1('overBy', { n: n, u: u, um: um }) + '</div>';
+      return l.g ? '<div class="hint" style="color:var(--ok)">✓ ' + bi1('exactOk') + '</div>' : '';
+    }
+    return '<div class="short-pick"><div class="hint" style="color:var(--warn)">' + bi1('shortBy', { n: n, u: u, um: um }) + '</div>' +
       '<div class="seg"><button class="' + (l.done ? 'on' : '') + '" data-act="recvShort" data-k="' + i + '" data-v="1">✓ ' + bi1('countAsDone') + '</button>' +
       '<button class="' + (l.done ? '' : 'on') + '" data-act="recvShort" data-k="' + i + '" data-v="0">⏳ ' + bi1('waitMore') + '</button></div></div>';
   }
@@ -2043,26 +2072,51 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function recvLineHtml(l, i) {
     var done = l.locked || (!l.extra && l.ordered > 0 && l.remaining <= 0 && !(Number(l.qty) > 0));
     var unit = esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + (l.unit_mm ? ' <span class="mm">' + esc(l.unit_mm) + '</span>' : '');
+    // ช่องหน้าชื่อ = แค่บอกสถานะ (ใส่ตัวเลขแล้วขึ้น ✓ เอง) ไม่ต้องกด
     var h = '<div class="card rline' + (l.ticked ? ' on' : '') + (done ? ' done' : '') + '" id="rl-' + i + '">' +
-      (done ? '<span class="tick">✓</span>' : '<button class="tick' + (l.ticked ? ' on' : '') + '" data-act="recvTick" data-k="' + i + '" aria-label="มาครบ">✓</button>') +
+      '<span class="tick' + (l.ticked || done ? ' on' : '') + '" aria-hidden="true">' + (l.ticked || done ? '✓' : l.g ? '⚖️' : '') + '</span>' +
       '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>' +
       (l.order_name ? '<div class="hint">🧾 ' + esc(l.order_name) + '</div>' : '');
     if (l.ordered > 0) {
-      h += '<div class="hint">' + esc(tr('ordered').th) + ' <b>' + L.fmtNum(l.ordered) + '</b> ' + unit + (l.prev ? ' · ได้แล้ว ' + L.fmtNum(l.prev) : '') +
+      h += '<div class="hint">' + esc(tr('ordered').th) + ' <b>' + L.fmtNum(l.ordered) + '</b> ' + unit + (l.g > 1 ? ' = <b>' + gramsTxt(l.ordered * l.g) + '</b>' : '') +
+        (l.prev ? ' · ได้แล้ว ' + (l.g ? gramsTxt(l.prev * l.g) : L.fmtNum(l.prev)) : '') +
         ' <span class="mm">(' + esc(tr('ordered').mm) + ' ' + L.fmtNum(l.ordered) + (l.unit_mm ? ' ' + esc(l.unit_mm) : '') + ')</span></div>';
     }
     if (done) h += '<div class="hint" style="color:var(--ok)">' + bi1('allArrived') + '</div>';
-    else {
-      if (l.ordered > 0 && L.isMeasured(l.unit)) h += '<div class="hint">⚖️ ' + bi1('weighHint') + '</div>';
-      h += '<div class="rqty"><span>' + bi1('arrived') + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvQty" data-k="' + i + '" value="' + esc(l.qty) + '" placeholder="0">' +
-        (l.extra && !l.item_id ? '<input type="text" class="inp sm" style="width:72px" data-input="recvUnit" data-k="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">' : '<span>' + unit + '</span>') + '</div>';
-      if (l.factor && l.factor !== 1) {
+    else if (l.g) {
+      // ของชั่ง: ใส่กรัมตามตาชั่งช่องเดียว
+      h += '<div class="rqty"><span>⚖️ ' + bi1('weighGot') + '</span><span class="rq-in"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm wide" data-input="recvGrams" data-k="' + i + '" value="' + esc(l.grams) + '" placeholder="0">' +
+        '<span>กรัม <span class="mm">' + esc(UNITS['กรัม'] || '') + '</span></span></span></div>';
+    } else {
+      var full = l.ordered > 0 && l.remaining > 0 && Number(l.qty) === l.remaining;
+      h += '<div class="rqty"><span>' + bi1('arrived') + '</span><span class="rq-in"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvQty" data-k="' + i + '" value="' + esc(l.qty) + '" placeholder="0">' +
+        (l.extra && !l.item_id ? '<input type="text" class="inp sm" style="width:72px" data-input="recvUnit" data-k="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">' : '<span>' + unit + '</span>') + '</span>' +
+        (l.ordered > 0 && l.remaining > 0 ? '<button class="full-btn' + (full ? ' on' : '') + '" data-act="recvFull" data-k="' + i + '">✓ ' + esc(tr('allArrived').th) + ' ' + L.fmtNum(l.remaining) + ' <span class="mm">' + esc(tr('allArrived').mm) + '</span></button>' : '') + '</div>';
+    }
+    if (!done) {
+      if (l.factor && l.factor !== 1 && !(l.g && L.gramsPer(l.count_unit))) {
         h += '<div class="rqty"><span>' + bi1('countedIfAny') + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvCount" data-k="' + i + '" value="' + esc(l.count) + '" placeholder="≈' + L.fmtNum(L.round2((Number(l.qty) || l.remaining || 0) * l.factor)) + '"><span>' + esc(l.count_unit) + (UNITS[l.count_unit] ? ' <span class="mm">' + esc(UNITS[l.count_unit]) + '</span>' : '') + '</span></div>';
       }
       h += '<div id="rl-sh-' + i + '">' + recvShortHtml(l, i) + '</div>';
     }
     if (l.extra) h += '<button class="mini-x" data-act="recvDel" data-k="' + i + '" aria-label="ลบ">✕</button>';
     return h + '</div></div>';
+  }
+
+  function recvRowUpdate(i) {
+    var l = S.recv.lines[i];
+    l.ticked = Number(l.qty) > 0;
+    var row = document.getElementById('rl-' + i);
+    if (!row) return;
+    row.classList.toggle('on', l.ticked);
+    var t = row.querySelector('.tick');
+    if (t) { t.classList.toggle('on', l.ticked); t.textContent = l.ticked ? '✓' : l.g ? '⚖️' : ''; }
+    var f = row.querySelector('.full-btn');
+    if (f) f.classList.toggle('on', Number(l.qty) === l.remaining);
+    var c = row.querySelector('[data-input=recvCount]');
+    if (c) c.placeholder = '≈' + L.fmtNum(L.round2((Number(l.qty) || 0) * l.factor));
+    var sh = document.getElementById('rl-sh-' + i);
+    if (sh) sh.innerHTML = recvShortHtml(l, i);
   }
 
   function recvPicks() {
@@ -2494,11 +2548,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
       go('recvpo');
     },
     recvNoPo: function () { S.recv = { po_id: 0, supplier_name: '', lines: [], amount: '', photos: [], note: '', q: '', busy: false, sending: false }; go('recvpo'); },
-    recvTick: function (el) {
+    // ปุ่ม "มาครบ" ข้างช่องใส่ (ของนับชิ้น) · กดซ้ำ = ล้าง
+    recvFull: function (el) {
       var l = S.recv.lines[+el.dataset.k];
-      l.ticked = !l.ticked;
-      l.qty = l.ticked ? String(l.remaining || l.qty || '') : '';
-      if (!l.ticked) l.count = '';
+      var on = Number(l.qty) === l.remaining;
+      l.qty = on ? '' : String(l.remaining);
+      l.ticked = !on;
+      if (on) l.count = '';
       buzz();
       rerenderKeepScroll();
     },
@@ -2507,9 +2563,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var it = itemById(el.dataset.id), R = S.recv;
       if (R.lines.some(function (l) { return l.item_id === it.id; })) { toast('มีรายการนี้แล้ว'); R.q = ''; return rerenderKeepScroll(); }
       var conv = it.buy_unit && it.buy_factor > 0;
-      R.lines.push({ key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: conv ? it.buy_unit : it.unit,
+      R.lines.push(recvWeigh({ key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: conv ? it.buy_unit : it.unit,
         unit_mm: conv ? (UNITS[it.buy_unit] || '') : unitMm(it), size: conv ? '' : (it.size || ''), ordered: 0, prev: 0, remaining: 0,
-        factor: conv ? it.buy_factor : 1, count_unit: it.unit, qty: '', count: '', ticked: false, extra: true });
+        factor: conv ? it.buy_factor : 1, count_unit: it.unit, qty: '', count: '', ticked: false, extra: true }));
       R.q = '';
       rerenderKeepScroll();
     },
@@ -2646,17 +2702,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
     recvQty: function (el) {
       var l = S.recv.lines[+el.dataset.k];
       l.qty = el.value;
-      l.ticked = Number(el.value) > 0;
-      var row = document.getElementById('rl-' + el.dataset.k);
-      if (row) {
-        row.classList.toggle('on', l.ticked);
-        var t = row.querySelector('button.tick');
-        if (t) t.classList.toggle('on', l.ticked);
-        var c = row.querySelector('[data-input=recvCount]');
-        if (c) c.placeholder = '≈' + L.fmtNum(L.round2((Number(l.qty) || 0) * l.factor));
-        var sh = document.getElementById('rl-sh-' + el.dataset.k);
-        if (sh) sh.innerHTML = recvShortHtml(l, +el.dataset.k);
-      }
+      recvRowUpdate(+el.dataset.k);
+    },
+    // ของชั่ง: กรัมตามตาชั่ง → จำนวนในหน่วยที่สั่ง (+ ยอดนับถ้าหน่วยนับเป็นน้ำหนัก)
+    recvGrams: function (el) {
+      var l = S.recv.lines[+el.dataset.k], g = Number(el.value), cg = L.gramsPer(l.count_unit);
+      l.grams = el.value;
+      l.qty = g > 0 ? String(Math.round(g / l.g * 10000) / 10000) : '';
+      if (l.factor !== 1 && cg) l.count = g > 0 ? String(L.round2(g / cg)) : '';
+      recvRowUpdate(+el.dataset.k);
     },
     recvCount: function (el) { S.recv.lines[+el.dataset.k].count = el.value; },
     recvUnit: function (el) { S.recv.lines[+el.dataset.k].unit = el.value; },
