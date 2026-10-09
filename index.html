@@ -398,6 +398,24 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .kp-disp small .mm { font-size: 17px; color: var(--ink); font-weight: 700; }
 .sum-row .q .mm.u { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
 .nw { white-space: nowrap; }
+/* จัดการหมวด / ย้ายหลายรายการ */
+.zrow { display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 14px; }
+.zmain { flex: 1; display: flex; align-items: center; gap: 12px; text-align: left; min-width: 0; }
+.zic { font-size: 28px; width: 40px; text-align: center; flex: none; }
+.zmain .nm { display: flex; flex-direction: column; min-width: 0; }
+.zmain .nm small { font-size: 13px; }
+.zmv { display: flex; flex-direction: column; gap: 4px; }
+.zmv .mv { width: 40px; height: 34px; border-radius: 10px; background: var(--bg); font-weight: 700; }
+.icon-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.icon-pick button { width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); font-size: 22px; }
+.icon-pick button.on { border-color: var(--brand); background: var(--brand-soft); }
+.seg button small { font-size: 12px; font-weight: 500; color: var(--muted); }
+.mv-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer; }
+.mv-row input { width: 22px; height: 22px; flex: none; accent-color: var(--brand); }
+.mv-row .nm { display: flex; flex-direction: column; }
+.mv-row.off { opacity: .55; }
+.mv-bar { display: grid; gap: 8px; }
+.mv-bar select { height: 46px; border-radius: 12px; border: 1.5px solid var(--line); padding: 0 12px; background: var(--card); font-size: 15px; }
 
 </style>
 </head>
@@ -1106,7 +1124,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     pinBuf: '', pinMsg: '', urgent: null, admin: null, error: ''
   };
 
-  function zoneOf(id) { return ZONES.filter(function (z) { return z.id === id; })[0]; }
+  // หมวด (โซน) มาจากหลังบ้าน (บอสแก้ได้) — ไม่มี (หลังบ้านรุ่นเก่า) ใช้ค่าตั้งต้นใน i18n.js
+  function useZones(zs) { if (zs && zs.length) ZONES = zs; }
+  function zoneOf(id) { return ZONES.filter(function (z) { return z.id === id; })[0] || { id: id, icon: '📦', th: id, mm: '', kind: 'buy', weekly: false }; }
   function items() {
     return (S.boot ? S.boot.items : []).slice().sort(function (a, b) {
       return ZONES.indexOf(zoneOf(a.zone)) - ZONES.indexOf(zoneOf(b.zone)) || a.sort - b.sort;
@@ -1215,6 +1235,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var b = cached.b, today = L.businessDate();
       if (b.date !== today) { b.date = today; b.draft = { entries: {} }; }
       S.boot = b; S.bootAt = 0; S.publicUrl = b.publicUrl || '';
+      useZones(b.zones);
       S.pending = store.get('pending:' + b.date) || {};
       applyServerDraft(b.draft);
       go(meStaff() ? 'home' : 'who');
@@ -1243,6 +1264,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return api('apiBootstrap', pin).then(function (b) {
       if (S.boot && S.boot.date !== b.date) { S.note = ''; S.result = null; }
       S.boot = b; S.bootAt = Date.now(); S.pin = pin; S.publicUrl = b.publicUrl || '';
+      useZones(b.zones);
       store.set('pin', pin);
       store.set('boot', { at: Date.now(), b: b });
       S.pending = store.get('pending:' + b.date) || {};
@@ -1570,6 +1592,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     apoedit: function () { return poEditScreen(); },
     adash: function () { return dashItemScreen(); },
+    azones: function () { return zonesScreen(); },
+    azedit: function () { return zoneEditScreen(); },
     apodetail: function () { return poDetailScreen(); },
     admin: function () { return adminScreen(); },
     aedit: function () { return adminEditScreen(); }
@@ -2273,6 +2297,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   // ================= หน้าบอส (ภาษาไทยอย่างเดียว) =================
   function loadAdmin(pin, tab) {
     return api('apiAdminLoad', pin).then(function (d) {
+      useZones(d.zones);
       var prev = S.admin || {};
       S.admin = { pin: pin, data: d, tab: tab || prev.tab || 'dash', zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '',
         dash: prev.dash || null, dashF: prev.dashF, dashQ: prev.dashQ };
@@ -2721,10 +2746,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
           }).join('') + '</div>' +
           '<div class="bottom"><div class="wrap"><div class="btn-row"><button class="btn btn-ghost" data-act="roCancel">ยกเลิก</button>' +
           '<button class="btn btn-primary" data-act="roSave">บันทึกลำดับ</button></div></div></div>';
+      } else if (A.move && A.move.zone === A.zone) {
+        var pk = A.move.picked, n = Object.keys(pk).filter(function (k) { return pk[k]; }).length;
+        h += '<div class="note info" style="margin-top:10px">ติ๊กรายการที่จะย้าย แล้วเลือกหมวดปลายทางด้านล่าง</div><div class="list" style="margin-top:10px">' + list.map(function (it) {
+          return '<label class="card mv-row' + (it.active === false ? ' off' : '') + '"><input type="checkbox" data-input="mvPick" data-id="' + esc(it.id) + '"' + (pk[it.id] ? ' checked' : '') + '>' +
+            '<span class="nm"><b>' + esc(it.name_th) + '</b><small class="mm">' + esc(it.name_mm) + '</small></span></label>';
+        }).join('') + '</div>' +
+          '<div class="bottom"><div class="wrap"><div class="mv-bar"><select id="mv-to">' + ZONES.filter(function (z) { return z.id !== A.zone; }).map(function (z) {
+            return '<option value="' + esc(z.id) + '">' + esc(z.icon + ' ' + z.th) + '</option>';
+          }).join('') + '</select><div class="btn-row"><button class="btn btn-ghost" data-act="mvCancel">ยกเลิก</button>' +
+          '<button class="btn btn-primary" data-act="mvSave" id="mv-save"' + (n ? '' : ' disabled') + '>ย้าย ' + n + ' รายการ</button></div></div></div></div>';
       } else {
         h += '<div class="list" style="margin-top:10px">' + list.map(function (it) { return adminItemBtn(it, false); }).join('') + '</div>' +
           '<div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aNew">＋ เพิ่มรายการ</button>' +
-          '<button class="btn btn-ghost" data-act="roStart">↕️ จัดลำดับ</button></div>';
+          '<button class="btn btn-ghost" data-act="roStart">↕️ จัดลำดับ</button></div>' +
+          '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="mvStart"' + (list.length && ZONES.length > 1 ? '' : ' disabled') + '>☑️ ย้ายหลายรายการ</button>' +
+          '<button class="btn btn-ghost" data-act="zonesOpen">🗂️ จัดการหมวด</button></div>';
       }
     } else if (A.tab === 'po') {
       h += poTab();
@@ -2754,6 +2791,51 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += adminSettings();
     }
     return h + '</div>';
+  }
+
+  var ZONE_ICONS = ['🥬', '🔪', '🍲', '🧊', '❄️', '📦', '🥩', '🐟', '🦐', '🥚', '🍜', '🧂', '🍶', '🥫', '🌶️', '🧄', '🍚', '🧃', '🥤', '🧻', '🧽', '🍳'];
+
+  function zonesScreen() {
+    var Z = S.admin.zoneDraft, counts = {};
+    S.admin.data.items.forEach(function (it) { counts[it.zone] = (counts[it.zone] || 0) + 1; });
+    var h = top({ th: '🗂️ จัดการหมวด', back: 'zonesBack', net: false }) + '<div class="wrap screen">' +
+      '<p class="sub">ลำดับหมวด = ลำดับที่ทีมเห็นในหน้านับ (เรียงตามทางเดินในครัว) · แตะหมวดเพื่อแก้ชื่อ/ไอคอน/ประเภท</p><div class="list">' +
+      Z.map(function (z, i) {
+        return '<div class="card zrow"><button class="zmain" data-act="zoneEdit" data-i="' + i + '"><span class="zic">' + esc(z.icon) + '</span><span class="nm"><b>' + esc(z.th || '(ยังไม่มีชื่อ)') + '</b>' +
+          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.kind === 'prep' ? '🔪 ของเตรียม/ทำเอง' : '🛒 ของซื้อ') + ' · ' + (z.weekly ? 'นับสัปดาห์ละครั้ง' : 'นับทุกวัน') + ' · ' + (counts[z.id] || 0) + ' รายการ</small></span></button>' +
+          '<span class="zmv"><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="-1" aria-label="ขึ้น">↑</button><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="1" aria-label="ลง">↓</button></span></div>';
+      }).join('') + '</div>' +
+      '<button class="btn btn-ghost" style="margin-top:12px" data-act="zoneAdd">＋ เพิ่มหมวดใหม่</button>' +
+      '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="zonesSave"' + (S.admin.zoneSaving ? ' disabled' : '') + '>' + (S.admin.zoneSaving ? 'กำลังบันทึก…' : '💾 บันทึกหมวด') + '</button></div></div>';
+    return h;
+  }
+
+  function zoneEditScreen() {
+    var A = S.admin, z = A.zoneDraft[A.zoneIdx], n = A.data.items.filter(function (it) { return it.zone === z.id; }).length;
+    var h = top({ th: z.isNew ? 'เพิ่มหมวดใหม่' : 'แก้หมวด', back: 'zoneEditBack', net: false }) + '<div class="wrap screen"><div class="card form" style="padding:16px">' +
+      '<div><label>ไอคอน</label><div class="icon-pick">' + ZONE_ICONS.map(function (ic) {
+        return '<button class="' + (z.icon === ic ? 'on' : '') + '" data-act="zoneIcon" data-v="' + ic + '">' + ic + '</button>';
+      }).join('') + '</div></div>' +
+      '<div><label>ชื่อหมวด (ไทย)</label><input type="text" id="z-th" value="' + esc(z.th) + '" placeholder="เช่น ตู้แช่เครื่องดื่ม" maxlength="40"></div>' +
+      '<div><label>ชื่อหมวด (พม่า)</label><input type="text" id="z-mm" class="mm" value="' + esc(z.mm) + '" placeholder="ว่าง = แปลให้อัตโนมัติตอนบันทึก" maxlength="60">' +
+      (z.th !== z.th0 && z.mm && z.mm === z.mm0 ? '<small class="muted">เปลี่ยนชื่อไทยแล้ว — ลบชื่อพม่าออกถ้าอยากให้แปลใหม่</small>' : '') + '</div>' +
+      '<div><label>ประเภท</label><div class="seg">' +
+      '<button class="' + (z.kind !== 'prep' ? 'on' : '') + '" data-act="zoneKind" data-v="buy">🛒 ของซื้อ<br><small>ต่ำกว่า Min = สั่งซื้อ</small></button>' +
+      '<button class="' + (z.kind === 'prep' ? 'on' : '') + '" data-act="zoneKind" data-v="prep">🔪 ของเตรียม/ทำเอง<br><small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></button></div></div>' +
+      '<div><label>รอบนับ</label><div class="seg">' +
+      '<button class="' + (z.weekly ? '' : 'on') + '" data-act="zoneWeekly" data-v="0">นับทุกวัน</button>' +
+      '<button class="' + (z.weekly ? 'on' : '') + '" data-act="zoneWeekly" data-v="1">สัปดาห์ละครั้ง<br><small>วันนับเต็มรอบ</small></button></div></div>' +
+      '<button class="btn btn-primary" data-act="zoneDone">ตกลง</button>' +
+      (A.zoneDraft.length > 1 ? (n ? '<p class="muted center" style="margin:0;font-size:13.5px">ลบหมวดนี้ไม่ได้ ยังมี ' + n + ' รายการ — ย้ายไปหมวดอื่นก่อน (รายการของ → ☑️ ย้ายหลายรายการ)</p>'
+        : '<button class="btn btn-danger" data-act="zoneDel">🗑️ ลบหมวดนี้</button>') : '') +
+      '<p class="muted" style="margin:0;font-size:13px">กด "ตกลง" แล้วอย่าลืมกด "💾 บันทึกหมวด" ในหน้าก่อนหน้า</p></div></div>';
+    return h;
+  }
+
+  function zoneForm() {
+    var z = S.admin.zoneDraft[S.admin.zoneIdx], th = document.getElementById('z-th'), mm = document.getElementById('z-mm');
+    if (th) z.th = th.value.trim();
+    if (mm) z.mm = mm.value.trim();
   }
 
   function adminItemBtn(it, showNote) {
@@ -2970,6 +3052,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       S.admin.data.settings = st; toast('บันทึกแล้ว ✓');
     }, function (e) { toast(errMsg(e)); });
   };
+  INPUT.mvPick = function (el) {
+    S.admin.move.picked[el.dataset.id] = el.checked;
+    var n = Object.keys(S.admin.move.picked).filter(function (k) { return S.admin.move.picked[k]; }).length, b = document.getElementById('mv-save');
+    if (b) { b.disabled = !n; b.textContent = 'ย้าย ' + n + ' รายการ'; }
+  };
   INPUT.poSupplier = function (el) { S.admin.poEdit.supplier_id = el.value; };
   function peSaveLabel() {
     var b = document.getElementById('pe-save');
@@ -3067,7 +3154,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adminExit: function () { leaveReorder(function () { S.admin = null; if (S.boot) go('home'); else start(); }); },
     aTab: function (el) {
       leaveReorder(function () {
-        S.admin.tab = el.dataset.v; S.admin.staffDraft = null; S.admin.lineMsg = ''; S.admin.supDraft = null;
+        S.admin.tab = el.dataset.v; S.admin.staffDraft = null; S.admin.lineMsg = ''; S.admin.supDraft = null; S.admin.move = null;
         go('admin');
         if (S.admin.tab === 'po') loadPoData();
         if (S.admin.tab === 'dash') loadDash();
@@ -3117,7 +3204,87 @@ if (typeof module !== 'undefined') module.exports = Logic;
         }, function (e) { el.disabled = false; el.textContent = '🧹 ล้างข้อมูลที่เลือก'; toast(errMsg(e)); });
       });
     },
-    aZone: function (el) { leaveReorder(function () { S.admin.zone = el.dataset.v; rerenderKeepScroll(); }); },
+    aZone: function (el) { leaveReorder(function () { S.admin.zone = el.dataset.v; S.admin.move = null; rerenderKeepScroll(); }); },
+    zonesOpen: function () {
+      S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, th0: z.th, mm0: z.mm }; });
+      S.admin.zoneDirty = false; S.admin.zoneSaving = false;
+      go('azones');
+    },
+    zonesBack: function () {
+      if (!S.admin.zoneDirty) return go('admin');
+      confirmBox('ยังไม่ได้บันทึกหมวด', 'ที่แก้ไว้จะหายถ้าออกตอนนี้', [{ key: 'stay', html: 'แก้ต่อ' }, { key: 'leave', html: 'ทิ้งที่แก้', cls: 'btn-danger' }])
+        .then(function (k) { if (k === 'leave') go('admin'); });
+    },
+    zoneMove: function (el) {
+      var Z = S.admin.zoneDraft, i = +el.dataset.i, j = i + Number(el.dataset.v);
+      if (j < 0 || j >= Z.length) return;
+      Z.splice(j, 0, Z.splice(i, 1)[0]);
+      S.admin.zoneDirty = true;
+      rerenderKeepScroll();
+    },
+    zoneAdd: function () {
+      S.admin.zoneDraft.push({ id: '', icon: '📦', th: '', mm: '', kind: 'buy', weekly: false, isNew: true, th0: '', mm0: '' });
+      S.admin.zoneIdx = S.admin.zoneDraft.length - 1;
+      go('azedit');
+    },
+    zoneEdit: function (el) { S.admin.zoneIdx = +el.dataset.i; go('azedit'); },
+    zoneIcon: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].icon = el.dataset.v; rerenderKeepScroll(); },
+    zoneKind: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].kind = el.dataset.v; rerenderKeepScroll(); },
+    zoneWeekly: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].weekly = el.dataset.v === '1'; rerenderKeepScroll(); },
+    zoneEditBack: function () {
+      var z = S.admin.zoneDraft[S.admin.zoneIdx];
+      if (z.isNew && !z.th) S.admin.zoneDraft.splice(S.admin.zoneIdx, 1);
+      go('azones');
+    },
+    zoneDone: function () {
+      zoneForm();
+      var z = S.admin.zoneDraft[S.admin.zoneIdx];
+      if (!z.th) return toast('ใส่ชื่อหมวดก่อน');
+      if (z.th !== z.th0 && z.mm === z.mm0 && !z.isNew && z.mm0) { /* ชื่อพม่าเดิมยังอยู่ — บอสเลือกเองว่าจะลบให้แปลใหม่ไหม */ }
+      S.admin.zoneDirty = true;
+      go('azones');
+    },
+    zoneDel: function () {
+      var z = S.admin.zoneDraft[S.admin.zoneIdx];
+      confirmBox('ลบหมวด "' + esc(z.th || 'ใหม่') + '"?', 'ลบได้เพราะไม่มีรายการในหมวดนี้แล้ว', [{ key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: 'ลบหมวด', cls: 'btn-danger' }]).then(function (k) {
+        if (k !== 'yes') return;
+        S.admin.zoneDraft.splice(S.admin.zoneIdx, 1);
+        S.admin.zoneDirty = true;
+        go('azones');
+      });
+    },
+    zonesSave: function () {
+      var A = S.admin;
+      A.zoneSaving = true; rerenderKeepScroll();
+      api('apiAdminSaveZones', A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })).then(function (r) {
+        useZones(r.zones);
+        A.data.items = r.items;
+        if (S.boot) { S.boot.zones = r.zones; S.boot.items = r.items.filter(function (i) { return i.active !== false; }); }
+        A.zoneSaving = false; A.zoneDirty = false;
+        if (!ZONES.some(function (z) { return z.id === A.zone; })) A.zone = ZONES[0].id;
+        toast('บันทึกหมวดแล้ว ✓');
+        A.tab = 'items'; go('admin');
+      }, function (e) { A.zoneSaving = false; rerenderKeepScroll(); toast(errMsg(e)); });
+    },
+    mvStart: function () { S.admin.move = { zone: S.admin.zone, picked: {} }; rerenderKeepScroll(); },
+    mvCancel: function () { S.admin.move = null; rerenderKeepScroll(); },
+    mvSave: function (el) {
+      var A = S.admin, to = document.getElementById('mv-to').value, z = zoneOf(to);
+      var ids = Object.keys(A.move.picked).filter(function (k) { return A.move.picked[k]; });
+      if (!ids.length || !to) return;
+      var maxSort = A.data.items.filter(function (i) { return i.zone === to; }).reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
+      var list = ids.map(function (id, k) {
+        var it = JSON.parse(JSON.stringify(A.data.items.filter(function (i) { return i.id === id; })[0]));
+        it.zone = to; it.sort = maxSort + k + 1;
+        return it;
+      });
+      el.disabled = true; el.textContent = 'กำลังย้าย…';
+      adminSaveItems(list).then(function () {
+        A.move = null; A.zone = to;
+        toast('ย้าย ' + ids.length + ' รายการไป ' + z.th + ' แล้ว ✓');
+        rerenderKeepScroll();
+      }, function (e) { el.disabled = false; el.textContent = 'ย้าย ' + ids.length + ' รายการ'; toast(errMsg(e)); });
+    },
     roStart: function () {
       var list = S.admin.data.items.filter(function (i) { return i.zone === S.admin.zone; }).sort(function (a, b) { return a.sort - b.sort; });
       S.admin.reorder = { zone: S.admin.zone, order: list.map(function (i) { return i.id; }), dirty: false };
