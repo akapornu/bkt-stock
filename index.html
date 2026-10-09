@@ -390,6 +390,14 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .fc-grid b small { display: block; font-weight: 500; color: var(--muted); font-size: 11px; }
 .fc-grid .u { font-size: 11px; color: var(--muted); }
 .fc-grid .s { font-size: 14.5px; font-weight: 800; }
+/* หน่วยพม่ากำกับตัวเลข (กันนับผิดหน่วย) */
+.step .val { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 0 2px; }
+.step .val span { line-height: 1.05; }
+.step .val small.mm { font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 1px; line-height: 1.3; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kp-disp small { display: inline-flex; align-items: baseline; gap: 6px; }
+.kp-disp small .mm { font-size: 17px; color: var(--ink); font-weight: 700; }
+.sum-row .q .mm.u { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.nw { white-space: nowrap; }
 
 </style>
 </head>
@@ -516,10 +524,13 @@ var ZONES = [
 ];
 
 // หน่วยไทย → พม่า (หน้าตั้งค่าของบอสเติมให้อัตโนมัติ) — ပက်/ခိတ်/ဖရီဇာ รอ MON ยืนยันว่าในครัวเรียกแบบนี้
+// กล่อง = ဗူး (ဗ) ไม่ใช่ ဘူး (ဘ = "ไม่") — บรรณาธิการพม่าแก้ 9 ต.ค. 69 · หน่วยแถวท้าย (ลิตร…โหล) เพิ่ม 9 ต.ค. 69: ให้ MON ยืนยัน แผง/มล./ลัง
 var UNITS = {
-  'แพ็ค': 'ပက်', 'ถุง': 'အိတ်', 'กล่อง': 'ဘူး', 'กรัม': 'ဂရမ်', 'ขีด': 'ခိတ် (100 ဂရမ်)', 'กิโล': 'ကီလို',
+  'แพ็ค': 'ပက်', 'ถุง': 'အိတ်', 'กล่อง': 'ဗူး', 'กรัม': 'ဂရမ်', 'ขีด': 'ခိတ် (100 ဂရမ်)', 'กิโล': 'ကီလို',
   'ฟอง': 'လုံး', 'ลูก': 'လုံး', 'หัว': 'လုံး', 'จาน': 'ပန်းကန်', 'ถ้วย': 'ခွက်', 'ชิ้น': 'ခု', 'ตัว': 'ကောင်',
-  'แผ่น': 'ချပ်', 'หลอด': 'ချောင်း', 'ก้อน': 'တုံး', 'เม็ด': 'တောင့်', 'ขวด': 'ပုလင်း', 'กำ': 'စည်း', 'กก.': 'ကီလို'
+  'แผ่น': 'ချပ်', 'หลอด': 'ချောင်း', 'ก้อน': 'တုံး', 'เม็ด': 'တောင့်', 'ขวด': 'ပုလင်း', 'กำ': 'စည်း', 'กก.': 'ကီလို',
+  'ลิตร': 'လီတာ', 'มล.': 'မီလီ', 'ห่อ': 'ထုပ်', 'ซอง': 'ထုပ်', 'กระป๋อง': 'ဗူး', 'กระปุก': 'ဗူး', 'มัด': 'စည်း',
+  'แผง': 'ကဒ်', 'ลัง': 'သေတ္တာ', 'แกลลอน': 'ပုံး', 'ต้น': 'ပင်', 'หวี': 'ဖီး', 'ใบ': 'ရွက်', 'โหล': 'ဒါဇင်'
 };
 
 if (typeof module !== 'undefined') module.exports = { I18N: I18N, ZONES: ZONES, UNITS: UNITS };
@@ -686,7 +697,8 @@ var Logic = (function () {
 
   // ================= สั่งซื้อ / รับของ =================
   // หน่วยที่นับเป็นชิ้น → จำนวนสั่งปัดขึ้นเป็นจำนวนเต็ม (น้ำหนักไม่ปัด เว้นแต่ตั้ง buy_step)
-  var DISCRETE = ['แพ็ค', 'ถุง', 'กล่อง', 'ฟอง', 'ตัว', 'ชิ้น', 'ลูก', 'หัว', 'ก้อน', 'ถ้วย', 'จาน', 'หลอด', 'แผ่น', 'ขวด', 'กำ', 'เม็ด'];
+  var DISCRETE = ['แพ็ค', 'ถุง', 'กล่อง', 'ฟอง', 'ตัว', 'ชิ้น', 'ลูก', 'หัว', 'ก้อน', 'ถ้วย', 'จาน', 'หลอด', 'แผ่น', 'ขวด', 'กำ', 'เม็ด',
+    'ห่อ', 'ซอง', 'กระป๋อง', 'กระปุก', 'มัด', 'แผง', 'ลัง', 'แกลลอน', 'ต้น', 'หวี', 'ใบ', 'โหล'];
   function round2(n) { return Math.round(n * 100) / 100; }
 
   // จำนวนที่ต้องเติม (หน่วยนับ) → จำนวนสั่ง (หน่วยซื้อ) เช่น กุ้ง ต้องเติม 45 ตัว, 1 กก. ≈ 40 ตัว, ปัดทีละ 0.5 → สั่ง 1.5 กก. (≈60 ตัว)
@@ -713,7 +725,8 @@ var Logic = (function () {
   }
 
   // หน่วยชั่ง/ตวง (กก. ขีด ลิตร …) — ของมาขาด/เกินนิดหน่อยเป็นปกติ ต่างจากหน่วยนับเป็นชิ้น
-  function isMeasured(unit) { return !!unit && DISCRETE.indexOf(unit) < 0; }
+  var MEASURED = ['กก.', 'กิโล', 'กรัม', 'ขีด', 'ลิตร', 'มล.', 'kg', 'g', 'ml'];
+  function isMeasured(unit) { return MEASURED.indexOf(String(unit || '').trim()) >= 0; }
 
   // บรรทัดใบสั่งถือว่าจบ: รับได้ ≥ ที่สั่ง หรือมีคนกด "ถือว่าครบ" / บอสกด "ไม่รอแล้ว" (done)
   function lineDone(l) {
@@ -1662,7 +1675,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function recvLineHtml(l, i) {
     var done = l.locked || (!l.extra && l.ordered > 0 && l.remaining <= 0 && !(Number(l.qty) > 0));
-    var unit = esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '');
+    var unit = esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + (l.unit_mm ? ' <span class="mm">' + esc(l.unit_mm) + '</span>' : '');
     var h = '<div class="card rline' + (l.ticked ? ' on' : '') + (done ? ' done' : '') + '" id="rl-' + i + '">' +
       (done ? '<span class="tick">✓</span>' : '<button class="tick' + (l.ticked ? ' on' : '') + '" data-act="recvTick" data-k="' + i + '" aria-label="มาครบ">✓</button>') +
       '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>';
@@ -1676,7 +1689,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += '<div class="rqty"><span>' + bi1('arrived') + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvQty" data-k="' + i + '" value="' + esc(l.qty) + '" placeholder="0">' +
         (l.extra && !l.item_id ? '<input type="text" class="inp sm" style="width:72px" data-input="recvUnit" data-k="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">' : '<span>' + unit + '</span>') + '</div>';
       if (l.factor && l.factor !== 1) {
-        h += '<div class="rqty"><span>' + bi1('countedIfAny') + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvCount" data-k="' + i + '" value="' + esc(l.count) + '" placeholder="≈' + L.fmtNum(L.round2((Number(l.qty) || l.remaining || 0) * l.factor)) + '"><span>' + esc(l.count_unit) + '</span></div>';
+        h += '<div class="rqty"><span>' + bi1('countedIfAny') + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvCount" data-k="' + i + '" value="' + esc(l.count) + '" placeholder="≈' + L.fmtNum(L.round2((Number(l.qty) || l.remaining || 0) * l.factor)) + '"><span>' + esc(l.count_unit) + (UNITS[l.count_unit] ? ' <span class="mm">' + esc(UNITS[l.count_unit]) + '</span>' : '') + '</span></div>';
       }
       h += '<div id="rl-sh-' + i + '">' + recvShortHtml(l, i) + '</div>';
     }
@@ -1737,21 +1750,36 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function needLabel(it) { return it.kind === 'prep' ? 'toMake' : 'toBuy'; }
 
+  // หน่วยพม่า: ของรายการ (ถ้าเป็นอักษรพม่าจริง) ไม่งั้นจากตารางหน่วย — น้องต้องเห็นหน่วยภาษาตัวเองทุกที่ที่ใส่ตัวเลข กันนับผิดหน่วย
+  function unitMm(it) {
+    if (it.unit_mm && L.hasBurmese(it.unit_mm)) return it.unit_mm;
+    return UNITS[it.unit] || '';
+  }
+  // "หลอด (500g) · ချောင်း"
+  function unitBi(it) {
+    var mm = unitMm(it);
+    return esc(L.unitText(it)) + (mm ? ' <span class="mm nw">(' + esc(mm) + ')</span>' : '');
+  }
+  // ป้ายหน่วยใต้/ข้างตัวเลข: พม่าก่อน ไทยตามหลัง
+  function unitTag(it) {
+    var mm = unitMm(it);
+    return (mm ? '<span class="mm">' + esc(mm) + '</span> ' : '') + '<span class="th">' + esc(it.unit) + '</span>';
+  }
+
   function rowHtml(it) {
     var e = entry(it.id), cfg = L.isConfigured(it), has = L.hasCount(e);
     var need = cfg && has ? L.needQty(it, e.v) : null;
     var lowlv = !cfg && has && (e.lv === 'low' || e.lv === 'out');
     var cls = 'card row' + (has ? ' counted' : '') + (need > 0 || (lowlv && e.lv === 'out') ? ' below' : lowlv ? ' lowlv' : '') + (S.kp && S.kp.id === it.id ? ' active' : '');
     var hint = cfg
-      ? '<span>Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) + '</span>'
+      ? '<span>Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) + '</span>'
       : '<span class="tag warn">⚠️ ' + bi1('notSetShort') + '</span>';
-    if (cfg && it.unit_mm) hint += ' <span class="mm">(' + esc(it.unit_mm) + ')</span>';
     if (has && e.by && e.by !== S.me) hint += ' <span class="tag">' + esc(tr('countedBy').th) + ' ' + esc(e.by) + '</span>';
     var h = '<div class="' + cls + '" id="r-' + esc(it.id) + '"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + hint + '</div>';
     if (need > 0) {
       var nl = tr(needLabel(it));
-      h += '<div class="need"><span class="tag bad"><b>' + esc(nl.th) + ' ' + L.fmtNum(need) + ' ' + esc(it.unit) + '</b><span class="mm">' + esc(nl.mm) + ' ' + L.fmtNum(need) + (it.unit_mm ? ' ' + esc(it.unit_mm) : '') + '</span></span></div>';
+      h += '<div class="need"><span class="tag bad"><b>' + esc(nl.th) + ' ' + L.fmtNum(need) + ' ' + esc(it.unit) + '</b><span class="mm">' + esc(nl.mm) + ' ' + L.fmtNum(need) + (unitMm(it) ? ' ' + esc(unitMm(it)) : '') + '</span></span></div>';
     }
     if (!cfg) {
       h += '<div class="levels" style="margin-top:8px">' + ['ok', 'low', 'out'].map(function (lv) {
@@ -1760,7 +1788,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }).join('') + '</div></div>';
     } else {
       h += '</div><div class="step"><button data-act="dec" data-id="' + esc(it.id) + '" aria-label="ลด">−</button>' +
-        '<button class="val' + (has ? '' : ' empty') + '" data-act="kp" data-id="' + esc(it.id) + '">' + (has ? L.fmtNum(e.v) : '–') + '</button>' +
+        '<button class="val' + (has ? '' : ' empty') + '" data-act="kp" data-id="' + esc(it.id) + '"><span>' + (has ? L.fmtNum(e.v) : '–') + '</span><small class="mm">' + esc(unitMm(it) || it.unit) + '</small></button>' +
         '<button data-act="inc" data-id="' + esc(it.id) + '" aria-label="เพิ่ม">+</button></div>';
     }
     return h + '</div>';
@@ -1795,7 +1823,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!rs.length) return;
       h += '<div class="zone-label">' + z.icon + ' ' + esc(z.th) + '</div>';
       h += rs.map(function (r) {
-        return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>', esc(tr('left').th) + ' ' + L.fmtNum(r.qty) +
+        return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>' + (unitMm(r.item) ? '<span class="mm u">' + esc(unitMm(r.item)) + '</span>' : ''), esc(tr('left').th) + ' ' + L.fmtNum(r.qty) +
           ' · Min ' + L.fmtNum(r.item.min) + ' · Max ' + L.fmtNum(r.item.max) + (r.item.size ? ' · ' + esc(r.item.size) : ''));
       }).join('');
     });
@@ -1859,7 +1887,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (!it) return '';
     var e = entry(it.id), cfg = L.isConfigured(it);
     var h = '<div class="sheet-bg" data-act="kpClose"></div><div class="sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
-      '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) : bi1('notSetUp')) + '</div></div>' +
+      '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : bi1('notSetUp')) + '</div></div>' +
       '<button class="iconbtn" data-act="kpClose" aria-label="ปิด">✕</button></div>';
     if (!cfg) {
       return h + '<div class="kp-lv">' + ['ok', 'low', 'out'].map(function (lv) {
@@ -1874,7 +1902,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
       return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
     }).join('');
-    return h + '<div class="kp-disp' + dcls + '" id="kp-disp">' + esc(shown) + ' <small>' + esc(it.unit) + '</small></div>' +
+    return h + '<div class="kp-disp' + dcls + '" id="kp-disp">' + esc(shown) + ' <small>' + unitTag(it) + '</small></div>' +
       '<div class="kp-grid">' + keys + '</div><div class="kp-actions">' +
       '<button class="btn btn-danger stack" data-act="kpOut">' + bi('out') + '</button>' +
       '<button class="btn btn-primary stack" data-act="kpNext">' + bi('next') + '</button></div></div>';
@@ -2018,7 +2046,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (disp) {
         var v = b !== '' ? parseBuf(b) : null, e = entry(it.id);
         disp.className = 'kp-disp' + (b === '' ? ' empty' : (L.needQty(it, v) > 0 ? ' below' : ''));
-        disp.innerHTML = esc(b !== '' ? b : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + esc(it.unit) + '</small>';
+        disp.innerHTML = esc(b !== '' ? b : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + unitTag(it) + '</small>';
       }
     },
     kpNext: function () {
@@ -2079,7 +2107,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (R.lines.some(function (l) { return l.item_id === it.id; })) { toast('มีรายการนี้แล้ว'); R.q = ''; return rerenderKeepScroll(); }
       var conv = it.buy_unit && it.buy_factor > 0;
       R.lines.push({ key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: conv ? it.buy_unit : it.unit,
-        unit_mm: conv ? (UNITS[it.buy_unit] || '') : (it.unit_mm || ''), size: conv ? '' : (it.size || ''), ordered: 0, prev: 0, remaining: 0,
+        unit_mm: conv ? (UNITS[it.buy_unit] || '') : unitMm(it), size: conv ? '' : (it.size || ''), ordered: 0, prev: 0, remaining: 0,
         factor: conv ? it.buy_factor : 1, count_unit: it.unit, qty: '', count: '', ticked: false, extra: true });
       R.q = '';
       rerenderKeepScroll();
@@ -2298,7 +2326,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function poLineBase(it) {
     var conv = it.buy_unit && it.buy_factor > 0;
     return { key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: conv ? it.buy_unit : it.unit,
-      unit_mm: conv ? (UNITS[it.buy_unit] || '') : (it.unit_mm || ''), size: conv ? '' : (it.size || ''), factor: conv ? it.buy_factor : 1,
+      unit_mm: conv ? (UNITS[it.buy_unit] || '') : unitMm(it), size: conv ? '' : (it.size || ''), factor: conv ? it.buy_factor : 1,
       count_unit: it.unit, qty: '', include: true, added: true };
   }
 
@@ -2870,7 +2898,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="two"><div><label>Min (ต่ำกว่านี้ = สั่ง)</label><input type="number" id="e-min" inputmode="decimal" step="any" min="0" value="' + num(it.min) + '"></div>' +
       '<div><label>Max (เติมให้ถึง)</label><input type="number" id="e-max" inputmode="decimal" step="any" min="0" value="' + num(it.max) + '"></div></div>' +
       '<div class="two"><div><label>หน่วย</label><input type="text" id="e-unit" list="unit-list" data-input="aUnit" value="' + esc(it.unit) + '"><datalist id="unit-list">' + units + '</datalist></div>' +
-      '<div><label>หน่วยพม่า</label><input type="text" id="e-umm" class="mm" data-input="aUmm" value="' + esc(it.unit_mm) + '"></div></div>' +
+      '<div><label>หน่วยพม่า</label><input type="text" id="e-umm" class="mm" data-input="aUmm" value="' + esc(it.unit_mm) + '" placeholder="ว่าง = เติมให้อัตโนมัติ"></div></div>' +
       '<div class="two"><div><label>ขนาดต่อหน่วย (ถ้ามี)</label><input type="text" id="e-size" placeholder="เช่น 1000g" value="' + esc(it.size) + '"></div>' +
       '<div><label>ปุ่ม +/− เพิ่มทีละ</label><input type="number" id="e-step" inputmode="decimal" step="any" min="0" value="' + num(it.step || 1) + '"></div></div>' +
       '<div class="sub-h">🛒 หน่วยซื้อ <span class="muted">(ใส่เมื่อซื้อคนละหน่วยกับที่นับ เช่น ซื้อกุ้งเป็น กก. แต่นับเป็นตัว)</span></div>' +
