@@ -416,6 +416,10 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .mv-row.off { opacity: .55; }
 .mv-bar { display: grid; gap: 8px; }
 .mv-bar select { height: 46px; border-radius: 12px; border: 1.5px solid var(--line); padding: 0 12px; background: var(--card); font-size: 15px; }
+.seg label { flex: 1 1 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 52px; padding: 6px 10px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); font-size: 14px; font-weight: 600; color: var(--muted); text-align: center; cursor: pointer; line-height: 1.35; position: relative; }
+.seg label small { font-size: 12px; font-weight: 500; }
+.seg label input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label.on, .seg label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
 
 </style>
 </head>
@@ -2797,12 +2801,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function zonesScreen() {
     var Z = S.admin.zoneDraft, counts = {};
-    S.admin.data.items.forEach(function (it) { counts[it.zone] = (counts[it.zone] || 0) + 1; });
+    S.admin.data.items.forEach(function (it) {
+      var c = counts[it.zone] = counts[it.zone] || { buy: 0, prep: 0 };
+      c[it.kind === 'prep' ? 'prep' : 'buy']++;
+    });
     var h = top({ th: '🗂️ จัดการหมวด', back: 'zonesBack', net: false }) + '<div class="wrap screen">' +
-      '<p class="sub">ลำดับหมวด = ลำดับที่ทีมเห็นในหน้านับ (เรียงตามทางเดินในครัว) · แตะหมวดเพื่อแก้ชื่อ/ไอคอน/ประเภท</p><div class="list">' +
+      '<p class="sub">หมวด = ที่เก็บของจริง (เช่น ตู้เย็น 1, ชั้นของแห้ง) ทีมนับทีละที่ไม่ต้องเดินไปมา · ในที่เดียวกันมีทั้งของซื้อและของเตรียมได้ · ลำดับหมวด = ลำดับที่ทีมเดินนับ</p><div class="list">' +
       Z.map(function (z, i) {
         return '<div class="card zrow"><button class="zmain" data-act="zoneEdit" data-i="' + i + '"><span class="zic">' + esc(z.icon) + '</span><span class="nm"><b>' + esc(z.th || '(ยังไม่มีชื่อ)') + '</b>' +
-          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.kind === 'prep' ? '🔪 ของเตรียม/ทำเอง' : '🛒 ของซื้อ') + ' · ' + (z.weekly ? 'นับสัปดาห์ละครั้ง' : 'นับทุกวัน') + ' · ' + (counts[z.id] || 0) + ' รายการ</small></span></button>' +
+          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.weekly ? 'นับสัปดาห์ละครั้ง' : 'นับทุกวัน') + ' · 🛒 ของซื้อ ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ของเตรียม ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
           '<span class="zmv"><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="-1" aria-label="ขึ้น">↑</button><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="1" aria-label="ลง">↓</button></span></div>';
       }).join('') + '</div>' +
       '<button class="btn btn-ghost" style="margin-top:12px" data-act="zoneAdd">＋ เพิ่มหมวดใหม่</button>' +
@@ -2816,12 +2823,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div><label>ไอคอน</label><div class="icon-pick">' + ZONE_ICONS.map(function (ic) {
         return '<button class="' + (z.icon === ic ? 'on' : '') + '" data-act="zoneIcon" data-v="' + ic + '">' + ic + '</button>';
       }).join('') + '</div></div>' +
-      '<div><label>ชื่อหมวด (ไทย)</label><input type="text" id="z-th" value="' + esc(z.th) + '" placeholder="เช่น ตู้แช่เครื่องดื่ม" maxlength="40"></div>' +
-      '<div><label>ชื่อหมวด (พม่า)</label><input type="text" id="z-mm" class="mm" value="' + esc(z.mm) + '" placeholder="ว่าง = แปลให้อัตโนมัติตอนบันทึก" maxlength="60">' +
+      '<div><label>ชื่อที่เก็บ (ไทย)</label><input type="text" id="z-th" value="' + esc(z.th) + '" placeholder="เช่น ตู้เย็น 1 (ซ้ายมือ)" maxlength="40"></div>' +
+      '<div><label>ชื่อที่เก็บ (พม่า)</label><input type="text" id="z-mm" class="mm" value="' + esc(z.mm) + '" placeholder="ว่าง = แปลให้อัตโนมัติตอนบันทึก" maxlength="60">' +
       (z.th !== z.th0 && z.mm && z.mm === z.mm0 ? '<small class="muted">เปลี่ยนชื่อไทยแล้ว — ลบชื่อพม่าออกถ้าอยากให้แปลใหม่</small>' : '') + '</div>' +
-      '<div><label>ประเภท</label><div class="seg">' +
-      '<button class="' + (z.kind !== 'prep' ? 'on' : '') + '" data-act="zoneKind" data-v="buy">🛒 ของซื้อ<br><small>ต่ำกว่า Min = สั่งซื้อ</small></button>' +
-      '<button class="' + (z.kind === 'prep' ? 'on' : '') + '" data-act="zoneKind" data-v="prep">🔪 ของเตรียม/ทำเอง<br><small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></button></div></div>' +
       '<div><label>รอบนับ</label><div class="seg">' +
       '<button class="' + (z.weekly ? '' : 'on') + '" data-act="zoneWeekly" data-v="0">นับทุกวัน</button>' +
       '<button class="' + (z.weekly ? 'on' : '') + '" data-act="zoneWeekly" data-v="1">สัปดาห์ละครั้ง<br><small>วันนับเต็มรอบ</small></button></div></div>' +
@@ -2971,7 +2975,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (it.setup_note ? '<div class="note warn" style="margin-bottom:12px">⚠️ ' + esc(it.setup_note) + '</div>' : '') +
       (it.info ? '<div class="note info" style="margin-bottom:12px">ℹ️ ' + esc(it.info) + '</div>' : '') +
       '<div class="card form" style="padding:16px">' +
-      '<div><label>โซน</label><select id="e-zone">' + zoneOpts + '</select></div>' +
+      '<div><label>ที่เก็บ (หมวด)</label><select id="e-zone">' + zoneOpts + '</select></div>' +
+      '<div><label>ประเภท</label><div class="seg">' +
+      '<label class="' + (it.kind !== 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="buy"' + (it.kind !== 'prep' ? ' checked' : '') + '> 🛒 ของซื้อ<small>ต่ำกว่า Min = สั่งซื้อ</small></label>' +
+      '<label class="' + (it.kind === 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="prep"' + (it.kind === 'prep' ? ' checked' : '') + '> 🔪 ของเตรียม/ทำเอง<small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></label></div></div>' +
       '<div><label>ชื่อไทย</label><input type="text" id="e-th" data-input="aNameTh" value="' + esc(it.name_th) + '"></div>' +
       '<div><label>ชื่อพม่า <span class="tag ' + (it.mm_auto === 'claude' ? 'brand' : 'warn') + (it.mm_auto ? '' : ' hidden') + '" id="e-mm-tag">' + mmTagText(it.mm_auto) + '</span></label>' +
       '<div style="display:flex;gap:8px"><input type="text" id="e-mm" class="mm" data-input="aNameMm" value="' + esc(it.name_mm) + '" style="flex:1">' +
@@ -2999,6 +3006,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var n = function (id) { var v = g(id).value.trim(); return v === '' ? null : Number(v); };
     var it = JSON.parse(JSON.stringify(S.admin.edit));
     it.zone = g('e-zone').value; it.name_th = g('e-th').value.trim(); it.name_mm = g('e-mm').value.trim();
+    var k = document.querySelector('input[name="e-kind"]:checked');
+    it.kind = k ? k.value : (it.kind || 'buy');
     it.mm_auto = S.admin.edit.mm_auto || '';
     it.min = n('e-min'); it.max = n('e-max'); it.unit = g('e-unit').value.trim(); it.unit_mm = g('e-umm').value.trim();
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
@@ -3051,6 +3060,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     api('apiAdminSaveSettings', S.admin.pin, { REPORT_TO: el.value }).then(function (st) {
       S.admin.data.settings = st; toast('บันทึกแล้ว ✓');
     }, function (e) { toast(errMsg(e)); });
+  };
+  // เบราว์เซอร์เก่าที่ไม่รองรับ :has() — สลับไฮไลต์เอง
+  INPUT.eKind = function (el) {
+    var box = el.closest('.seg');
+    if (box) box.querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', l.contains(el)); });
   };
   INPUT.mvPick = function (el) {
     S.admin.move.picked[el.dataset.id] = el.checked;
@@ -3229,7 +3243,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     zoneEdit: function (el) { S.admin.zoneIdx = +el.dataset.i; go('azedit'); },
     zoneIcon: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].icon = el.dataset.v; rerenderKeepScroll(); },
-    zoneKind: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].kind = el.dataset.v; rerenderKeepScroll(); },
     zoneWeekly: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].weekly = el.dataset.v === '1'; rerenderKeepScroll(); },
     zoneEditBack: function () {
       var z = S.admin.zoneDraft[S.admin.zoneIdx];
@@ -3318,7 +3331,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     aNew: function () {
       var z = S.admin.zone, inZone = S.admin.data.items.filter(function (i) { return i.zone === z; });
       var maxSort = inZone.reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
-      S.admin.edit = { isNew: true, id: z + '-' + Date.now().toString(36), zone: z, name_th: '', name_mm: '', min: null, max: null, unit: '', unit_mm: '', size: '', step: 1, sort: maxSort + 1, active: true, setup_note: '', info: '' };
+      S.admin.edit = { isNew: true, id: z + '-' + Date.now().toString(36), zone: z, kind: zoneOf(z).kind === 'prep' ? 'prep' : 'buy', name_th: '', name_mm: '', min: null, max: null, unit: '', unit_mm: '', size: '', step: 1, sort: maxSort + 1, active: true, setup_note: '', info: '' };
       go('aedit');
     },
     aBack: function () { go('admin'); window.scrollTo(0, S.admin.scrollY || 0); },
