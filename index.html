@@ -1265,21 +1265,110 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function meStaff() { return S.boot && S.boot.staff.filter(function (s) { return s.name === S.me; })[0]; }
   function isLead() { var m = meStaff(); return !!m && m.role === 'lead'; }
 
+  // ---------- Firebase: นับพร้อมกันหลายเครื่อง เห็นกันทันที (ถ้าบอสตั้งไว้ ไม่งั้นใช้ Apps Script แบบเดิม) ----------
+  var FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+  function loadScript(src) {
+    return new Promise(function (res, rej) {
+      var el = document.createElement('script');
+      el.src = src; el.onload = res; el.onerror = function () { rej(new Error('network: load ' + src)); };
+      document.head.appendChild(el);
+    });
+  }
+  function fbLoad() {
+    if (window.firebase && window.firebase.database) return Promise.resolve();
+    return loadScript(FB_SDK + 'firebase-app-compat.js').then(function () { return loadScript(FB_SDK + 'firebase-database-compat.js'); });
+  }
+  function fbStart(b) {
+    if (!b || !b.fb || !b.fb.config || !b.fb.secret) return fbStop();
+    var base = 'bkt/' + b.fb.secret + '/drafts/' + b.date;
+    if (S.fb && S.fb.base === base) return;
+    fbStop();
+    var my = S.fb = { base: base, entries: {}, submitted: (b.draft && b.draft.submitted) || null, seed: (b.draft && b.draft.entries) || {} };
+    fbLoad().then(function () {
+      if (S.fb !== my) return;
+      var app = window.firebase.apps.filter(function (a) { return a.name === 'bkt'; })[0] || window.firebase.initializeApp(b.fb.config, 'bkt');
+      my.db = app.database();
+      my.ref = my.db.ref(base);
+      my.onValue = function (snap) {
+        var v = snap.val() || {};
+        my.entries = v.e || {};
+        if (v.submitted) my.submitted = v.submitted;
+        if (!my.ready) { my.ready = true; fbSeed(my); }
+        fbCompose();
+        refreshLive();
+      };
+      my.ref.on('value', my.onValue);
+      my.connRef = my.db.ref('.info/connected');
+      my.onConn = function (snap) {
+        my.connected = !!snap.val();
+        clearTimeout(my.connT);
+        if (my.connected) { setNet(Object.keys(S.pending).length ? 'saving' : 'ok'); fbFlush(); }
+        else my.connT = setTimeout(function () { if (!my.connected) setNet('offline'); }, 4000);
+      };
+      my.connRef.on('value', my.onConn);
+    }, function () { if (S.fb === my) S.fb = null; }); // โหลด Firebase ไม่ได้ → ใช้วิธีเดิม
+  }
+  function fbStop() {
+    var f = S.fb;
+    if (!f) return;
+    if (f.ref) f.ref.off('value', f.onValue);
+    if (f.connRef) f.connRef.off('value', f.onConn);
+    S.fb = null;
+  }
+  function fbOn() { return !!(S.fb && S.fb.ref); }
+  // ผลนับในเครื่อง = Firebase + ที่ยังส่งไม่ขึ้น (pending) ทับ
+  function fbCompose() {
+    var f = S.fb, ent = {};
+    Object.keys(f.entries).forEach(function (k) { var e = f.entries[k]; if (e && !e.del) ent[k] = e; });
+    Object.keys(S.pending).forEach(function (k) { var e = S.pending[k]; if (!e || e.del) delete ent[k]; else ent[k] = e; });
+    S.draft = { entries: ent, submitted: f.submitted || null };
+  }
+  // ครั้งแรกที่เปิด Firebase ของวันนั้น: ผลนับที่เคยบันทึกในหลังบ้านแบบเดิม (ที่ Firebase ยังไม่มี) ยกขึ้นไปด้วย
+  function fbSeed(f) {
+    Object.keys(f.seed).forEach(function (k) { if (!f.entries[k]) f.ref.child('e').child(k).set(f.seed[k]); });
+    fbFlush();
+  }
+  function fbWrite(key, w) {
+    var f = S.fb;
+    if (!f || !f.ref) return;
+    f.ref.child('e').child(key).set(w, function (err) {
+      if (err) return; // ค้างใน pending → ส่งใหม่ตอนต่อเน็ตได้
+      if (S.pending[key] === w) { delete S.pending[key]; store.set('pending:' + S.boot.date, S.pending); }
+      if (!Object.keys(S.pending).length && f.connected) setNet('ok');
+    });
+  }
+  function fbFlush() {
+    Object.keys(S.pending).forEach(function (k) {
+      var w = S.pending[k] || { del: true, by: S.me, at: new Date().toISOString() };
+      S.pending[k] = w;
+      fbWrite(k, w);
+    });
+  }
+
   // ---------- บันทึกผลนับ: เก็บในเครื่องก่อน แล้วค่อยส่งขึ้นหลังบ้าน (เน็ตหลุดไม่หาย) ----------
   function applyServerDraft(d) {
     var merged = JSON.parse(JSON.stringify(d || { entries: {} }));
     merged.entries = merged.entries || {};
     [S.inflight || {}, S.pending].forEach(function (layer) {
       Object.keys(layer).forEach(function (id) {
-        if (layer[id] === null) delete merged.entries[id]; else merged.entries[id] = layer[id];
+        if (layer[id] === null || layer[id].del) delete merged.entries[id]; else merged.entries[id] = layer[id];
       });
     });
     S.draft = merged;
+    if (S.fb) { S.fb.submitted = merged.submitted || S.fb.submitted; if (fbOn()) fbCompose(); }
   }
 
   function setEntry(id, val) {
     var e = val === null ? null : { v: L.isNum(val.v) ? val.v : null, lv: val.lv || null, by: S.me, at: new Date().toISOString() };
     if (e) S.draft.entries[id] = e; else delete S.draft.entries[id];
+    if (S.fb) {
+      var w = e || { del: true, by: S.me, at: new Date().toISOString() };
+      S.pending[id] = w;
+      store.set('pending:' + S.boot.date, S.pending);
+      fbWrite(id, w);
+      buzz();
+      return;
+    }
     S.pending[id] = e;
     store.set('pending:' + S.boot.date, S.pending);
     scheduleSave(500);
@@ -1292,6 +1381,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function flush() {
+    if (S.fb) { fbFlush(); return Promise.resolve(); }
     if (S.inflight || !S.boot) return Promise.resolve();
     var ids = Object.keys(S.pending);
     if (!ids.length) return Promise.resolve();
@@ -1341,7 +1431,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function pollLoop(ms) {
     clearTimeout(pollT);
     pollT = setTimeout(function () {
-      if (!S.boot || S.inflight || S.polling || document.visibilityState !== 'visible' || ['home', 'zone', 'review'].indexOf(S.screen) < 0) return pollLoop();
+      if (!S.boot || fbOn() || S.inflight || S.polling || document.visibilityState !== 'visible' || ['home', 'zone', 'review'].indexOf(S.screen) < 0) return pollLoop();
       S.polling = true;
       api('apiDraft', S.pin, S.boot.date).then(function (d) {
         S.polling = false;
@@ -1383,6 +1473,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (b.date !== today) { b.date = today; b.draft = { entries: {} }; }
       S.boot = b; S.bootAt = 0; S.publicUrl = b.publicUrl || '';
       useZones(b.zones);
+      fbStart(b);
       S.pending = store.get('pending:' + b.date) || {};
       applyServerDraft(b.draft);
       go(meStaff() ? 'home' : 'who');
@@ -1412,6 +1503,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (S.boot && S.boot.date !== b.date) { S.note = ''; S.result = null; }
       S.boot = b; S.bootAt = Date.now(); S.pin = pin; S.publicUrl = b.publicUrl || '';
       useZones(b.zones);
+      fbStart(b);
       store.set('pin', pin);
       store.set('boot', { at: Date.now(), b: b });
       S.pending = store.get('pending:' + b.date) || {};
@@ -1431,7 +1523,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function logout() {
-    store.del('pin'); store.del('boot'); S.pin = null; S.boot = null; S.pinBuf = ''; S.pinMsg = tr('wrongPin').th + ' · ' + tr('wrongPin').mm;
+    fbStop(); store.del('pin'); store.del('boot'); S.pin = null; S.boot = null; S.pinBuf = ''; S.pinMsg = tr('wrongPin').th + ' · ' + tr('wrongPin').mm;
     go('pin');
   }
 
@@ -3182,6 +3274,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (S.admin.lineMsg ? '<div class="note ' + (/✓/.test(S.admin.lineMsg) ? 'ok' : 'bad') + '">' + esc(S.admin.lineMsg) + '</div>' : '') +
       '</div></div>' +
       groupSettings(s) +
+      firebaseSettings(s) +
       claudeSettings(s) +
       '<div class="section-h">🔐 รหัส</div><div class="card form" style="padding:16px">' +
       '<div class="two"><div><label>รหัสร้านใหม่ (4)</label><input type="tel" id="s-spin" maxlength="4" inputmode="numeric"></div>' +
@@ -3235,6 +3328,26 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<p class="muted" style="margin:0;font-size:13px">รูปที่เคยแนบไว้ในโฟลเดอร์ Drive ของแอพไม่ถูกลบ</p>' +
       '<div><label>พิมพ์คำว่า <b>ล้างข้อมูล</b> เพื่อยืนยัน</label><input type="text" id="c-confirm" autocomplete="off" placeholder="ล้างข้อมูล"></div>' +
       '<button class="btn btn-danger" data-act="aClearData">🧹 ล้างข้อมูลที่เลือก</button></div>';
+  }
+
+  function firebaseSettings(s) {
+    var A = S.admin;
+    return '<div class="section-h">⚡ นับพร้อมกันแบบทันที (Firebase)</div><div class="card form" style="padding:16px">' +
+      (s.fbReady ? '<div class="note ok">✅ เปิดใช้แล้ว — ' + esc(s.fbDbUrl) + '</div>' : '<div class="note warn">ยังไม่ได้ตั้ง — ตอนนี้ซิงก์ผ่าน Google Apps Script (ช้ากว่ากัน 5–15 วินาที)</div>') +
+      '<p class="muted" style="margin:0;font-size:14px">ตั้งแล้ว: หลายคนนับพร้อมกันเห็นกันทันที · เน็ตหลุดนับต่อได้ ส่งเองเมื่อเน็ตกลับมา · รายงาน/LINE/Sheet ยังทำงานเหมือนเดิม · ใช้ฟรี (แพ็กเกจ Spark)</p>' +
+      '<ol class="steps">' +
+      '<li>เปิด <a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a> (ล็อกอินด้วย Google ของบอส) → <b>Create a project</b> → ตั้งชื่อ เช่น bkt-stock → ปิด Google Analytics → Create</li>' +
+      '<li>เมนูซ้าย <b>Build → Realtime Database</b> → <b>Create Database</b> → Location: <b>Singapore (asia-southeast1)</b> → <b>Start in locked mode</b> → Enable</li>' +
+      '<li>แท็บ <b>Rules</b> → ลบของเดิมทั้งหมด → วางกฎด้านล่าง (กดคัดลอก) → <b>Publish</b></li>' +
+      '<li>⚙️ <b>Project settings</b> → General → เลื่อนลงถึง Your apps → กดไอคอน <b>&lt;/&gt;</b> (Web) → ตั้งชื่อ → Register app → ก๊อปโค้ด <b>firebaseConfig</b> ทั้งก้อน มาวางในช่องด้านล่าง → บันทึก → ทดสอบ</li></ol>' +
+      '<div><label>กฎ (Rules) สำหรับขั้นที่ 3</label><pre class="preview" style="max-height:160px;overflow:auto;font-size:12px">' + esc(s.fbRules || '') + '</pre>' +
+      '<button class="btn btn-ghost" data-act="fbCopyRules">📋 คัดลอกกฎ</button></div>' +
+      '<div><label>firebaseConfig ' + (s.fbReady ? '<span class="tag ok">ใส่แล้ว ✓</span>' : '<span class="tag bad">ยังไม่ใส่</span>') + '</label>' +
+      '<textarea id="s-fbconf" rows="5" style="font-family:monospace;font-size:12.5px" placeholder="' + (s.fbReady ? 'ใส่ไว้แล้ว — วางใหม่ถ้าจะเปลี่ยน' : 'const firebaseConfig = { apiKey: ..., databaseURL: ..., ... };') + '"></textarea></div>' +
+      (s.fbReady ? '<label class="check"><input type="checkbox" id="s-fbclear"> เลิกใช้ Firebase (กลับไปซิงก์ผ่าน Apps Script)</label>' : '') +
+      '<div class="btn-row"><button class="btn btn-primary" data-act="fbSave">บันทึก</button>' + (s.fbReady ? '<button class="btn btn-ghost" data-act="fbTest">ทดสอบ</button>' : '') + '</div>' +
+      (A.fbMsg ? '<div class="note ' + (/✓/.test(A.fbMsg) ? 'ok' : 'bad') + '">' + esc(A.fbMsg) + '</div>' : '') +
+      '<p class="muted" style="margin:0;font-size:13px">ความปลอดภัย: ผลนับเก็บใต้รหัสลับยาว 40 ตัวที่แอพสร้างเอง ส่งให้เฉพาะเครื่องที่ใส่รหัสร้านถูก · กฎห้ามอ่านรายชื่อทั้งหมด จึงเดาที่อยู่ข้อมูลไม่ได้</p></div>';
   }
 
   function claudeSettings(s) {
@@ -3504,7 +3617,14 @@ if (typeof module !== 'undefined') module.exports = Logic;
   document.addEventListener('pointercancel', endDrag);
 
   var ADMIN_ACT = {
-    adminExit: function () { leaveReorder(function () { S.admin = null; if (S.boot) go('home'); else start(); }); },
+    adminExit: function () {
+      leaveReorder(function () {
+        S.admin = null;
+        if (!S.boot) return start();
+        go('home');
+        if (!S.bootAt) boot(S.pin, true).catch(bootFail); // บอสเพิ่งเปลี่ยนค่าตั้ง (เช่น Firebase) → ดึงใหม่
+      });
+    },
     aTab: function (el) {
       leaveReorder(function () {
         S.admin.tab = el.dataset.v; S.admin.staffDraft = null; S.admin.lineMsg = ''; S.admin.supDraft = null; S.admin.move = null;
@@ -3957,6 +4077,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
         S.admin.lineMsg = r.ok ? 'ส่งแล้ว ✓ เช็ค LINE ได้เลย' + (r.translate ? ' · ทดสอบแปลพม่า→ไทยผ่าน: ' + r.translate : ' · ⚠️ ทดสอบแปลพม่าไม่ผ่าน') : explainLine(r);
         rerenderKeepScroll();
       }, function (e) { S.admin.lineMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    fbCopyRules: function () {
+      copyText(S.admin.data.settings.fbRules || '').then(function () { toast('คัดลอกกฎแล้ว — ไปวางในแท็บ Rules ของ Firebase'); }, function () { toast('คัดลอกไม่ได้ — กดค้างที่กฎแล้วเลือกคัดลอก'); });
+    },
+    fbSave: function (el) {
+      var t = (document.getElementById('s-fbconf') || {}).value || '', clr = document.getElementById('s-fbclear');
+      if (!t.trim() && !(clr && clr.checked)) { S.admin.fbMsg = 'วางโค้ด firebaseConfig ก่อน'; return rerenderKeepScroll(); }
+      el.disabled = true;
+      api('apiAdminSaveSettings', S.admin.pin, { FIREBASE_CONFIG: t.trim(), clearFirebase: !!(clr && clr.checked) }).then(function (st) {
+        S.admin.data.settings = st;
+        S.admin.fbMsg = st.fbReady ? 'บันทึกแล้ว ✓ — กด "ทดสอบ" แล้วให้ทุกเครื่องปิด-เปิดแอพใหม่' : 'เลิกใช้ Firebase แล้ว ✓';
+        if (S.boot) S.bootAt = 0; // ให้หน้าน้องดึงค่าใหม่ตอนกลับไป
+        rerenderKeepScroll();
+      }, function (e) { el.disabled = false; S.admin.fbMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    fbTest: function (el) {
+      el.disabled = true; el.textContent = 'กำลังทดสอบ…';
+      api('apiAdminTestFirebase', S.admin.pin).then(function (r) {
+        S.admin.fbMsg = r.ok ? 'เชื่อม Firebase ได้ ✓ — ให้ทุกเครื่องปิด-เปิดแอพใหม่ 1 ครั้ง' : r.error;
+        rerenderKeepScroll();
+      }, function (e) { S.admin.fbMsg = errMsg(e); rerenderKeepScroll(); });
     },
     aSaveClaude: function (el) {
       var k = (document.getElementById('s-ckey') || {}).value || '', clr = document.getElementById('s-clearckey');
