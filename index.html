@@ -420,6 +420,11 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .seg label small { font-size: 12px; font-weight: 500; }
 .seg label input { position: absolute; opacity: 0; pointer-events: none; }
 .seg label.on, .seg label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+/* ของชิ้นเดียวเก็บหลายที่ */
+.row .multi, .kp-head .multi { font-size: 13px; color: var(--brand); margin-top: 4px; line-height: 1.55; }
+.row .multi .mm, .kp-head .multi .mm { font-size: 12.5px; }
+.loc-pick { display: grid; gap: 6px; margin-top: 4px; }
+.loc-pick .check { font-size: 15px; }
 
 </style>
 </head>
@@ -532,7 +537,14 @@ var I18N = {
   editSaved: ['แก้ไขแล้ว · บอสได้แจ้งแล้ว', 'ပြင်ပြီးပြီ · ဘော့စ်ကို ပြောပြီးပြီ'],
   voided: ['ยกเลิกแล้ว', 'ဖျက်ပြီးပြီ'],
   edited: ['แก้แล้ว', 'ပြင်ထားတယ်'],
-  editOnlyRecent: ['แก้ได้เฉพาะของวันนี้และเมื่อวาน', 'ဒီနေ့နဲ့ မနေ့က စာရင်းပဲ ပြင်လို့ရတယ်']
+  editOnlyRecent: ['แก้ได้เฉพาะของวันนี้และเมื่อวาน', 'ဒီနေ့နဲ့ မနေ့က စာရင်းပဲ ပြင်လို့ရတယ်'],
+  // ของชิ้นเดียวเก็บหลายที่ (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69 — ให้ MON ยืนยัน "{n} နေရာ" และ countHere)
+  multiLoc: ['เก็บ {n} ที่ · นับให้ครบทุกที่', '{n} နေရာမှာ ထားတယ် · နေရာတိုင်းမှာ ရေတွက်ပါ'],
+  countedAt: ['นับแล้ว {c}/{n} ที่', 'ရေတွက်ပြီး {c}/{n} နေရာ'],
+  totalAll: ['รวมทุกที่ {total}', 'နေရာအားလုံးပေါင်း {total}'],
+  stillAt: ['ยังไม่นับที่: {list}', 'မရေတွက်ရသေးတဲ့နေရာ: {list}'],
+  countHere: ['นับเฉพาะที่นี่', 'ဒီမှာ ရှိတာပဲ ရေတွက်ပါ'],
+  todayHere: ['มีของต้องนับวันนี้ {n}', 'ဒီနေ့ ရေတွက်စရာ {n} ခု ရှိတယ်']
 };
 
 // โซนนับสต็อค (เรียงตามทางเดินในครัว) — weekly = นับเต็มรอบวันอาทิตย์
@@ -626,42 +638,82 @@ var Logic = (function () {
     return draft;
   }
 
+  // ---------- ของชิ้นเดียวเก็บหลายที่ ----------
+  // ที่เก็บของรายการ: ที่หลัก (zone) + ที่เพิ่ม (more_zones) — นับแยกแต่ละที่แล้วรวม (เฉพาะรายการที่นับเป็นตัวเลข)
+  function itemLocs(it) {
+    var out = [it.zone];
+    if (isConfigured(it)) String(it.more_zones || '').split(',').forEach(function (z) { z = z.trim(); if (z && out.indexOf(z) < 0) out.push(z); });
+    return out;
+  }
+  // ช่องเก็บผลนับในร่าง: ที่หลักใช้ id รายการ (เหมือนเดิม) · ที่เพิ่มใช้ id@หมวด
+  function slotKey(it, zid) { return !zid || zid === it.zone ? it.id : it.id + '@' + zid; }
+  // ผลนับรวมของรายการ: ครบทุกที่ = {v: ผลรวม, parts} · นับไม่ครบ = {partial, parts, missing} (ยังไม่ถือว่านับแล้ว)
+  function itemEntry(it, entries) {
+    var ls = itemLocs(it);
+    if (ls.length === 1) return entries[it.id];
+    var parts = {}, missing = [], sum = 0, by = '', at = '';
+    ls.forEach(function (z) {
+      var e = entries[slotKey(it, z)];
+      if (e && isNum(e.v)) { parts[z] = e.v; sum += e.v; if (!at || String(e.at) > at) { at = String(e.at); by = e.by; } }
+      else missing.push(z);
+    });
+    if (missing.length === ls.length) return undefined;
+    return missing.length ? { v: null, lv: null, partial: true, parts: parts, missing: missing, by: by, at: at }
+      : { v: round2(sum), lv: null, parts: parts, by: by, at: at };
+  }
+  function resolveEntries(items, entries) {
+    var out = {};
+    (items || []).forEach(function (it) { var e = itemEntry(it, entries || {}); if (e) out[it.id] = e; });
+    return out;
+  }
+
   // สรุปทั้งรอบ: ของต้องซื้อ / ต้องทำเพิ่ม / รายการที่ต้องดู / ที่ยังไม่นับ
+  // หมวดนับเป็นช่อง (รายการ × ที่เก็บ) · ยอดรายการ = รวมทุกที่ · รายการต้องนับวันนี้ไหม ดูจากที่หลัก
   function summarize(items, zones, draft, opts) {
-    var entries = (draft && draft.entries) || {};
+    var raw = (draft && draft.entries) || {};
     var zoneById = {};
     zones.forEach(function (z) { zoneById[z.id] = z; });
+    var list = items.filter(function (it) { return it.active !== false && zoneById[it.zone]; });
+    var entries = resolveEntries(list, raw);
+    var locsOf = {};
+    list.forEach(function (it) { locsOf[it.id] = itemLocs(it).filter(function (z) { return zoneById[z]; }); });
     var started = {};
-    items.forEach(function (it) { if (hasCount(entries[it.id])) started[it.zone] = true; });
+    list.forEach(function (it) { locsOf[it.id].forEach(function (z) { if (hasCount(raw[slotKey(it, z)])) started[z] = true; }); });
     var out = { buy: [], prep: [], attention: [], uncounted: [], counters: [], zones: {} };
     zones.forEach(function (z) {
-      out.zones[z.id] = { total: 0, counted: 0, below: 0, due: zoneDue(z, opts.date, opts.fullCountDay), started: !!started[z.id], by: [] };
+      out.zones[z.id] = { total: 0, counted: 0, below: 0, todo: 0, due: zoneDue(z, opts.date, opts.fullCountDay), started: !!started[z.id], by: [] };
     });
     var counters = {};
-    items.filter(function (it) { return it.active !== false && zoneById[it.zone]; })
-      .sort(function (a, b) { return zones.indexOf(zoneById[a.zone]) - zones.indexOf(zoneById[b.zone]) || a.sort - b.sort; })
+    list.sort(function (a, b) { return zones.indexOf(zoneById[a.zone]) - zones.indexOf(zoneById[b.zone]) || a.sort - b.sort; })
       .forEach(function (it) {
-        var z = out.zones[it.zone], e = entries[it.id];
-        z.total++;
+        var home = out.zones[it.zone], e = entries[it.id], locs = locsOf[it.id];
+        var due = home.due || locs.some(function (z) { return started[z]; });
+        locs.forEach(function (z) {
+          var zs = out.zones[z], se = raw[slotKey(it, z)];
+          zs.total++;
+          if (hasCount(se)) {
+            zs.counted++;
+            counters[se.by] = true;
+            if (se.by && zs.by.indexOf(se.by) < 0) zs.by.push(se.by);
+          } else if (due && z !== it.zone && !zs.due) zs.todo++; // ของนับทุกวันที่มีบางส่วนอยู่ในหมวดรายสัปดาห์
+        });
         if (!hasCount(e)) {
-          if (z.due || z.started) out.uncounted.push(it);
+          if (due) out.uncounted.push(it);
           return;
         }
-        z.counted++;
-        counters[e.by] = true;
-        if (e.by && z.by.indexOf(e.by) < 0) z.by.push(e.by);
         if (!isConfigured(it)) {
           var lv = e.lv || (isNum(e.v) && e.v === 0 ? 'out' : null);
-          if (lv === 'low' || lv === 'out') { z.below++; out.attention.push({ item: it, level: lv, qty: e.v }); }
+          if (lv === 'low' || lv === 'out') { home.below++; out.attention.push({ item: it, level: lv, qty: e.v }); }
           return;
         }
         var need = needQty(it, e.v);
         if (need > 0) {
-          z.below++;
-          (it.kind === 'prep' ? out.prep : out.buy).push({ item: it, qty: e.v, need: need });
+          home.below++;
+          (it.kind === 'prep' ? out.prep : out.buy).push({ item: it, qty: e.v, need: need, parts: locs.length > 1 ? e.parts : null });
         }
       });
     out.counters = Object.keys(counters).filter(Boolean);
+    out.entries = entries;
     return out;
   }
 
@@ -1043,7 +1095,7 @@ var Logic = (function () {
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
     buildReceiveMessage: buildReceiveMessage, round2: round2,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
-    isMeasured: isMeasured, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
+    isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
 })();
@@ -1136,9 +1188,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return ZONES.indexOf(zoneOf(a.zone)) - ZONES.indexOf(zoneOf(b.zone)) || a.sort - b.sort;
     });
   }
-  function zoneItems(zid) { return items().filter(function (i) { return i.zone === zid; }); }
-  function itemById(id) { return items().filter(function (i) { return i.id === id; })[0]; }
-  function entry(id) { return S.draft.entries[id]; }
+  // รายการในหมวด: ที่หลักอยู่หมวดนี้ก่อน ตามด้วยของที่เก็บหลายที่ซึ่งมีบางส่วนอยู่ที่นี่
+  function zoneItems(zid) {
+    var all = items();
+    return all.filter(function (i) { return i.zone === zid; })
+      .concat(all.filter(function (i) { return i.zone !== zid && L.itemLocs(i).indexOf(zid) >= 0; }));
+  }
+  function itemById(id) { return ((S.boot && S.boot.items) || []).filter(function (i) { return i.id === id; })[0]; }
+  // ผลนับรวมของรายการ (ของหลายที่ = รวมทุกที่ เมื่อนับครบ)
+  function entry(id) { var it = itemById(id); return it ? L.itemEntry(it, S.draft.entries) : S.draft.entries[id]; }
+  // ผลนับเฉพาะที่เดียว (ช่องในหมวด z)
+  function slotVal(it, z) { return S.draft.entries[L.slotKey(it, z)]; }
+  function hereZone(it) { return S.screen === 'zone' && S.zone ? S.zone : it.zone; }
+  function isMulti(it) { return L.itemLocs(it).length > 1; }
   function summary() { return L.summarize(items(), ZONES, S.draft, { date: S.boot.date, fullCountDay: S.boot.fullCountDay }); }
   function meStaff() { return S.boot && S.boot.staff.filter(function (s) { return s.name === S.me; })[0]; }
   function isLead() { var m = meStaff(); return !!m && m.role === 'lead'; }
@@ -1441,7 +1503,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     home: function () {
       var sum = summary(), b = S.boot;
-      var due = ZONES.filter(function (z) { return sum.zones[z.id].due || sum.zones[z.id].started; });
+      var due = ZONES.filter(function (z) { return sum.zones[z.id].due || sum.zones[z.id].started || sum.zones[z.id].todo; });
       var later = ZONES.filter(function (z) { return due.indexOf(z) < 0; });
       var total = 0, counted = 0, below = 0;
       due.forEach(function (z) { total += sum.zones[z.id].total; counted += sum.zones[z.id].counted; below += sum.zones[z.id].below; });
@@ -1474,7 +1536,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     zone: function () {
       var z = zoneOf(S.zone);
-      var list = zoneItems(S.zone).filter(function (it) { return !S.onlyUncounted || !L.hasCount(entry(it.id)) || (S.kp && S.kp.id === it.id); });
+      var list = zoneItems(S.zone).filter(function (it) { return !S.onlyUncounted || !L.hasCount(slotVal(it, S.zone)) || (S.kp && S.kp.id === it.id); });
       var h = top({ th: z.icon + ' ' + z.th, mm: z.mm, back: 'toHome' }) + '<div class="wrap screen">' +
         '<div class="filter"><span id="zone-prog" class="muted"></span>' +
         '<button class="toggle' + (S.onlyUncounted ? ' on' : '') + '" data-act="toggleUncounted">' + (S.onlyUncounted ? '☑ ' : '☐ ') + bi('onlyUncounted') + '</button></div>' +
@@ -1503,7 +1565,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
         : '<div class="note ok">✅ ' + bi1('nothingToMake') + '</div>';
       if (sum.uncounted.length) {
         h += '<div class="section-h">⏳ ' + bi1('notCounted') + ' <span class="n">(' + sum.uncounted.length + ')</span></div><div class="card sum-list">' +
-          sum.uncounted.map(function (it) { return sumRow(it, '<span class="tag">' + esc(zoneOf(it.zone).icon) + ' ' + bi1('notCounted') + '</span>', ''); }).join('') + '</div>';
+          sum.uncounted.map(function (it) {
+            var e = entry(it.id), where = e && e.missing ? e.missing : L.itemLocs(it);
+            return sumRow(it, '<span class="tag">' + esc(where.map(function (z) { return zoneOf(z).icon; }).join(' ')) + ' ' + bi1('notCounted') + '</span>',
+              isMulti(it) ? esc(where.map(function (z) { return zoneOf(z).th; }).join(', ')) : '');
+          }).join('') + '</div>';
       }
       h += '<div class="field"><label>📝 ' + esc(tr('noteToBoss').th) + '<span class="mm">' + esc(tr('noteToBoss').mm) + '</span></label>' +
         '<textarea id="note" data-input="note" maxlength="500" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(S.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
@@ -1771,7 +1837,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         : '<span class="tag">' + bi1('notStarted') + '</span>';
     return '<button class="card zone' + (done ? ' done' : '') + (optional ? ' optional' : '') + '" data-act="openZone" data-z="' + z.id + '">' +
       '<span class="ic">' + z.icon + '</span><span class="tx"><b>' + esc(z.th) + '</b><span class="mm">' + esc(z.mm) + '</span>' +
-      '<span class="meta">' + status + (st.below ? '<span class="tag bad">▼ ' + st.below + '</span>' : '') + '</span>' +
+      '<span class="meta">' + status + (st.below ? '<span class="tag bad">▼ ' + st.below + '</span>' : '') + (st.todo && !st.due ? '<span class="tag warn">' + bi1('todayHere', { n: st.todo }) + '</span>' : '') + '</span>' +
       '<span class="bar"><i style="width:' + pct + '%"></i></span></span>' +
       '<span class="cnt">' + st.counted + '/' + st.total + '<small>' + esc(tr('items').th) + '</small></span></button>';
   }
@@ -1795,14 +1861,16 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function rowHtml(it) {
-    var e = entry(it.id), cfg = L.isConfigured(it), has = L.hasCount(e);
-    var need = cfg && has ? L.needQty(it, e.v) : null;
-    var lowlv = !cfg && has && (e.lv === 'low' || e.lv === 'out');
-    var cls = 'card row' + (has ? ' counted' : '') + (need > 0 || (lowlv && e.lv === 'out') ? ' below' : lowlv ? ' lowlv' : '') + (S.kp && S.kp.id === it.id ? ' active' : '');
+    var e = entry(it.id), cfg = L.isConfigured(it), z = hereZone(it), se = slotVal(it, z), has = L.hasCount(se);
+    var multi = isMulti(it), total = L.hasCount(e);
+    var need = cfg && total ? L.needQty(it, e.v) : null;
+    var lowlv = !cfg && has && (se.lv === 'low' || se.lv === 'out');
+    var cls = 'card row' + (has ? ' counted' : '') + (need > 0 || (lowlv && se.lv === 'out') ? ' below' : lowlv ? ' lowlv' : '') + (S.kp && S.kp.id === it.id ? ' active' : '');
     var hint = cfg
       ? '<span>Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) + '</span>'
       : '<span class="tag warn">⚠️ ' + bi1('notSetShort') + '</span>';
-    if (has && e.by && e.by !== S.me) hint += ' <span class="tag">' + esc(tr('countedBy').th) + ' ' + esc(e.by) + '</span>';
+    if (has && se.by && se.by !== S.me) hint += ' <span class="tag">' + esc(tr('countedBy').th) + ' ' + esc(se.by) + '</span>';
+    if (multi) hint += '<div class="multi">📍 ' + multiHint(it, e) + '</div>';
     var h = '<div class="' + cls + '" id="r-' + esc(it.id) + '"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + hint + '</div>';
     if (need > 0) {
@@ -1816,10 +1884,20 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }).join('') + '</div></div>';
     } else {
       h += '</div><div class="step"><button data-act="dec" data-id="' + esc(it.id) + '" aria-label="ลด">−</button>' +
-        '<button class="val' + (has ? '' : ' empty') + '" data-act="kp" data-id="' + esc(it.id) + '"><span>' + (has ? L.fmtNum(e.v) : '–') + '</span><small class="mm">' + esc(unitMm(it) || it.unit) + '</small></button>' +
+        '<button class="val' + (has ? '' : ' empty') + '" data-act="kp" data-id="' + esc(it.id) + '"><span>' + (has ? L.fmtNum(se.v) : '–') + '</span><small class="mm">' + esc(unitMm(it) || it.unit) + '</small></button>' +
         '<button data-act="inc" data-id="' + esc(it.id) + '" aria-label="เพิ่ม">+</button></div>';
     }
     return h + '</div>';
+  }
+
+  // "เก็บ 2 ที่ · นับแล้ว 1/2 ที่ · ยังไม่นับที่: ❄️ ตู้ฟรีซ" หรือ "รวมทุกที่ 5"
+  function multiHint(it, e) {
+    var locs = L.itemLocs(it), parts = (e && e.parts) || {}, c = Object.keys(parts).length;
+    var u = ' ' + esc(it.unit) + (unitMm(it) ? ' <span class="mm">' + esc(unitMm(it)) + '</span>' : '');
+    var each = locs.map(function (z) { return esc(zoneOf(z).icon) + ' ' + (L.isNum(parts[z]) ? L.fmtNum(parts[z]) : '–'); }).join(' + ');
+    if (e && !e.partial && L.isNum(e.v)) return each + ' = <b>' + bi1('totalAll', { total: L.fmtNum(e.v) }) + '</b>' + u;
+    var miss = locs.filter(function (z) { return !L.isNum(parts[z]); }).map(function (z) { return zoneOf(z).icon + ' ' + zoneOf(z).th; }).join(', ');
+    return bi1('multiLoc', { n: locs.length }) + '<br>' + each + (c ? ' · ' + bi1('stillAt', { list: miss }) : '');
   }
 
   function updateRow(id) {
@@ -1835,7 +1913,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var el = document.getElementById('zone-prog');
     if (!el || !S.zone) return;
     var list = zoneItems(S.zone);
-    var c = list.filter(function (it) { return L.hasCount(entry(it.id)); }).length;
+    var c = list.filter(function (it) { return L.hasCount(slotVal(it, S.zone)); }).length;
     el.innerHTML = '<b>' + c + ' / ' + list.length + '</b> ' + bi1('counted');
   }
 
@@ -1852,7 +1930,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += '<div class="zone-label">' + z.icon + ' ' + esc(z.th) + '</div>';
       h += rs.map(function (r) {
         return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>' + (unitMm(r.item) ? '<span class="mm u">' + esc(unitMm(r.item)) + '</span>' : ''), esc(tr('left').th) + ' ' + L.fmtNum(r.qty) +
-          ' · Min ' + L.fmtNum(r.item.min) + ' · Max ' + L.fmtNum(r.item.max) + (r.item.size ? ' · ' + esc(r.item.size) : ''));
+          ' · Min ' + L.fmtNum(r.item.min) + ' · Max ' + L.fmtNum(r.item.max) + (r.item.size ? ' · ' + esc(r.item.size) : '') +
+          (r.parts ? ' · ' + esc(Object.keys(r.parts).map(function (z) { return zoneOf(z).icon + ' ' + L.fmtNum(r.parts[z]); }).join(' + ')) : ''));
       }).join('');
     });
     return h;
@@ -1913,9 +1992,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function keypadHtml() {
     var it = itemById(S.kp.id);
     if (!it) return '';
-    var e = entry(it.id), cfg = L.isConfigured(it);
+    var e = slotVal(it, S.kp.z), cfg = L.isConfigured(it), multi = isMulti(it);
     var h = '<div class="sheet-bg" data-act="kpClose"></div><div class="sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
-      '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : bi1('notSetUp')) + '</div></div>' +
+      '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : bi1('notSetUp')) + '</div>' +
+      (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') + '</div>' +
       '<button class="iconbtn" data-act="kpClose" aria-label="ปิด">✕</button></div>';
     if (!cfg) {
       return h + '<div class="kp-lv">' + ['ok', 'low', 'out'].map(function (lv) {
@@ -1926,7 +2006,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var buf = S.kp.buf;
     var shown = buf !== '' ? buf : (L.hasCount(e) ? L.fmtNum(e.v) : '–');
     var val = buf !== '' ? parseBuf(buf) : null;
-    var dcls = buf === '' ? ' empty' : (val !== null && L.needQty(it, val) > 0 ? ' below' : '');
+    var dcls = buf === '' ? ' empty' : (val !== null && L.needQty(it, kpTotal(it, val)) > 0 ? ' below' : '');
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
       return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
     }).join('');
@@ -1936,13 +2016,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<button class="btn btn-primary stack" data-act="kpNext">' + bi('next') + '</button></div></div>';
   }
 
+  // ยอดรวมถ้าที่นี่นับได้ val (ของหลายที่: บวกที่อื่นที่นับแล้ว — ถ้าที่อื่นยังไม่ครบ ไม่เตือนสีแดง)
+  function kpTotal(it, val) {
+    if (!isMulti(it)) return val;
+    var sum = val, ok = true;
+    L.itemLocs(it).forEach(function (z) {
+      if (z === S.kp.z) return;
+      var e = slotVal(it, z);
+      if (e && L.isNum(e.v)) sum += e.v; else ok = false;
+    });
+    return ok ? sum : Infinity;
+  }
+
   function parseBuf(buf) {
     var n = Number(buf.replace(/\.$/, '') || 0);
     return isFinite(n) ? n : 0;
   }
 
   function openKp(id, from) {
-    S.kp = { id: id, buf: '' };
+    var it = itemById(id), z = S.screen === 'zone' && S.zone ? S.zone : it.zone;
+    if (S.screen !== 'zone' && isMulti(it)) { var e = entry(id); if (e && e.missing && e.missing.length) z = e.missing[0]; }
+    S.kp = { id: id, z: z, buf: '' };
     S.from = from || S.screen;
     rerenderKeepScroll();
     var row = document.getElementById('r-' + id);
@@ -1956,7 +2050,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var idx = list.map(function (i) { return i.id; }).indexOf(cur);
     var next = null;
     for (var i = idx + 1; i < list.length; i++) {
-      if (!S.onlyUncounted || !L.hasCount(entry(list[i].id))) { next = list[i]; break; }
+      if (!S.onlyUncounted || !L.hasCount(slotVal(list[i], S.zone))) { next = list[i]; break; }
     }
     if (!next) {
       S.kp = null;
@@ -2046,14 +2140,14 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     kp: function (el) { openKp(el.dataset.id); },
     inc: function (el) {
-      var it = itemById(el.dataset.id), e = entry(it.id);
-      setEntry(it.id, { v: Math.round(((L.hasCount(e) && L.isNum(e.v) ? e.v : 0) + it.step) * 100) / 100 });
+      var it = itemById(el.dataset.id), e = slotVal(it, hereZone(it));
+      setEntry(L.slotKey(it, hereZone(it)), { v: Math.round(((L.hasCount(e) && L.isNum(e.v) ? e.v : 0) + it.step) * 100) / 100 });
       updateRow(it.id); updateZoneHead();
     },
     dec: function (el) {
-      var it = itemById(el.dataset.id), e = entry(it.id);
+      var it = itemById(el.dataset.id), e = slotVal(it, hereZone(it));
       if (!L.hasCount(e) || !L.isNum(e.v)) return;
-      setEntry(it.id, { v: Math.max(0, Math.round((e.v - it.step) * 100) / 100) });
+      setEntry(L.slotKey(it, hereZone(it)), { v: Math.max(0, Math.round((e.v - it.step) * 100) / 100) });
       updateRow(it.id); updateZoneHead();
     },
     setLv: function (el) {
@@ -2072,20 +2166,20 @@ if (typeof module !== 'undefined') module.exports = Logic;
       buzz();
       var it = itemById(S.kp.id), disp = document.getElementById('kp-disp');
       if (disp) {
-        var v = b !== '' ? parseBuf(b) : null, e = entry(it.id);
-        disp.className = 'kp-disp' + (b === '' ? ' empty' : (L.needQty(it, v) > 0 ? ' below' : ''));
+        var v = b !== '' ? parseBuf(b) : null, e = slotVal(it, S.kp.z);
+        disp.className = 'kp-disp' + (b === '' ? ' empty' : (L.needQty(it, kpTotal(it, v)) > 0 ? ' below' : ''));
         disp.innerHTML = esc(b !== '' ? b : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + unitTag(it) + '</small>';
       }
     },
     kpNext: function () {
       var id = S.kp.id;
-      if (S.kp.buf !== '') setEntry(id, { v: parseBuf(S.kp.buf) });
+      if (S.kp.buf !== '') setEntry(kpKey(), { v: parseBuf(S.kp.buf) });
       afterKp(id);
     },
-    kpOut: function () { setEntry(S.kp.id, { v: 0 }); afterKp(S.kp.id); },
-    kpLv: function (el) { setEntry(S.kp.id, { lv: el.dataset.v }); afterKp(S.kp.id); },
+    kpOut: function () { setEntry(kpKey(), { v: 0 }); afterKp(S.kp.id); },
+    kpLv: function (el) { setEntry(kpKey(), { lv: el.dataset.v }); afterKp(S.kp.id); },
     kpClose: function () {
-      if (S.kp && S.kp.buf !== '') setEntry(S.kp.id, { v: parseBuf(S.kp.buf) });
+      if (S.kp && S.kp.buf !== '') setEntry(kpKey(), { v: parseBuf(S.kp.buf) });
       S.kp = null; rerenderKeepScroll();
     },
 
@@ -2222,6 +2316,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     }
   };
+
+  function kpKey() { return L.slotKey(itemById(S.kp.id), S.kp.z); }
 
   function afterKp(id) {
     updateRow(id); updateZoneHead();
@@ -2761,7 +2857,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
           }).join('') + '</select><div class="btn-row"><button class="btn btn-ghost" data-act="mvCancel">ยกเลิก</button>' +
           '<button class="btn btn-primary" data-act="mvSave" id="mv-save"' + (n ? '' : ' disabled') + '>ย้าย ' + n + ' รายการ</button></div></div></div></div>';
       } else {
+        var also = d.items.filter(function (it) { return it.zone !== A.zone && L.itemLocs(it).indexOf(A.zone) >= 0; });
         h += '<div class="list" style="margin-top:10px">' + list.map(function (it) { return adminItemBtn(it, false); }).join('') + '</div>' +
+          (also.length ? '<div class="section-h" style="font-size:15px">📍 เก็บที่นี่ด้วย <span class="n">(ที่หลักอยู่หมวดอื่น)</span></div><div class="list">' + also.map(function (it) { return adminItemBtn(it, true); }).join('') + '</div>' : '') +
           '<div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aNew">＋ เพิ่มรายการ</button>' +
           '<button class="btn btn-ghost" data-act="roStart">↕️ จัดลำดับ</button></div>' +
           '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="mvStart"' + (list.length && ZONES.length > 1 ? '' : ' disabled') + '>☑️ ย้ายหลายรายการ</button>' +
@@ -2848,6 +2946,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<small>' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) : '⚠️ ' + esc(it.setup_note || 'ยังไม่ครบ')) +
       (it.mm_auto ? (it.mm_auto === 'claude' ? ' · ✨ พม่า Claude แปล' : ' · 🌐 พม่า Google แปล') : '') +
       (it.buy_unit && it.buy_factor ? ' · ซื้อเป็น ' + esc(it.buy_unit) + ' (1 ≈ ' + L.fmtNum(it.buy_factor) + ' ' + esc(it.unit) + ')' : '') +
+      (L.itemLocs(it).length > 1 ? ' · 📍 ' + esc(L.itemLocs(it).map(function (z) { return zoneOf(z).icon; }).join(' ')) + ' ' + L.itemLocs(it).length + ' ที่' : '') +
       (showNote ? ' · ' + esc(zoneOf(it.zone).th) : '') + (it.active === false ? ' · ปิดใช้งาน' : '') + '</small></span><span class="muted">แก้ ›</span></button>';
   }
 
@@ -2979,6 +3078,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div><label>ประเภท</label><div class="seg">' +
       '<label class="' + (it.kind !== 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="buy"' + (it.kind !== 'prep' ? ' checked' : '') + '> 🛒 ของซื้อ<small>ต่ำกว่า Min = สั่งซื้อ</small></label>' +
       '<label class="' + (it.kind === 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="prep"' + (it.kind === 'prep' ? ' checked' : '') + '> 🔪 ของเตรียม/ทำเอง<small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></label></div></div>' +
+      '<div><label>📍 เก็บที่อื่นด้วย <span class="muted" style="font-weight:500">(ของชิ้นเดียวกันอยู่หลายที่ — น้องนับแยกแต่ละที่ แอพรวมยอดให้)</span></label><div class="loc-pick">' +
+      ZONES.map(function (z) {
+        var more = String(it.more_zones || '').split(',');
+        return '<label class="check"><input type="checkbox" class="e-more" value="' + esc(z.id) + '"' + (more.indexOf(z.id) >= 0 && z.id !== it.zone ? ' checked' : '') + '> ' + esc(z.icon + ' ' + z.th) + '</label>';
+      }).join('') + '</div><small class="muted">ไม่ต้องติ๊กที่หลัก (ช่อง "ที่เก็บ" ด้านบน) · ใช้ได้กับรายการที่นับเป็นตัวเลข (มี Min/Max)</small></div>' +
       '<div><label>ชื่อไทย</label><input type="text" id="e-th" data-input="aNameTh" value="' + esc(it.name_th) + '"></div>' +
       '<div><label>ชื่อพม่า <span class="tag ' + (it.mm_auto === 'claude' ? 'brand' : 'warn') + (it.mm_auto ? '' : ' hidden') + '" id="e-mm-tag">' + mmTagText(it.mm_auto) + '</span></label>' +
       '<div style="display:flex;gap:8px"><input type="text" id="e-mm" class="mm" data-input="aNameMm" value="' + esc(it.name_mm) + '" style="flex:1">' +
@@ -3008,6 +3112,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     it.zone = g('e-zone').value; it.name_th = g('e-th').value.trim(); it.name_mm = g('e-mm').value.trim();
     var k = document.querySelector('input[name="e-kind"]:checked');
     it.kind = k ? k.value : (it.kind || 'buy');
+    it.more_zones = Array.prototype.map.call(document.querySelectorAll('.e-more:checked'), function (x) { return x.value; })
+      .filter(function (z) { return z !== it.zone; }).join(',');
     it.mm_auto = S.admin.edit.mm_auto || '';
     it.min = n('e-min'); it.max = n('e-max'); it.unit = g('e-unit').value.trim(); it.unit_mm = g('e-umm').value.trim();
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
