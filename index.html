@@ -629,6 +629,15 @@ var I18N = {
   noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
+  // ส่งตามหลัง (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ထပ်ပို့ကြည့်မယ်, ပို့ဖို့ စောင့်နေတာ, ဖျက်ပစ်မယ်, poSending)
+  savedSending: ['บันทึกแล้ว · กำลังส่งให้บอส', 'သိမ်းပြီးပြီ · ဘော့စ်ဆီ ပို့နေတယ်'],
+  outboxWaiting: ['รอส่ง {n} รายการ — แอพส่งให้เองเมื่อเน็ตกลับมา', 'ပို့ဖို့ စောင့်နေတာ {n} ခု — အင်တာနက် ပြန်ရရင် အက်ပ်က အလိုလို ပို့ပေးမယ်'],
+  poSending: ['ใบรับของรอบก่อนของใบนี้ยังส่งไม่เสร็จ — รอสักครู่', 'ဒီပစ္စည်းအော်ဒါအတွက် အရင်တစ်ခေါက် လက်ခံတာ ပို့နေဆဲ — ခဏစောင့်ပါ'],
+  poSendingTag: ['กำลังส่ง', 'ပို့နေတယ်'],
+  outboxFailed: ['ส่งไม่สำเร็จ', 'ပို့လို့မရဘူး'],
+  retry: ['ลองส่งใหม่', 'ထပ်ပို့ကြည့်မယ်'],
+  discard: ['ทิ้ง', 'ဖျက်ပစ်မယ်'],
+  discardAsk: ['ทิ้งรายการนี้? บอสจะไม่ได้รับ', 'ဖျက်ပစ်မလား? ဖျက်ရင် ဘော့စ်ဆီ မရောက်တော့ဘူး'],
   // อ่านบิลด้วย AI (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ယူနစ်, ကြည်ကြည်, တိုက်ကြည့်, ဘေလ်အတိုင်း, တကယ်ရောက်ရင်)
   readBill: ['อ่านบิลด้วย AI', 'ဘေလ်ကို AI နဲ့ ဖတ်မယ်'],
   readingBill: ['กำลังอ่านบิล… (10–40 วินาที)', 'ဘေလ် ဖတ်နေတယ်… (10–40 စက္ကန့်)'],
@@ -1365,8 +1374,16 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   // Google Apps Script ตอบช้าแบบสุ่ม (1–30 วินาที) และบางครั้งตอบ 404 ทั้งที่ทำสำเร็จแล้ว
   // → ลองใหม่เองสูงสุด 3 ครั้ง ด้วย rid เดิม (หลังบ้านจำผลไว้ ไม่บันทึกซ้ำ)
-  function postApi(fn, args) {
-    var rid = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)).slice(0, 24);
+  function newRid() { return (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)).slice(0, 24); }
+  // rid เดิมทุกครั้งที่ลองใหม่ (ของที่ส่งตามหลัง) → หลังบ้านจำผล 6 ชม. ไม่บันทึกซ้ำ
+  function apiRid(rid, fn, args) {
+    S.lastApi = Date.now();
+    if (MOCK) return MOCK.call(fn, args);
+    if (API_URL) return postApi(fn, args, rid);
+    return api.apply(null, [fn].concat(args));
+  }
+  function postApi(fn, args, fixedRid) {
+    var rid = fixedRid || newRid();
     var waits = [1200, 3500];
     function attempt(n) {
       return postOnce(fn, args, rid).then(null, function (e) {
@@ -1376,7 +1393,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return attempt(0);
   }
-  var SLOW_API = { apiReadBill: 120000 }; // Claude อ่านรูปบิล ใช้เวลานานกว่าปกติ
+  var SLOW_API = { apiReadBill: 120000, apiReceive: 90000, apiAlert: 60000 }; // อ่านบิล/อัปรูป+แปล+LINE ใช้เวลานานกว่าปกติ
   function postOnce(fn, args, rid) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctl) ctl.abort(); }, SLOW_API[fn] || 30000);
@@ -1685,7 +1702,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var slow = document.getElementById('slow-note');
     if (slow) slow.classList.toggle('hidden', n !== 'slow');
   }
-  window.addEventListener('online', function () { if (S.boot && Object.keys(S.pending).length) scheduleSave(200); });
+  window.addEventListener('online', function () { if (S.boot && Object.keys(S.pending).length) scheduleSave(200); outboxRun(); });
 
   // ---------- ดึงผลนับของคนอื่น: ถี่ขึ้นตอนกำลังนับ (5 วินาที) ห่างลงตอนไม่ได้แตะจอ ----------
   var pollT = null;
@@ -1717,11 +1734,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible' || !S.boot) return;
     pollNow();
+    outboxRun();
     if (L.businessDate() !== S.boot.date || Date.now() - S.bootAt > 30 * 60000) boot(S.pin, true).catch(bootFail);
   });
 
   // ---------- เริ่มต้น / เข้าระบบ ----------
   function start() {
+    if (S.pin) setTimeout(outboxRun, 800); // ของที่ค้างส่งจากรอบก่อน (ปิดแอพไปก่อนส่งเสร็จ)
     // ลิงก์ "สร้างใบสั่งซื้อ" จาก LINE (…/#po) → เข้าหน้าบอส แท็บสั่งซื้อ
     if (location.hash === '#po') {
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* */ }
@@ -1955,13 +1974,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var h = top({ th: tr('todayCount').th + (lbl ? ' · ' + lbl : ''), mm: L.thaiDate(b.date), me: true }) + '<div class="wrap screen">';
       if (!myZones().length) h += '<div class="note warn" style="margin-bottom:12px">' + bi1('noPlacesYet') + '</div>';
       if (sub) {
-        h += '<div class="note ok" style="margin-bottom:12px">✅ ' + bi1('sent') + ' ' + esc(L.bkkTime(sub.at)) + ' (' + esc(sub.by) + ')<br><small>' + bi1('resendHint') + '</small></div>';
+        h += '<div class="note ok" style="margin-bottom:12px">✅ ' + bi1('sent') + ' ' + esc(L.bkkTime(sub.at)) + ' (' + esc(sub.by) + ')<br><small>' + bi1('resendHint') + '</small>' +
+          (S.result && S.result.message ? '<br><button class="mini-link" data-act="toSent">💬 ข้อความที่บอสได้รับ</button>' : '') + '</div>';
       }
       h += '<div class="card hero"><div class="ring" style="--p:' + pct + '"><span>' + pct + '%</span></div><div>' +
         '<b>' + counted + ' / ' + total + ' ' + esc(tr('items').th) + '</b>' +
         '<div class="muted">' + bi1('counted') + '</div>' +
         (below ? '<div class="meta" style="margin-top:6px"><span class="tag bad">▼ ' + below + ' ' + bi1('belowMin') + '</span></div>' : '') +
         '</div></div>';
+      h += outboxHtml();
       h += recvCard();
       h += prepCard(sum);
       h += '<div class="search-box"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.homeQ || '') + '">' +
@@ -2060,7 +2081,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     sent: function () {
       var r = S.result || {};
       var st = r.status || '';
-      var note = st === 'line_ok' ? '<div class="note ok">ส่งเข้า LINE บอสแล้ว ✓</div>'
+      // ส่งเข้ากลุ่ม = group_ok · ทั้งกลุ่ม+บอส = group_ok+line_ok
+      var note = /(line|group)_ok/.test(st) ? '<div class="note ok">ส่งเข้า LINE ' + (/group_ok/.test(st) ? 'กลุ่ม' : 'บอส') + 'แล้ว ✓</div>'
         : /email_ok/.test(st) ? '<div class="note warn">LINE ยังส่งไม่ได้ (' + esc(st.split('>')[0]) + ') — ส่งทางอีเมลบอสแทนแล้ว</div>'
           : '<div class="note bad">บันทึกแล้ว แต่ส่งแจ้งบอสไม่สำเร็จ (' + esc(st) + ') — บอกบอสด้วย</div>';
       return top({ th: tr('sent').th, mm: tr('sent').mm }) + '<div class="wrap screen">' +
@@ -2092,6 +2114,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var list = S.recvList || (S.boot && S.boot.pos) || [];
       var h = top({ th: '📦 ' + tr('receive').th, mm: tr('receive').mm, back: 'toHome' }) + '<div class="wrap screen">';
       if (S.recvLoading) h += '<p class="muted center" style="margin:6px 0 10px"><span class="spin-sm"></span>กำลังโหลด… · <span class="mm">ခဏစောင့်ပါ…</span></p>';
+      h += outboxHtml();
       h += list.length ? '<p class="sub">' + bi1('pickPo') + '</p><div class="list">' + list.map(recvPoCard).join('') + '</div>'
         : '<div class="note info">' + bi1('noPending') + '</div>';
       h += '<button class="btn btn-ghost" style="margin-top:16px" data-act="recvNoPo">➕ ' + bi1('noPoReceive') + '</button>';
@@ -2193,6 +2216,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var names = lines.slice(0, 4).map(function (l) { return esc(l.name_th) + (l.name_mm ? ' <span class="mm">' + esc(l.name_mm) + '</span>' : ''); }).join(' · ');
     return '<button class="card po-card" data-act="recvOpenPo" data-id="' + po.id + '"><div class="po-no">#' + po.id + '</div><div class="tx">' +
       '<b>' + esc(po.supplier_name || tr('unknownShop').th) + '</b> ' + (po.status === 'partial' ? '<span class="tag warn">' + bi1('partial') + '</span>' : '') +
+      (poSending(po.id) ? ' <span class="tag brand"><span class="spin-sm"></span>' + bi1('poSendingTag') + '</span>' : '') +
       '<div class="muted" style="font-size:13px">' + poDateTh(po.created_at) + ' · ' + lines.length + ' ' + esc(tr('items').th) + '</div>' +
       '<div class="po-items">' + names + (lines.length > 4 ? ' …' : '') + '</div></div></button>';
   }
@@ -2722,9 +2746,89 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
+  // ---------- ส่งตามหลัง (outbox): กดยืนยันแล้วไปต่อได้เลย แอพส่งเองจนสำเร็จ — เก็บในเครื่อง เน็ตหลุด/ปิดแอพก็ไม่หาย (กฎ: ห้ามทำให้แอพช้าลง) ----------
+  function outbox() { return S.outbox || (S.outbox = store.get('outbox') || []); }
+  function outboxSave() { store.set('outbox', outbox()); }
+  function outboxAdd(fn, args, label) {
+    var job = { id: newRid(), fn: fn, args: args, label: label, at: Date.now(), tries: 0 };
+    outbox().push(job);
+    outboxSave();
+    outboxRun();
+    return job;
+  }
+  function outboxRun() {
+    var q = outbox().filter(function (j) { return !j.failed; });
+    outboxNet();
+    if (S.outboxBusy || !q.length) return;
+    var job = q[0];
+    if (job.fn === 'apiSubmit' && (Object.keys(S.pending || {}).length || S.inflight)) {
+      if (!S.inflight) flush();
+      clearTimeout(S.outboxT); S.outboxT = setTimeout(outboxRun, 1500);
+      return;
+    }
+    S.outboxBusy = true;
+    apiRid(job.id, job.fn, job.args).then(function (res) {
+      S.outbox = outbox().filter(function (j) { return j.id !== job.id; });
+      outboxSave(); S.outboxBusy = false;
+      outboxDone(job, res);
+      outboxRun();
+      if (['home', 'recv'].indexOf(S.screen) >= 0) rerenderKeepScroll();
+    }, function (e) {
+      S.outboxBusy = false;
+      if (isNetErr(e)) {
+        job.tries++; outboxSave();
+        clearTimeout(S.outboxT);
+        S.outboxT = setTimeout(outboxRun, Math.min(60000, 3000 * Math.pow(2, Math.min(job.tries, 5))));
+      } else {
+        job.failed = errMsg(e); outboxSave();
+        toast('⚠️ ' + tr('outboxFailed').th + ' · ' + tr('outboxFailed').mm + ': ' + job.label);
+        outboxRun();
+      }
+      outboxNet();
+      if (['home', 'recv'].indexOf(S.screen) >= 0) rerenderKeepScroll();
+    });
+  }
+  function outboxDone(job, res) {
+    if (job.fn === 'apiReceive' && res && res.pos) { if (S.boot) S.boot.pos = res.pos; S.recvList = res.pos; }
+    if (job.fn === 'apiSubmit' && res) {
+      S.result = res;
+      if (res.draft) applyServerDraft(res.draft);
+      var st = String(res.status || '');
+      if (!/(line|group)_ok/.test(st)) toast('⚠️ ' + (/email_ok/.test(st) ? 'LINE ส่งไม่ได้ — ส่งทางอีเมลบอสแทนแล้ว' : 'บันทึกแล้ว แต่แจ้งบอสไม่สำเร็จ — บอกบอสด้วย'));
+    }
+    toast('✅ ' + job.label + ' — ' + tr('sent').th + ' · ' + tr('sent').mm);
+  }
+  // จุดสถานะบนหัวจอ: ยังมีของค้างส่ง = กำลังบันทึก
+  function outboxNet() {
+    if (outbox().some(function (j) { return !j.failed; })) { if (S.net !== 'offline') setNet('saving'); }
+    else if (S.net === 'saving' && !Object.keys(S.pending || {}).length && !S.inflight) setNet('ok');
+  }
+  function poSending(id) { return outbox().some(function (j) { return j.fn === 'apiReceive' && !j.failed && j.args[2] && String(j.args[2].po_id) === String(id); }); }
+  function outboxHtml() {
+    var q = outbox();
+    if (!q.length) return '';
+    var wait = q.filter(function (j) { return !j.failed; }), bad = q.filter(function (j) { return j.failed; });
+    var net = wait.some(function (j) { return j.tries > 0; }); // เคยส่งไม่ผ่านเพราะเน็ต
+    var h = !wait.length ? '' : '<div class="note info" style="margin-bottom:10px">' + (net ? '📤 ' + bi1('outboxWaiting', { n: wait.length })
+      : '<span class="spin-sm"></span>' + bi1('sending') + ' (' + wait.length + ')') + '</div>';
+    bad.forEach(function (j) {
+      h += '<div class="note bad" style="margin-bottom:10px">⚠️ ' + bi1('outboxFailed') + ': <b>' + esc(j.label) + '</b><br><small>' + esc(j.failed) + '</small>' +
+        '<div class="btn-row" style="margin-top:8px"><button class="btn btn-ghost" data-act="obRetry" data-id="' + esc(j.id) + '">' + bi1('retry') + '</button>' +
+        '<button class="btn btn-ghost" data-act="obDrop" data-id="' + esc(j.id) + '">' + bi1('discard') + '</button></div></div>';
+    });
+    return h;
+  }
+
   // ---------- การกดต่างๆ ----------
   var ACT = {
     retry: function () { go('loading'); start(); },
+    obRetry: function (el) { outbox().forEach(function (j) { if (j.id === el.dataset.id) { delete j.failed; j.tries = 0; } }); outboxSave(); outboxRun(); rerenderKeepScroll(); },
+    obDrop: function (el) {
+      confirmBox(bi1('discardAsk'), '', [{ key: 'no', html: bi('cancel') }, { key: 'yes', html: bi('discard'), cls: 'btn-danger' }]).then(function (k) {
+        if (k !== 'yes') return;
+        S.outbox = outbox().filter(function (j) { return j.id !== el.dataset.id; }); outboxSave(); outboxNet(); rerenderKeepScroll();
+      });
+    },
     who: function () { go('who'); },
     pickMe: function (el) { S.me = el.dataset.name; store.set('me', S.me); go('home'); },
     toHome: function () { flush(); go('home'); },
@@ -2737,6 +2841,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     toggleUncounted: function () { S.onlyUncounted = !S.onlyUncounted; S.kp = null; render(); },
     toReview: function () { flush(); go('review'); },
     toPrep: function () { flush(); go('prep'); },
+    toSent: function () { go('sent'); },
     openZoneTodo: function (el) { S.zone = el.dataset.z; S.onlyUncounted = true; S.zoneQ = ''; go('zone'); pollNow(); },
     prepDone: function (el) {
       var it = itemById(el.dataset.id), e = it && entry(it.id);
@@ -2851,19 +2956,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
         : Promise.resolve('send');
       go2.then(function (k) {
         if (k !== 'send') return;
-        var btn = document.getElementById('btn-submit');
-        if (btn) { btn.disabled = true; btn.innerHTML = bi('sending'); }
+        // ส่งตามหลัง: กลับหน้าแรกเลย แอพรอผลนับขึ้นครบแล้วค่อยส่งรายงานเอง
         clearTimeout(S.saveTimer);
-        waitSaved().then(function () {
-          return api('apiSubmit', S.pin, S.boot.date, S.me, S.note);
-        }).then(function (r) {
-          S.result = r; S.note = '';
-          applyServerDraft(r.draft);
-          go('sent');
-        }).catch(function (e) {
-          if (btn) { btn.disabled = false; btn.innerHTML = biIcon('📤', 'sendToBoss'); }
-          toast(isNetErr(e) ? tr('offline').th : tr('error').th + ': ' + errMsg(e));
-        });
+        flush();
+        outboxAdd('apiSubmit', [S.pin, S.boot.date, S.me, S.note], '📤 ' + tr('reviewSend').th + ' · ' + tr('reviewSend').mm + (myLabel() ? ' (' + myLabel() + ')' : ''));
+        S.note = '';
+        toast('✅ ' + tr('savedSending').th + ' · ' + tr('savedSending').mm);
+        go('home');
       });
     },
 
@@ -2871,6 +2970,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     recvOpenPo: function (el) {
       var po = (S.recvList || []).filter(function (p) { return String(p.id) === el.dataset.id; })[0];
       if (!po) return;
+      if (poSending(po.id)) return toast('⏳ ' + tr('poSending').th + ' · ' + tr('poSending').mm); // กันรับซ้ำก่อนรอบก่อนส่งเสร็จ
       S.recv = recvFromPo(po);
       go('recvpo');
     },
@@ -2959,19 +3059,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
         return recvSaveEdit(p);
       }
       if (!lines.length && !amount && !R.photos.length) return toast('⚠️ ' + tr('nothingTicked').th + ' · ' + tr('nothingTicked').mm);
-      R.sending = true;
-      rerenderKeepScroll();
-      api('apiReceive', S.pin, S.me, { po_id: R.po_id, supplier_name: R.supplier_name, lines: lines, amount: amount, photos: R.photos, note: R.note })
-        .then(function (res) {
-          if (S.boot) S.boot.pos = res.pos;
-          S.recvList = res.pos;
-          toast('✅ ' + tr('receivedSaved').th + ' · ' + tr('receivedSaved').mm);
-          go('home');
-        }, function (e) {
-          R.sending = false;
-          rerenderKeepScroll();
-          toast(isNetErr(e) ? tr('offline').th : tr('error').th + ': ' + errMsg(e));
-        });
+      outboxAdd('apiReceive', [S.pin, S.me, { po_id: R.po_id, supplier_name: R.supplier_name, lines: lines, amount: amount, photos: R.photos, note: R.note }],
+        '📦 ' + (R.po_id ? tr('poLabel').th + ' #' + R.po_id + ' · ' + tr('poLabel').mm + ' #' + R.po_id : tr('receive').th + ' · ' + tr('receive').mm) + (R.supplier_name ? ' (' + R.supplier_name + ')' : ''));
+      S.recv = null;
+      toast('✅ ' + tr('savedSending').th + ' · ' + tr('savedSending').mm);
+      go('home');
     },
 
     urgType: function (el) { S.urgent.type = el.dataset.v; rerenderKeepScroll(); },
@@ -2982,15 +3074,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
     urgSend: function (el) {
       var u = S.urgent;
       if (!u.type) return;
-      el.disabled = true; el.innerHTML = bi('sending');
       if (u.busy) return;
-      api('apiAlert', S.pin, S.me, { type: u.type, item: u.item || u.q, qty: u.qty, note: u.note, photos: u.photos }).then(function () {
-        toast('✅ ' + tr('urgentSent').th + ' · ' + tr('urgentSent').mm);
-        go('home');
-      }, function (e) {
-        el.disabled = false; el.innerHTML = biIcon('🚨', 'send');
-        toast(tr('error').th + ': ' + errMsg(e));
-      });
+      outboxAdd('apiAlert', [S.pin, S.me, { type: u.type, item: u.item || u.q, qty: u.qty, note: u.note, photos: u.photos }], '🚨 ' + tr('urgent').th + ' · ' + tr('urgent').mm + (u.item || u.q ? ' (' + (u.item || u.q) + ')' : ''));
+      toast('✅ ' + tr('savedSending').th + ' · ' + tr('savedSending').mm);
+      go('home');
     }
   };
 
@@ -3615,7 +3702,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function statusLabel(st) {
     st = String(st || '');
-    if (st === 'line_ok') return '<span class="tag ok">LINE ✓</span>';
+    if (/group_ok/.test(st)) return '<span class="tag ok">LINE กลุ่ม ✓</span>';
+    if (/line_ok/.test(st)) return '<span class="tag ok">LINE ✓</span>';
     if (/email_ok/.test(st)) return '<span class="tag warn">อีเมล (LINE ไม่ผ่าน)</span>';
     return '<span class="tag bad">ส่งไม่สำเร็จ</span>';
   }
