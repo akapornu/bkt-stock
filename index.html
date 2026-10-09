@@ -335,6 +335,62 @@ a.btn { text-decoration: none; color: inherit; }
 .sub-h .muted { font-weight: 500; font-size: 13px; }
 .mini-link { display: inline-block; margin-top: 4px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 12.5px; font-weight: 600; color: var(--brand); }
 
+/* ---------- แดชบอร์ด ---------- */
+.dash-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 14px; }
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi { padding: 12px 14px; text-align: left; display: flex; flex-direction: column; gap: 2px; min-height: 84px; }
+.kpi b { font-size: 26px; line-height: 1.15; font-weight: 800; }
+.kpi span { font-size: 13.5px; color: var(--muted); font-weight: 600; }
+.kpi small { font-size: 12px; color: var(--muted); }
+.kpi.bad b { color: var(--bad); }
+.kpi.warn b { color: var(--warn); }
+.kpi.brand b { color: var(--brand); }
+.kpi:disabled { cursor: default; }
+.stack-bar { display: flex; height: 14px; border-radius: 999px; overflow: hidden; margin: 10px 0 8px; background: var(--line); }
+.stack-bar i { display: block; min-width: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.legend button, .legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--muted); padding: 2px 0; }
+.legend b { color: var(--ink); }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.legend.small { padding: 4px 6px 2px; }
+.dash-row { display: block; width: 100%; text-align: left; padding: 12px 14px; }
+.dr-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.dr-top .nm { font-weight: 600; min-width: 0; }
+.dr-top b { flex: none; font-size: 16px; }
+.dash-row small { display: block; margin-top: 6px; font-size: 12.5px; line-height: 1.45; }
+.gauge { position: relative; height: 10px; border-radius: 999px; background: #eeebe6; margin-top: 8px; overflow: visible; }
+.gauge.empty { background: repeating-linear-gradient(90deg, #eeebe6 0 6px, transparent 6px 10px); }
+.gauge > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.gauge .gk { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--warn); border-radius: 2px; transform: translateX(-1px); }
+.gauge .gk.mx { background: var(--ok); }
+.cover-row { display: grid; grid-template-columns: minmax(0, 1.2fr) 1fr auto; align-items: center; gap: 10px; width: 100%; padding: 7px 0; text-align: left; font-size: 14.5px; }
+.cover-row span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cover-row b { font-size: 14px; min-width: 52px; text-align: right; }
+.cbar { height: 10px; border-radius: 999px; background: #eeebe6; overflow: hidden; }
+.cbar i { display: block; height: 100%; border-radius: 999px; }
+.sug { padding: 14px 16px; }
+.sug-v { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 6px 0 4px; font-size: 16px; }
+.sug-v s { color: var(--muted); }
+.sug-v b { color: var(--brand); font-size: 18px; }
+.chart { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .cl { font-size: 10.5px; fill: var(--muted); font-family: var(--font); }
+.big-q { font-size: 30px; font-weight: 800; margin: 4px 0 2px; }
+details.card summary { cursor: pointer; list-style: none; }
+details.card summary::-webkit-details-marker { display: none; }
+details.card summary::after { content: ' ▾'; color: var(--muted); }
+.dash-seg { margin: 0 0 4px; }
+.dash-seg button { flex: 1 1 0; font-size: 13.5px; min-height: 42px; padding: 4px 6px; }
+.nm-link { font-weight: 700; font-size: 16px; text-align: left; padding: 0; }
+.mini-btn { flex: none; padding: 7px 14px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); font-weight: 700; font-size: 14px; }
+.chart .halo { paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
+.fc-grid { display: grid; grid-template-columns: repeat(7, 1fr); padding: 10px 6px; text-align: center; }
+.fc-grid > div { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; border-right: 1px solid var(--line); min-width: 0; }
+.fc-grid > div:last-child { border-right: 0; }
+.fc-grid b { font-size: 13px; line-height: 1.25; }
+.fc-grid b small { display: block; font-weight: 500; color: var(--muted); font-size: 11px; }
+.fc-grid .u { font-size: 11px; color: var(--muted); }
+.fc-grid .s { font-size: 14.5px; font-weight: 800; }
+
 </style>
 </head>
 <body>
@@ -762,6 +818,147 @@ var Logic = (function () {
     return L.join('\n');
   }
 
+  // ================= วิเคราะห์สต็อค (เฟส C: ใช้ไปเท่าไหร่ + เสนอ Min/Max · เฟส D: คาดการณ์วันหมด) =================
+  // ใช้ไป (ช่วงระหว่างนับ 2 ครั้ง) = นับครั้งก่อน + รับเข้าระหว่างนั้น − นับครั้งนี้
+  // หารด้วย "วันที่ร้านเปิด" ในช่วงนั้น (วันที่มีการส่งรอบนับ) → ใช้ต่อวัน
+  function addDays(dateStr, n) {
+    var d = parseDate(dateStr);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate());
+  }
+  function dayDiff(a, b) { return Math.round((parseDate(b) - parseDate(a)) / 864e5); }
+  function quantile(arr, q) {
+    if (!arr.length) return null;
+    var s = arr.slice().sort(function (x, y) { return x - y; }), p = (s.length - 1) * q, lo = Math.floor(p);
+    return lo + 1 < s.length ? s[lo] + (s[lo + 1] - s[lo]) * (p - lo) : s[lo];
+  }
+  function roundUpStep(v, step) { return step > 0 ? round2(Math.ceil(v / step - 1e-9) * step) : round2(v); }
+  function tms(iso) { var t = Date.parse(iso); return isFinite(t) ? t : 0; }
+  var DOW_SHORT = DAYS;
+
+  // o: { items, zones, counts:[{date,item_id,qty,level,unit,at}], moves:[{date,at,item_id,qty_count,count_unit}],
+  //      openDates:[วันที่มีส่งรอบนับ], onOrder:{item_id: จำนวนหน่วยนับที่สั่งแล้วรอรับ}, today, lookback, leadDays, cycleDays, minDays }
+  function stockAnalytics(o) {
+    var today = o.today, look = o.lookback || 28, from = addDays(today, -look);
+    var lead = isNum(o.leadDays) ? o.leadDays : 1, cycle = isNum(o.cycleDays) ? o.cycleDays : 1, minDays = o.minDays || 7;
+    var weekly = {};
+    (o.zones || []).forEach(function (z) { weekly[z.id] = !!z.weekly; });
+    var open = {}, openList = [];
+    (o.openDates || []).forEach(function (d) { if (!open[d]) { open[d] = true; openList.push(d); } });
+    openList.sort();
+    var openIn = function (a, b) { // วันเปิดร้านในช่วง (a, b]
+      var n = openList.filter(function (d) { return d > a && d <= b; }).length;
+      return n || Math.max(1, dayDiff(a, b));
+    };
+    var cBy = {}, mBy = {}, cover = {};
+    (o.counts || []).forEach(function (c) {
+      if (!isNum(c.qty) && !c.level) return;
+      var L = cBy[c.item_id] = cBy[c.item_id] || {};
+      if (!L[c.date] || tms(c.at) >= tms(L[c.date].at)) L[c.date] = c;
+    });
+    (o.moves || []).forEach(function (m) { (mBy[m.item_id] = mBy[m.item_id] || []).push(m); });
+    var active = (o.items || []).filter(function (it) { return it.active !== false; });
+    var res = active.map(function (it) {
+      var dates = Object.keys(cBy[it.id] || {}).sort();
+      var cs = dates.map(function (d) { return cBy[it.id][d]; }).filter(function (c) { return !c.unit || c.unit === it.unit; });
+      cs.forEach(function (c) { if (c.date >= from) cover[c.date] = (cover[c.date] || 0) + 1; });
+      var mv = (mBy[it.id] || []).filter(function (m) { return !m.count_unit || m.count_unit === it.unit; });
+      var nums = cs.filter(function (c) { return isNum(c.qty); });
+      var last = cs.length ? cs[cs.length - 1] : null;
+      var lastNum = nums.length ? nums[nums.length - 1] : null;
+      var recvSince = 0;
+      if (lastNum) mv.forEach(function (m) { if (tms(m.at) > tms(lastNum.at)) recvSince += m.qty_count || 0; });
+      var r = {
+        id: it.id, name_th: it.name_th, zone: it.zone, kind: it.kind, unit: it.unit, min: it.min, max: it.max, step: it.step || 1,
+        configured: isConfigured(it), last: last ? { date: last.date, qty: isNum(last.qty) ? last.qty : null, level: last.level || '', at: last.at, draft: !!last.draft } : null,
+        recvSince: round2(recvSince), onHand: lastNum ? round2(lastNum.qty + recvSince) : null, onOrder: round2((o.onOrder || {})[it.id] || 0),
+        intervals: [], anomalies: 0, days: 0, avgDaily: null, p90Daily: null, peakDaily: null, estNow: null, daysCover: null, runsOutIn: null, belowMinIn: null,
+        weekday: null, forecast: [], suggest: null, status: 'unknown'
+      };
+      // ไว้วาดกราฟ: ตัวเลขที่นับ + ของเข้าแต่ละวัน ในช่วงที่ดูย้อนหลัง
+      r.series = nums.filter(function (c) { return c.date >= from; }).map(function (c) { return { d: c.date, q: c.qty }; });
+      var rv = {};
+      mv.forEach(function (m) { if (m.date >= from) rv[m.date] = round2((rv[m.date] || 0) + (m.qty_count || 0)); });
+      r.recv = Object.keys(rv).sort().map(function (d) { return { d: d, q: rv[d] }; });
+      // ใช้ไปแต่ละช่วง (เฉพาะของซื้อ — ของเตรียม/ทำเองไม่มีบันทึกว่าทำเพิ่มเท่าไหร่ จึงคำนวณใช้ไปไม่ได้)
+      if (it.kind !== 'prep') {
+        for (var i = 1; i < nums.length; i++) {
+          var a = nums[i - 1], b = nums[i];
+          if (b.date < from) continue;
+          var recv = 0;
+          mv.forEach(function (m) { var t = tms(m.at); if (t > tms(a.at) && t <= tms(b.at)) recv += m.qty_count || 0; });
+          var use = round2(a.qty + recv - b.qty), days = openIn(a.date, b.date);
+          if (use < 0) { r.anomalies++; continue; } // ของเพิ่มขึ้นโดยไม่มีบันทึกรับเข้า → นับ/รับไม่ครบ ไม่เอามาคิด
+          r.intervals.push({ date: b.date, use: use, days: days, daily: round2(use / days), recv: round2(recv) });
+        }
+        var tot = 0, expanded = [];
+        r.intervals.forEach(function (x) { tot += x.use; r.days += x.days; for (var k = 0; k < x.days; k++) expanded.push(x.use / x.days); });
+        if (r.days) { r.avgDaily = round2(tot / r.days); r.p90Daily = round2(quantile(expanded, 0.9)); }
+        // ใช้ตามวันในสัปดาห์ (เฉพาะช่วงที่นับวันต่อวัน)
+        var wk = [0, 1, 2, 3, 4, 5, 6].map(function () { return { sum: 0, n: 0 }; });
+        r.intervals.forEach(function (x) { if (x.days === 1 && dayDiff(addDays(x.date, -1), x.date) === 1) { var w = wk[dayOfWeek(x.date)]; w.sum += x.use; w.n++; } });
+        if (wk.filter(function (w) { return w.n >= 2; }).length >= 5) r.weekday = wk.map(function (w) { return w.n >= 2 ? round2(w.sum / w.n) : null; });
+        // วันขายดี = P90 หรือค่าเฉลี่ยของวันในสัปดาห์ที่ขายดีสุด (ถ้ามีข้อมูลพอ) — เอาค่าที่มากกว่า
+        if (r.p90Daily !== null) r.peakDaily = round2(Math.max(r.p90Daily, Math.max.apply(null, (r.weekday || []).filter(isNum).concat([0]))));
+      }
+      // ตอนนี้ (ประมาณ) = นับล่าสุด + รับเข้า − ใช้ไปในวันที่ผ่านไปแล้วโดยไม่ได้นับ (เช่น ตู้ฟรีซนับวันอาทิตย์ วันนี้วันพุธ)
+      if (r.onHand !== null) {
+        var yest = addDays(today, -1);
+        var gone = lastNum.date < yest && r.avgDaily ? r.avgDaily * openIn(lastNum.date, yest) : 0;
+        r.estNow = round2(Math.max(0, r.onHand - gone));
+      }
+      // คาดการณ์ 7 วัน เริ่มวันนี้ (ถือว่าร้านเปิดทุกวัน) + อีกกี่วันจะต่ำกว่า Min / หมด (0 = ภายในวันนี้)
+      if (r.avgDaily !== null && r.days >= minDays && r.estNow !== null) {
+        var stock = r.estNow;
+        r.daysCover = r.avgDaily > 0 ? round2(r.estNow / r.avgDaily) : null;
+        for (var d = 0; d < 7; d++) {
+          var date = addDays(today, d), w = r.weekday ? r.weekday[dayOfWeek(date)] : null;
+          var u = isNum(w) ? w : r.avgDaily;
+          stock = round2(stock - u);
+          r.forecast.push({ date: date, use: round2(u), stock: Math.max(0, stock) });
+          if (r.belowMinIn === null && isNum(it.min) && stock < it.min) r.belowMinIn = d;
+          if (r.runsOutIn === null && stock <= 0) r.runsOutIn = d;
+        }
+      }
+      // เสนอ Min/Max: Min = ใช้วันขายดี × วันรอของ · Max = Min + ใช้เฉลี่ย × รอบสั่ง (โซนนับรายสัปดาห์ = 7 วัน)
+      if (it.kind !== 'prep' && r.days >= minDays && r.avgDaily > 0) {
+        var cyc = weekly[it.zone] ? 7 : cycle, st = it.step || 1;
+        var sMin = roundUpStep(r.peakDaily * lead, st), sMax = roundUpStep(sMin + r.avgDaily * cyc, st);
+        if (sMax <= sMin) sMax = round2(sMin + st);
+        r.suggest = { min: sMin, max: sMax, cycle: cyc, lead: lead,
+          differs: !isNum(it.min) || !isNum(it.max) || Math.abs(sMin - it.min) >= st || Math.abs(sMax - it.max) >= st };
+      }
+      // สถานะเทียบ Min/Max
+      var q = r.estNow;
+      if (!r.configured || q === null) r.status = last && last.level ? (last.level === 'ok' ? 'ok' : 'low') : 'unknown';
+      else if (q < it.min) r.status = 'low';
+      else if (q > it.max) r.status = 'over';
+      else if (q < it.min + (it.max - it.min) * 0.25) r.status = 'near';
+      else r.status = 'ok';
+      return r;
+    });
+    var coverage = [];
+    // ควรนับกี่รายการในวันนั้น = ของโซนนับทุกวัน (+ โซนรายสัปดาห์ ถ้าเป็นวันนับเต็มรอบ)
+    var fullDay = isNum(o.fullCountDay) ? o.fullCountDay : 0;
+    for (var k = look - 1; k >= 0; k--) {
+      var d2 = addDays(today, -k);
+      if (!cover[d2] && !open[d2]) continue;
+      var full = dayOfWeek(d2) === fullDay;
+      coverage.push({ date: d2, n: cover[d2] || 0, expected: active.filter(function (it) { return full || !weekly[it.zone]; }).length });
+    }
+    var dataDays = openList.filter(function (d) { return d >= from; }).length;
+    var by = function (s) { return res.filter(function (r) { return r.status === s; }).length; };
+    return {
+      today: today, lookback: look, leadDays: lead, cycleDays: cycle, minDays: minDays, dataDays: dataDays, total: res.length,
+      coverage: coverage,
+      status: { low: by('low'), near: by('near'), ok: by('ok'), over: by('over'), unknown: by('unknown') },
+      soon: res.filter(function (r) { return r.runsOutIn !== null && r.runsOutIn <= 1; }).length,
+      ready: res.filter(function (r) { return r.days >= minDays; }).length,
+      eligible: res.filter(function (r) { return r.kind !== 'prep'; }).length,
+      items: res
+    };
+  }
+
   var ALERT_TH = { runout: '⏳ ของจะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 แจ้งเรื่องอื่น' };
 
   var MM_RE = /[\u1000-\u109F]/;
@@ -811,7 +1008,8 @@ var Logic = (function () {
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
     buildReceiveMessage: buildReceiveMessage, round2: round2,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
-    isMeasured: isMeasured, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage
+    isMeasured: isMeasured, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
+    addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
 })();
 
@@ -1358,6 +1556,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
 
     apoedit: function () { return poEditScreen(); },
+    adash: function () { return dashItemScreen(); },
     apodetail: function () { return poDetailScreen(); },
     admin: function () { return adminScreen(); },
     aedit: function () { return adminEditScreen(); }
@@ -2047,9 +2246,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function loadAdmin(pin, tab) {
     return api('apiAdminLoad', pin).then(function (d) {
       var prev = S.admin || {};
-      S.admin = { pin: pin, data: d, tab: tab || prev.tab || (d.items.some(needsSetup) ? 'setup' : 'po'), zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '' };
+      S.admin = { pin: pin, data: d, tab: tab || prev.tab || 'dash', zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '',
+        dash: prev.dash || null, dashF: prev.dashF, dashQ: prev.dashQ };
       go('admin');
       if (S.admin.tab === 'po') loadPoData();
+      if (S.admin.tab === 'dash') loadDash();
     });
   }
 
@@ -2173,6 +2374,272 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (voided ? '<span class="tag bad">ยกเลิกแล้ว</span>' : '<button data-act="aRecvEdit" data-id="' + esc(r.id) + '">✏️ แก้ / ยกเลิก</button>') + '</div></div>';
   }
 
+  // ================= แดชบอร์ด (หน้าบอส) — กราฟวาดเองด้วย SVG ไม่ต้องโหลดไลบรารี =================
+  var ST = {
+    low: { th: 'ต่ำกว่า Min', c: 'var(--bad)', tag: 'bad' },
+    near: { th: 'ใกล้ Min', c: 'var(--warn)', tag: 'warn' },
+    ok: { th: 'พอดี', c: 'var(--ok)', tag: 'ok' },
+    over: { th: 'เกิน Max', c: '#3b6fb6', tag: 'brand' },
+    unknown: { th: 'ยังไม่รู้', c: '#c9c3bb', tag: '' }
+  };
+
+  function loadDash() {
+    S.admin.dashErr = '';
+    return api('apiAdminDashboard', S.admin.pin).then(function (d) {
+      S.admin.dash = d;
+      if (S.screen === 'admin' || S.screen === 'adash') rerenderKeepScroll();
+    }, function (e) { S.admin.dashErr = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
+  }
+
+  function dashFiltered() {
+    var A = S.admin, f = A.dashF || 'all', q = (A.dashQ || '').trim().toLowerCase();
+    return A.dash.items.filter(function (r) {
+      if (q && r.name_th.toLowerCase().indexOf(q) < 0) return false;
+      if (f === 'all') return true;
+      if (f === 'attn') return r.status === 'low' || (r.runsOutIn !== null && r.runsOutIn <= 2);
+      if (f === 'soon') return r.runsOutIn !== null && r.runsOutIn <= 1;
+      if (ST[f]) return r.status === f;
+      return r.zone === f;
+    });
+  }
+
+  function shortDate(d) { return L.thaiDate(d).split(' ').slice(1, 3).join(' '); }
+  function qtyText(q, unit) { return q === null || q === undefined ? '–' : L.fmtNum(q) + ' ' + unit; }
+  function dashItemById(id) { return S.admin.dash.items.filter(function (r) { return r.id === id; })[0]; }
+
+  // แถบระดับของ: 0 ── Min ── Max  (สีตามสถานะ)
+  function gauge(r) {
+    var q = r.estNow;
+    if (q === null || !r.configured) return '<div class="gauge empty"></div>';
+    var scale = Math.max(r.max * 1.25, q, 1e-9), pct = function (v) { return Math.max(0, Math.min(100, v / scale * 100)); };
+    return '<div class="gauge"><i style="width:' + pct(q) + '%;background:' + ST[r.status].c + '"></i>' +
+      '<b class="gk" style="left:' + pct(r.min) + '%"></b><b class="gk mx" style="left:' + pct(r.max) + '%"></b></div>';
+  }
+
+  function dashRow(r) {
+    var meta = [];
+    if (r.last) meta.push((r.last.draft ? 'นับวันนี้ (ยังไม่ส่ง)' : 'นับ ' + shortDate(r.last.date)));
+    if (r.recvSince) meta.push('+' + L.fmtNum(r.recvSince) + ' รับเข้า');
+    if (r.daysCover !== null) meta.push('พอใช้ ~' + L.fmtNum(Math.round(r.daysCover * 10) / 10) + ' วัน');
+    if (r.onOrder) meta.push('สั่งแล้ว ' + L.fmtNum(r.onOrder));
+    var val = r.estNow !== null ? qtyText(r.estNow, r.unit) : r.last && r.last.level ? L.LEVEL_TH[r.last.level] || r.last.level : 'ยังไม่นับ';
+    return '<button class="card dash-row" data-act="dashItem" data-id="' + esc(r.id) + '"><div class="dr-top"><span class="nm">' + esc(zoneOf(r.zone).icon) + ' ' + esc(r.name_th) + '</span>' +
+      '<b style="color:' + (r.status === 'unknown' ? 'var(--muted)' : ST[r.status].c) + '">' + esc(val) + '</b></div>' + gauge(r) +
+      '<small class="muted">' + (r.configured ? 'Min ' + L.fmtNum(r.min) + ' · Max ' + L.fmtNum(r.max) + (meta.length ? ' · ' : '') : '') + esc(meta.join(' · ')) + '</small></button>';
+  }
+
+  // กราฟระดับของ: เส้นที่นับจริง + แถบ Min–Max + ของเข้า ▲ + คาดการณ์ (เส้นประ)
+  function stockChart(r) {
+    var W = 340, H = 180, pl = 40, pr = 12, pt = 14, pb = 28;
+    var pts = r.series.slice(), fc = r.forecast || [];
+    var start = pts.length ? pts[0].d : L.addDays(S.admin.dash.today, -13);
+    var end = fc.length ? fc[fc.length - 1].date : S.admin.dash.today;
+    if (end < start) end = start;
+    var span = Math.max(1, L.dayDiff(start, end));
+    var vals = pts.map(function (p) { return p.q; }).concat(fc.map(function (f) { return f.stock; }), [r.estNow || 0]);
+    if (r.configured) vals.push(r.max * 1.15);
+    var yMax = Math.max.apply(null, vals.concat([1]));
+    var x = function (d) { return pl + L.dayDiff(start, d) / span * (W - pl - pr); };
+    var y = function (v) { return pt + (1 - v / yMax) * (H - pt - pb); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img" aria-label="กราฟระดับของ">';
+    if (r.configured) {
+      s += '<rect x="' + pl + '" y="' + y(r.max) + '" width="' + (W - pl - pr) + '" height="' + Math.max(0, y(r.min) - y(r.max)) + '" fill="var(--ok-soft)"/>' +
+        '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(r.min) + '" y2="' + y(r.min) + '" stroke="var(--warn)" stroke-dasharray="4 3"/>' +
+        '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(r.max) + '" y2="' + y(r.max) + '" stroke="var(--ok)" stroke-dasharray="4 3"/>' +
+        '<text x="' + (W - pr - 2) + '" y="' + (y(r.min) - 4) + '" text-anchor="end" class="cl" fill="var(--warn)">Min ' + L.fmtNum(r.min) + '</text>' +
+        '<text x="' + (W - pr - 2) + '" y="' + (y(r.max) - 4) + '" text-anchor="end" class="cl" fill="var(--ok)">Max ' + L.fmtNum(r.max) + '</text>';
+    }
+    s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--line)"/>' +
+      '<text x="' + (pl - 6) + '" y="' + (y(0) + 4) + '" text-anchor="end" class="cl">0</text>' +
+      '<text x="' + (pl - 6) + '" y="' + (y(yMax) + 8) + '" text-anchor="end" class="cl">' + L.fmtNum(Math.round(yMax)) + '</text>';
+    (r.recv || []).forEach(function (v) {
+      if (v.d < start) return;
+      var cx = x(v.d), by = H - pb + 2;
+      s += '<path d="M' + (cx - 5) + ' ' + by + ' L' + cx + ' ' + (by - 8) + ' L' + (cx + 5) + ' ' + by + ' Z" fill="var(--brand)"><title>รับเข้า ' + esc(shortDate(v.d)) + ': +' + L.fmtNum(v.q) + '</title></path>';
+    });
+    if (fc.length && r.estNow !== null) {
+      s += '<polyline fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4" points="' +
+        [x(L.addDays(S.admin.dash.today, -1)) + ',' + y(r.estNow)].concat(fc.map(function (f) { return x(f.date) + ',' + y(f.stock); })).join(' ') + '"/>';
+    }
+    if (pts.length) {
+      s += '<polyline fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round" points="' + pts.map(function (p) { return x(p.d) + ',' + y(p.q); }).join(' ') + '"/>';
+      pts.forEach(function (p, i) {
+        s += '<circle cx="' + x(p.d) + '" cy="' + y(p.q) + '" r="' + (i === pts.length - 1 ? 4.5 : 2.5) + '" fill="var(--brand)"><title>' + esc(shortDate(p.d)) + ': ' + L.fmtNum(p.q) + ' ' + esc(r.unit) + '</title></circle>';
+      });
+    }
+    var mid = L.addDays(start, Math.round(span / 2));
+    [[start, 'start'], [mid, 'middle'], [end, 'end']].forEach(function (t) {
+      s += '<text x="' + Math.min(W - pr, Math.max(pl, x(t[0]))) + '" y="' + (H - 6) + '" text-anchor="' + t[1] + '" class="cl">' + esc(shortDate(t[0])) + '</text>';
+    });
+    return s + '</svg>';
+  }
+
+  // กราฟแท่ง: [{label, v, c, title}] + เส้นค่าเฉลี่ย (ถ้ามี)
+  function barChart(bars, opt) {
+    opt = opt || {};
+    var W = 340, H = opt.h || 150, pl = 34, pr = 8, pt = 12, pb = 24;
+    var mx = Math.max.apply(null, bars.map(function (b) { return b.v || 0; }).concat([opt.avg || 0, opt.max || 0, 1e-9]));
+    var bw = (W - pl - pr) / Math.max(1, bars.length);
+    var y = function (v) { return pt + (1 - v / mx) * (H - pt - pb); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img">' +
+      '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--line)"/>' +
+      '<text x="' + (pl - 5) + '" y="' + (y(mx) + 8) + '" text-anchor="end" class="cl">' + L.fmtNum(Math.round(mx * 10) / 10) + '</text>';
+    var every = Math.ceil(bars.length / 8);
+    bars.forEach(function (b, i) {
+      var bx = pl + i * bw + bw * 0.15, h = Math.max(b.v ? 1 : 0, y(0) - y(b.v || 0));
+      s += '<rect x="' + bx + '" y="' + (y(0) - h) + '" width="' + bw * 0.7 + '" height="' + h + '" rx="3" fill="' + (b.c || 'var(--brand)') + '"><title>' + esc(b.title || (b.label + ': ' + L.fmtNum(b.v))) + '</title></rect>';
+      if (i % every === 0 || i === bars.length - 1) s += '<text x="' + (bx + bw * 0.35) + '" y="' + (H - 7) + '" text-anchor="middle" class="cl">' + esc(b.label) + '</text>';
+    });
+    if (opt.avg) {
+      s += '<line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(opt.avg) + '" y2="' + y(opt.avg) + '" stroke="var(--ink)" stroke-dasharray="4 3"/>' +
+        '<text x="' + (pl + 3) + '" y="' + (y(opt.avg) - 5) + '" class="cl halo" fill="var(--ink)">เฉลี่ย ' + L.fmtNum(opt.avg) + '</text>';
+    }
+    return s + '</svg>';
+  }
+
+  function dashTab() {
+    var A = S.admin, D = A.dash, h = '';
+    if (A.dashErr && !D) return '<div class="note bad">' + esc(A.dashErr) + '</div><button class="btn btn-ghost" style="margin-top:12px" data-act="dashReload">ลองใหม่</button>';
+    if (!D) return '<p class="muted center" style="margin-top:24px"><span class="spin-sm"></span>กำลังคำนวณ…</p>';
+    var items = D.items, ready = D.ready;
+    h += '<div class="dash-head"><span class="muted">ข้อมูล ณ ' + esc(L.thaiDate(D.today)) + '</span><button class="mini-link" data-act="dashReload">↻ โหลดใหม่</button></div>';
+    var V = A.dashView || 'overview', sugN = items.filter(function (r) { return r.suggest && r.suggest.differs; }).length;
+    h += '<div class="seg dash-seg">' + [['overview', '📊 ภาพรวม'], ['stock', '📦 สต็อค'], ['minmax', '🧮 Min/Max' + (sugN ? ' (' + sugN + ')' : '')]].map(function (v) {
+      return '<button class="' + (V === v[0] ? 'on' : '') + '" data-act="dashView" data-v="' + v[0] + '">' + v[1] + '</button>';
+    }).join('') + '</div>';
+    if (V === 'stock') return h + dashStockView();
+    if (V === 'minmax') return h + dashMinMaxView();
+    if (ready < D.eligible * 0.8) {
+      h += '<div class="note info" style="margin:12px 0">📈 มีข้อมูลรอบนับ <b>' + D.dataDays + ' วัน</b> · อัตราใช้ คาดการณ์ และ Min/Max ที่แนะนำ จะขึ้นเมื่อรายการนั้นนับเป็นตัวเลขต่อเนื่องครบ ' + D.minDays + ' วัน (ตอนนี้พร้อม ' + ready + ' จาก ' + D.eligible + ' รายการของซื้อ) — ยิ่งทีมนับครบทุกรายการทุกวัน ตัวเลขยิ่งแม่น</div>';
+    }
+    var lastCov = D.coverage.length ? D.coverage[D.coverage.length - 1] : null;
+    h += '<div class="kpis" style="margin-top:12px">' +
+      kpi(D.status.low, 'ต่ำกว่า Min', 'bad', 'dashFilter', 'low') +
+      kpi(ready ? D.soon : '–', 'จะหมดใน 2 วัน', 'warn', 'dashFilter', 'soon', ready ? '' : 'รอข้อมูล') +
+      kpi(D.openPos, 'ใบสั่งรอรับ', 'brand', 'dashToPo', '') +
+      kpi(lastCov ? lastCov.n + '/' + D.total : '–', 'นับล่าสุด', '', '', '', lastCov ? shortDate(lastCov.date) : '') + '</div>';
+    // สุขภาพสต็อค
+    var segs = ['low', 'near', 'ok', 'over', 'unknown'].filter(function (k) { return D.status[k]; });
+    h += '<div class="card" style="padding:14px 16px;margin-top:12px"><b>สุขภาพสต็อค</b><div class="stack-bar">' + segs.map(function (k) {
+      return '<i style="flex:' + D.status[k] + ';background:' + ST[k].c + '" title="' + ST[k].th + '"></i>';
+    }).join('') + '</div><div class="legend">' + segs.map(function (k) {
+      return '<button data-act="dashFilter" data-v="' + k + '"><i style="background:' + ST[k].c + '"></i>' + ST[k].th + ' <b>' + D.status[k] + '</b></button>';
+    }).join('') + '</div></div>';
+    // ต้องดูก่อน
+    var urgent = items.filter(function (r) { return r.status === 'low' || (r.runsOutIn !== null && r.runsOutIn <= 2); })
+      .sort(function (a, b) { return (a.runsOutIn === null ? 9 : a.runsOutIn) - (b.runsOutIn === null ? 9 : b.runsOutIn) || (a.estNow / (a.min || 1)) - (b.estNow / (b.min || 1)); });
+    if (urgent.length) {
+      h += '<div class="section-h">⚠️ ต้องดูก่อน <span class="n">(' + urgent.length + ')</span></div><div class="list">' + urgent.slice(0, 6).map(dashRow).join('') + '</div>' +
+        (urgent.length > 6 ? '<button class="btn btn-ghost" style="margin-top:10px" data-act="dashFilter" data-v="attn">ดูทั้งหมด ' + urgent.length + ' รายการ</button>' : '');
+    }
+    // พอใช้อีกกี่วัน
+    var cov = items.filter(function (r) { return r.daysCover !== null; }).sort(function (a, b) { return a.daysCover - b.daysCover; }).slice(0, 10);
+    h += '<div class="section-h">⏱️ พอใช้อีกกี่วัน <span class="n">(น้อยสุด 10 รายการ)</span></div>';
+    h += cov.length ? '<div class="card" style="padding:12px 14px">' + cov.map(function (r) {
+      var dc = Math.round(r.daysCover * 10) / 10;
+      return '<button class="cover-row" data-act="dashItem" data-id="' + esc(r.id) + '"><span>' + esc(r.name_th) + '</span><span class="cbar"><i style="width:' + Math.min(100, dc / 7 * 100) + '%;background:' + (dc < 1 ? 'var(--bad)' : dc < 2 ? 'var(--warn)' : 'var(--ok)') + '"></i></span><b>' + (dc >= 7 ? '7+' : L.fmtNum(dc)) + ' วัน</b></button>';
+    }).join('') + '<small class="muted">คิดจาก ของที่มีตอนนี้ ÷ ใช้เฉลี่ยต่อวัน · แถบเต็ม = 7 วัน</small></div>'
+      : '<div class="note">ยังคำนวณไม่ได้ — ต้องมีข้อมูลนับต่อเนื่องอย่างน้อย ' + D.minDays + ' วันต่อรายการ</div>';
+    // การนับย้อนหลัง
+    if (D.coverage.length) {
+      var cv = D.coverage.slice(-14);
+      h += '<div class="section-h">📅 นับกี่รายการ (14 วันล่าสุด)</div><div class="card" style="padding:10px 10px 4px">' +
+        barChart(cv.map(function (c) { var p = c.n / (c.expected || D.total); return { label: String(+c.date.slice(8)), v: c.n, c: p >= 0.9 ? 'var(--ok)' : p >= 0.5 ? 'var(--warn)' : 'var(--bad)', title: shortDate(c.date) + ': นับ ' + c.n + ' จากที่ควรนับ ' + c.expected }; }), { max: D.total, h: 130 }) +
+        '<small class="muted" style="display:block;padding:0 6px 8px">เขียว = นับครบ 90% ขึ้นไปของที่ต้องนับวันนั้น (โซนตู้ฟรีซของดิบ/ของแห้ง นับเฉพาะวันนับเต็มรอบ)</small></div>';
+    }
+    // สูตร
+    h += '<details class="card" style="padding:14px 16px;margin-top:22px"><summary><b>ℹ️ คำนวณยังไง / ตั้งค่า</b></summary><div class="form" style="margin-top:10px">' +
+      '<p style="margin:0;font-size:14.5px"><b>ใช้ไป</b> = นับครั้งก่อน + รับเข้าระหว่างนั้น − นับครั้งนี้ ÷ จำนวนวันที่ร้านเปิด (วันที่มีการส่งรอบนับ) · ถ้าของเพิ่มขึ้นโดยไม่มีบันทึกรับเข้า ถือว่าผิดปกติ ไม่เอามาคิด<br>' +
+      '<b>วันขายดี</b> = ค่าที่สูงกว่าระหว่าง วันที่ใช้มากที่ 90% (P90) กับค่าเฉลี่ยของวันในสัปดาห์ที่ใช้มากสุด<br>' +
+      '<b>Min แนะนำ</b> = วันขายดี × วันรอของ · <b>Max แนะนำ</b> = Min + ใช้เฉลี่ย × รอบสั่ง (โซนนับรายสัปดาห์ใช้ 7 วัน) ปัดขึ้นตาม "ปุ่ม +/− เพิ่มทีละ"<br>' +
+      '<b>คาดการณ์</b> 7 วัน ใช้ค่าเฉลี่ยตามวันในสัปดาห์ (เมื่อมีข้อมูลวันละ 2 ครั้งขึ้นไป) ไม่งั้นใช้ค่าเฉลี่ยรวม · ถือว่าร้านเปิดทุกวัน · ของเตรียม/ทำเอง (ตู้ของตัดแต่ง/ทำสำเร็จ) ไม่มีบันทึกว่าทำเพิ่มเท่าไหร่ จึงดูได้แค่ของที่มี</p>' +
+      '<div class="two"><div><label>วันรอของ (สั่งแล้วกี่วันของมา)</label><input type="number" inputmode="decimal" step="0.5" min="0" max="14" id="d-lead" value="' + L.fmtNum(D.leadDays) + '"></div>' +
+      '<div><label>รอบสั่ง (สั่งทุกกี่วัน)</label><input type="number" inputmode="decimal" step="0.5" min="0" max="14" id="d-cycle" value="' + L.fmtNum(D.cycleDays) + '"></div></div>' +
+      '<p class="muted" style="margin:0;font-size:13px">ค่าตั้งต้น 1 และ 1 เป็นค่าสมมุติ (นับทุกคืน สั่งวันต่อวัน ของมาภายในวันถัดไป) — แก้ให้ตรงกับร้านจริงได้</p>' +
+      '<button class="btn btn-primary" data-act="dashSaveParams">บันทึกแล้วคำนวณใหม่</button></div></details>';
+    return h;
+  }
+
+  function dashStockView() {
+    var A = S.admin, f = A.dashF || 'all';
+    var chips = [['all', 'ทั้งหมด'], ['attn', '⚠️ ต้องดูก่อน'], ['soon', '⏳ จะหมดใน 2 วัน'], ['low', '🔴 ต่ำกว่า Min'], ['near', '🟠 ใกล้ Min'], ['ok', '🟢 พอดี'], ['over', '🔵 เกิน Max'], ['unknown', '⚪ ยังไม่รู้']].concat(ZONES.map(function (z) { return [z.id, z.icon + ' ' + z.th]; }));
+    var list = dashFiltered();
+    return '<div class="tabs" style="padding-top:12px">' + chips.map(function (c) { return '<button class="' + (f === c[0] ? 'on' : '') + '" data-act="dashFilter" data-v="' + c[0] + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
+      '<input class="inp" style="margin:8px 0 10px" data-input="dashQ" placeholder="🔍 ค้นหาของ" value="' + esc(A.dashQ || '') + '" autocomplete="off">' +
+      '<p class="muted" style="font-size:13px;margin:0 0 10px">ตัวเลข = นับล่าสุด + รับเข้าหลังนับ (ของที่นับไว้หลายวันก่อน หักที่น่าจะใช้ไปตามค่าเฉลี่ย) · แตะเพื่อดูกราฟ</p>' +
+      '<div class="list" id="dash-list">' + (list.length ? list.map(dashRow).join('') : '<p class="muted">ไม่มีรายการ</p>') + '</div>';
+  }
+
+  function dashMinMaxView() {
+    var D = S.admin.dash, items = D.items;
+    var sug = items.filter(function (r) { return r.suggest && r.suggest.differs; });
+    var wait = items.filter(function (r) { return r.kind !== 'prep' && r.days < D.minDays; }).length;
+    var h = '<p class="muted" style="font-size:13.5px;margin:12px 0">คำนวณจากที่ใช้จริง: Min = วันขายดี × วันรอของ (' + L.fmtNum(D.leadDays) + ') · Max = Min + ใช้เฉลี่ย × รอบสั่ง (' + L.fmtNum(D.cycleDays) + ' วัน, โซนนับรายสัปดาห์ 7 วัน) — แก้วันรอของ/รอบสั่งได้ที่แท็บภาพรวม → คำนวณยังไง</p>';
+    h += sug.length ? '<div class="list">' + sug.map(function (r) {
+      return '<div class="card sug"><div class="dr-top"><button class="nm-link" data-act="dashItem" data-id="' + esc(r.id) + '">' + esc(r.name_th) + ' ›</button>' +
+        '<button class="mini-btn" data-act="dashApply" data-id="' + esc(r.id) + '">ใช้ค่านี้</button></div>' +
+        '<div class="sug-v"><span>Min ' + (r.configured ? '<s>' + L.fmtNum(r.min) + '</s> → ' : '') + '<b>' + L.fmtNum(r.suggest.min) + '</b></span><span>Max ' + (r.configured ? '<s>' + L.fmtNum(r.max) + '</s> → ' : '') + '<b>' + L.fmtNum(r.suggest.max) + '</b></span><span class="muted">' + esc(r.unit) + '</span></div>' +
+        '<small class="muted">ใช้เฉลี่ย ' + L.fmtNum(r.avgDaily) + '/วัน · วันขายดี ' + L.fmtNum(r.peakDaily) + '/วัน · ข้อมูล ' + r.days + ' วัน</small></div>';
+    }).join('') + '</div>' : '<div class="note">' + (D.ready ? '✅ Min/Max ตอนนี้ใกล้เคียงกับที่ใช้จริงแล้ว' : 'ยังไม่มีข้อมูลพอจะแนะนำ') + '</div>';
+    if (wait) h += '<p class="muted" style="font-size:13px">ยังเก็บข้อมูลไม่ครบ ' + D.minDays + ' วัน: ' + wait + ' รายการ · ของเตรียม/ทำเองไม่มีคำแนะนำ (ไม่มีบันทึกว่าทำเพิ่มเท่าไหร่)</p>';
+    return h;
+  }
+
+  function kpi(v, label, cls, act, val, sub) {
+    return '<button class="card kpi ' + cls + '"' + (act ? ' data-act="' + act + '" data-v="' + val + '"' : ' disabled') + '><b>' + esc(String(v)) + '</b><span>' + esc(label) + '</span>' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</button>';
+  }
+
+  function dashItemScreen() {
+    var A = S.admin, r = dashItemById(A.dashItem);
+    var h = top({ th: r.name_th, back: 'dashBack', net: false }) + '<div class="wrap screen">';
+    h += '<div class="card" style="padding:16px"><div class="dr-top"><span class="muted">' + esc(zoneOf(r.zone).icon + ' ' + zoneOf(r.zone).th) + '</span>' +
+      (r.status !== 'unknown' ? '<span class="tag ' + ST[r.status].tag + '">' + ST[r.status].th + '</span>' : '') + '</div>' +
+      '<div class="big-q">' + esc(r.estNow !== null ? qtyText(r.estNow, r.unit) : r.last && r.last.level ? (L.LEVEL_TH[r.last.level] || r.last.level) : 'ยังไม่นับ') + '</div>' + gauge(r) +
+      '<small class="muted">' + (r.last ? (r.last.draft ? 'นับวันนี้ (ยังไม่ส่ง) ' : 'นับ ' + esc(L.thaiDate(r.last.date)) + ' ') + (r.last.qty !== null ? 'ได้ ' + L.fmtNum(r.last.qty) : '') : 'ยังไม่เคยนับ') +
+      (r.recvSince ? ' + รับเข้าหลังนับ ' + L.fmtNum(r.recvSince) : '') + (r.estNow !== null && r.onHand !== null && r.estNow !== r.onHand ? ' − ใช้ไปโดยประมาณ ' + L.fmtNum(L.round2(r.onHand - r.estNow)) : '') +
+      (r.configured ? ' · Min ' + L.fmtNum(r.min) + ' · Max ' + L.fmtNum(r.max) : '') + (r.onOrder ? ' · สั่งแล้วรอรับ ' + L.fmtNum(r.onOrder) : '') + '</small></div>';
+    h += '<div class="section-h">📈 ระดับของ</div><div class="card" style="padding:10px">' + stockChart(r) +
+      '<div class="legend small"><span><i style="background:var(--brand)"></i>นับจริง</span><span><i style="background:var(--brand);border-radius:0;clip-path:polygon(50% 0,100% 100%,0 100%)"></i>ของเข้า</span>' +
+      (r.forecast.length ? '<span><i style="background:var(--muted)"></i>คาดการณ์ (ถ้าไม่มีของเข้า)</span>' : '') + (r.configured ? '<span><i style="background:var(--ok-soft);border:1px solid var(--ok)"></i>ช่วง Min–Max</span>' : '') + '</div></div>';
+    h += '<div class="kpis" style="margin-top:12px">' +
+      kpi(r.avgDaily !== null ? L.fmtNum(r.avgDaily) : '–', 'ใช้เฉลี่ย/วัน (' + r.unit + ')', '', '', '') +
+      kpi(r.peakDaily !== null ? L.fmtNum(r.peakDaily) : '–', 'วันขายดี/วัน', '', '', '') +
+      kpi(r.daysCover !== null ? '~' + L.fmtNum(Math.round(r.daysCover * 10) / 10) : '–', 'พอใช้อีก (วัน)', r.daysCover !== null && r.daysCover < 2 ? 'warn' : '', '', '') +
+      kpi(r.days, 'วันที่มีข้อมูล', '', '', '', r.anomalies ? 'ผิดปกติ ' + r.anomalies + ' ครั้ง' : '') + '</div>';
+    if (r.kind === 'prep') h += '<div class="note" style="margin-top:12px">ของเตรียม/ทำเอง: ยังไม่มีบันทึกว่าทำเพิ่มเท่าไหร่ จึงคำนวณใช้ไป/คาดการณ์ไม่ได้ ดูได้แค่ของที่มี</div>';
+    else if (r.days < S.admin.dash.minDays) h += '<div class="note info" style="margin-top:12px">มีข้อมูล ' + r.days + ' วัน — ต้องนับต่อเนื่องครบ ' + S.admin.dash.minDays + ' วัน ถึงจะคาดการณ์และแนะนำ Min/Max ได้</div>';
+    if (r.intervals.length) {
+      var iv = r.intervals.slice(-21);
+      h += '<div class="section-h">🍳 ใช้ไปต่อวัน</div><div class="card" style="padding:10px 10px 4px">' +
+        barChart(iv.map(function (x) { return { label: String(+x.date.slice(8)), v: x.daily, title: shortDate(x.date) + ': ใช้ ' + L.fmtNum(x.daily) + ' ' + r.unit + (x.days > 1 ? '/วัน (เฉลี่ย ' + x.days + ' วัน)' : '') }; }), { avg: r.avgDaily }) + '</div>';
+    }
+    if (r.weekday) {
+      h += '<div class="section-h">📆 ใช้ตามวันในสัปดาห์</div><div class="card" style="padding:10px 10px 4px">' +
+        barChart(r.weekday.map(function (v, i) { return { label: L.DAYS[i], v: v || 0, c: v === Math.max.apply(null, r.weekday.filter(function (x) { return x !== null; })) ? 'var(--warn)' : 'var(--brand)', title: L.DAYS[i] + ': ' + (v === null ? 'ข้อมูลไม่พอ' : L.fmtNum(v) + ' ' + r.unit) }; }), { avg: r.avgDaily }) + '</div>';
+    }
+    if (r.forecast.length) {
+      h += '<div class="section-h">🔮 คาดการณ์ 7 วัน <span class="n">(ถ้าไม่มีของเข้า)</span></div><div class="card fc-grid">' + r.forecast.map(function (f, i) {
+        var low = r.configured && f.stock < r.min;
+        return '<div><b>' + (i === 0 ? 'วันนี้' : esc(L.DAYS[L.dayOfWeek(f.date)]) + '<small>' + (+f.date.slice(8)) + '</small>') + '</b>' +
+          '<span class="u">ใช้ ' + L.fmtNum(Math.round(f.use * 10) / 10) + '</span><span class="s" style="color:' + (f.stock <= 0 ? 'var(--bad)' : low ? 'var(--warn)' : 'var(--ok)') + '">' + (f.stock <= 0 ? 'หมด' : L.fmtNum(Math.round(f.stock * 10) / 10)) + '</span></div>';
+      }).join('') + '</div><p class="muted" style="font-size:13px">' + (r.runsOutIn !== null ? '⚠️ ถ้าไม่มีของเข้า น่าจะหมด' + (r.runsOutIn === 0 ? 'ภายในวันนี้' : r.runsOutIn === 1 ? 'พรุ่งนี้' : 'ในอีก ~' + r.runsOutIn + ' วัน') : r.belowMinIn !== null ? 'จะต่ำกว่า Min ' + (r.belowMinIn === 0 ? 'ภายในวันนี้' : 'ในอีก ~' + r.belowMinIn + ' วัน') : 'พอใช้ตลอด 7 วัน') + (r.onOrder ? ' (ยังไม่รวมที่สั่งแล้วรอรับ ' + L.fmtNum(r.onOrder) + ')' : '') + '</p>';
+    }
+    if (r.suggest) {
+      h += '<div class="section-h">🧮 Min/Max แนะนำ</div><div class="card sug"><div class="sug-v"><span>Min ' + (r.configured ? '<s>' + L.fmtNum(r.min) + '</s> → ' : '') + '<b>' + L.fmtNum(r.suggest.min) + '</b></span><span>Max ' + (r.configured ? '<s>' + L.fmtNum(r.max) + '</s> → ' : '') + '<b>' + L.fmtNum(r.suggest.max) + '</b></span></div>' +
+        '<small class="muted">Min = วันขายดี ' + L.fmtNum(r.peakDaily) + ' × รอของ ' + L.fmtNum(r.suggest.lead) + ' วัน · Max = Min + ใช้เฉลี่ย ' + L.fmtNum(r.avgDaily) + ' × รอบสั่ง ' + L.fmtNum(r.suggest.cycle) + ' วัน</small>' +
+        (r.suggest.differs ? '<button class="btn btn-primary" style="margin-top:10px;min-height:44px" data-act="dashApply" data-id="' + esc(r.id) + '">ใช้ค่านี้</button>' : '<div class="note ok" style="margin-top:10px">ค่าปัจจุบันใกล้เคียงแล้ว</div>') + '</div>';
+    }
+    return h + '</div>';
+  }
+
+  INPUT.dashQ = function (el) {
+    S.admin.dashQ = el.value;
+    var box = document.getElementById('dash-list');
+    if (!box) return;
+    var list = dashFiltered();
+    box.innerHTML = list.length ? list.map(dashRow).join('') : '<p class="muted">ไม่มีรายการ</p>';
+  };
+
   function needsSetup(it) { return it.active !== false && !L.isConfigured(it); }
 
   function statusLabel(st) {
@@ -2185,11 +2652,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminScreen() {
     var A = S.admin, d = A.data;
     var setupN = d.items.filter(needsSetup).length;
-    var tabs = [['po', '🛒 สั่งซื้อ'], ['setup', '⚠️ ต้องตั้งค่า (' + setupN + ')'], ['items', '📋 รายการของ'], ['staff', '👥 ทีม'], ['history', '🕘 ประวัติ'], ['settings', '⚙️ ตั้งค่า LINE · แปล · รหัส']];
+    var tabs = [['dash', '📊 ภาพรวม'], ['po', '🛒 สั่งซื้อ'], ['setup', '⚠️ ต้องตั้งค่า (' + setupN + ')'], ['items', '📋 รายการของ'], ['staff', '👥 ทีม'], ['history', '🕘 ประวัติ'], ['settings', '⚙️ ตั้งค่า LINE · แปล · รหัส']];
     var h = top({ th: 'ตั้งค่าร้าน (บอส)', back: 'adminExit', net: false }) + '<div class="wrap"><div class="tabs">' +
       tabs.map(function (t) { return '<button class="' + (A.tab === t[0] ? 'on' : '') + '" data-act="aTab" data-v="' + t[0] + '">' + esc(t[1]) + '</button>'; }).join('') +
       '</div></div><div class="wrap screen">';
-    if (A.tab === 'setup') {
+    if (A.tab === 'dash') {
+      h += dashTab();
+    } else if (A.tab === 'setup') {
       var need = d.items.filter(needsSetup);
       h += need.length
         ? '<div class="note warn">รายการเหล่านี้ยังคำนวณสั่งซื้อไม่ได้ ตอนนี้ทีมนับได้แค่ "พอ / ใกล้หมด / หมด" — ใส่ Min, Max, หน่วย แล้วกดบันทึก</div><div class="list" style="margin-top:12px">' +
@@ -2298,6 +2767,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       days.map(function (n, i) { return '<option value="' + i + '"' + (s.fullCountDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' +
       '<button class="btn btn-primary" data-act="aSaveCodes">บันทึก</button>' +
       (store.get('apin') ? '<button class="btn btn-ghost" data-act="aForget">ลืมรหัสบอสในเครื่องนี้</button>' : '') + '</div>' +
+      clearSettings() +
       '<div class="section-h">🔗 ลิงก์</div><div class="card" style="padding:16px;word-break:break-all;font-size:14.5px">' +
       '<b>ลิงก์แอพ (ส่งให้ทีมครัว):</b><br>' + esc(s.appUrl || '(ยังไม่ได้ deploy)') +
       '<br><br><b>Google Sheet ข้อมูล:</b><br><a href="' + esc(s.sheetUrl) + '" target="_blank" rel="noopener">เปิดชีต</a> — ดูได้ แต่อย่าแก้หัวตาราง' +
@@ -2325,6 +2795,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }).join('') + '</select></div>' +
       '<p class="muted" style="margin:0;font-size:13.5px">รับของ และแจ้งด่วน ส่งหาบอสคนเดียวเหมือนเดิม · ข้อความเข้ากลุ่มนับโควตาตามจำนวนคนในกลุ่ม (กลุ่ม 3 คน = 3 ข้อความ จากโควตาฟรี 300 ข้อความ/เดือน)</p>' +
       (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
+  }
+
+  function clearSettings() {
+    var m = S.admin.clearMsg;
+    var cb = function (id, label, on) { return '<label class="check"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '> ' + label + '</label>'; };
+    return '<div class="section-h">🧹 ล้างข้อมูลทดสอบ</div><div class="card form" style="padding:16px">' +
+      (m ? '<div class="note ok">✅ ล้างแล้ว: ' + esc(Object.keys(m.cleared).map(function (k) { return k + ' ' + m.cleared[k] + ' แถว'; }).join(' · ')) +
+        '<br>สำรองไว้ที่ <a href="' + esc(m.backupUrl) + '" target="_blank" rel="noopener">' + esc(m.backupName) + '</a></div>' : '') +
+      '<p class="muted" style="margin:0;font-size:14px">ใช้ตอนทดสอบเสร็จ ก่อนเริ่มใช้จริง · <b>แอพสำรองชีตทั้งไฟล์ไว้ใน Drive ก่อนล้างทุกครั้ง</b> · ไม่แตะ รายการของ ทีม ร้านค้า และการตั้งค่า LINE/รหัส/Claude</p>' +
+      cb('c-counts', 'ผลนับ + ร่างที่นับค้าง + ประวัติส่งบอส', true) +
+      cb('c-orders', 'ใบสั่งซื้อ + รับของ + ของเข้า (เลขใบสั่ง/ใบรับเริ่ม #1 ใหม่)', true) +
+      cb('c-alerts', 'แจ้งด่วน', true) +
+      cb('c-ai', 'บันทึกการใช้ Claude', false) +
+      '<p class="muted" style="margin:0;font-size:13px">รูปที่เคยแนบไว้ในโฟลเดอร์ Drive ของแอพไม่ถูกลบ</p>' +
+      '<div><label>พิมพ์คำว่า <b>ล้างข้อมูล</b> เพื่อยืนยัน</label><input type="text" id="c-confirm" autocomplete="off" placeholder="ล้างข้อมูล"></div>' +
+      '<button class="btn btn-danger" data-act="aClearData">🧹 ล้างข้อมูลที่เลือก</button></div>';
   }
 
   function claudeSettings(s) {
@@ -2556,6 +3042,51 @@ if (typeof module !== 'undefined') module.exports = Logic;
         S.admin.tab = el.dataset.v; S.admin.staffDraft = null; S.admin.lineMsg = ''; S.admin.supDraft = null;
         go('admin');
         if (S.admin.tab === 'po') loadPoData();
+        if (S.admin.tab === 'dash') loadDash();
+      });
+    },
+    dashReload: function () { S.admin.dash = null; rerenderKeepScroll(); loadDash(); },
+    dashFilter: function (el) {
+      var to = S.admin.dashView !== 'stock';
+      S.admin.dashF = el.dataset.v; S.admin.dashView = 'stock';
+      if (to) { S.admin.dashQ = ''; go('admin'); } else rerenderKeepScroll();
+    },
+    dashView: function (el) { S.admin.dashView = el.dataset.v; go('admin'); },
+    dashToPo: function () { S.admin.tab = 'po'; go('admin'); loadPoData(); },
+    dashItem: function (el) { S.admin.dashItem = el.dataset.id; S.admin.dashScroll = window.scrollY; go('adash'); },
+    dashBack: function () { go('admin'); window.scrollTo(0, S.admin.dashScroll || 0); },
+    dashApply: function (el) {
+      var r = dashItemById(el.dataset.id), it = S.admin.data.items.filter(function (x) { return x.id === r.id; })[0];
+      if (!it) return toast('ไม่พบรายการ');
+      confirmBox('ปรับ Min/Max ' + esc(r.name_th) + '?', 'Min ' + L.fmtNum(it.min) + ' → <b>' + L.fmtNum(r.suggest.min) + '</b> · Max ' + L.fmtNum(it.max) + ' → <b>' + L.fmtNum(r.suggest.max) + '</b> ' + esc(r.unit), [
+        { key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: 'ใช้ค่านี้', cls: 'btn-primary' }
+      ]).then(function (k) {
+        if (k !== 'yes') return;
+        var x = JSON.parse(JSON.stringify(it));
+        x.min = r.suggest.min; x.max = r.suggest.max;
+        if (!L.validateItem(x).length) x.setup_note = '';
+        adminSaveItems([x]).then(function () { toast('ปรับ Min/Max ' + r.name_th + ' แล้ว ✓'); return loadDash(); }, function (e) { toast(errMsg(e)); });
+      });
+    },
+    dashSaveParams: function (el) {
+      el.disabled = true;
+      api('apiAdminSaveSettings', S.admin.pin, { DASH_LEAD_DAYS: document.getElementById('d-lead').value, DASH_CYCLE_DAYS: document.getElementById('d-cycle').value })
+        .then(function () { toast('บันทึกแล้ว — กำลังคำนวณใหม่'); S.admin.dash = null; rerenderKeepScroll(); return loadDash(); }, function (e) { el.disabled = false; toast(errMsg(e)); });
+    },
+    aClearData: function (el) {
+      var g = function (id) { var x = document.getElementById(id); return !!(x && x.checked); };
+      var opts = { counts: g('c-counts'), orders: g('c-orders'), alerts: g('c-alerts'), ai: g('c-ai'), confirm: (document.getElementById('c-confirm') || {}).value || '' };
+      if (!opts.counts && !opts.orders && !opts.alerts && !opts.ai) return toast('เลือกอย่างน้อย 1 อย่าง');
+      if (opts.confirm.trim() !== 'ล้างข้อมูล') return toast('พิมพ์คำว่า "ล้างข้อมูล" ในช่องยืนยันก่อน');
+      confirmBox('ล้างข้อมูลที่เลือก?', 'แอพจะสำรองชีตทั้งไฟล์ไว้ใน Drive ก่อน แล้วค่อยล้าง', [
+        { key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: '🧹 ล้างเลย', cls: 'btn-danger' }
+      ]).then(function (k) {
+        if (k !== 'yes') return;
+        el.disabled = true; el.textContent = 'กำลังสำรองและล้าง…';
+        api('apiAdminClearData', S.admin.pin, opts).then(function (r) {
+          S.boot = null; store.del('boot'); S.recvList = null; S.recvRecent = null; S.admin.dash = null; S.admin.po = null;
+          return loadAdmin(S.admin.pin, 'settings').then(function () { S.admin.clearMsg = r; rerenderKeepScroll(); toast('ล้างข้อมูลแล้ว — สำรองไฟล์ไว้ใน Drive'); });
+        }, function (e) { el.disabled = false; el.textContent = '🧹 ล้างข้อมูลที่เลือก'; toast(errMsg(e)); });
       });
     },
     aZone: function (el) { leaveReorder(function () { S.admin.zone = el.dataset.v; rerenderKeepScroll(); }); },
