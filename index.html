@@ -2072,6 +2072,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<li>เปิด <a href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developers</a> (ล็อกอินด้วย LINE ตัวที่บอสใช้) → เลือก channel ของร้าน → แท็บ <b>Basic settings</b></li>' +
       '<li>ก๊อป <b>Channel ID</b>, <b>Channel secret</b> และ <b>Your user ID</b> (ขึ้นต้นด้วย U) มาวางด้านล่าง</li>' +
       '<li>LINE ส่วนตัวของบอสต้องแอด OA ร้านเป็นเพื่อนไว้ → กด "ทดสอบส่ง"</li></ol>' +
+      '<p class="muted" style="font-size:14px">เปลี่ยนไปใช้ OA ตัวอื่น: ใส่ค่าใหม่ครบทั้ง 3 ช่อง (User ID ของบอสใน OA แต่ละตัวไม่เหมือนกัน) และแอด OA ตัวใหม่เป็นเพื่อนด้วย</p>' +
       '<p class="muted" style="font-size:14px">แอพส่งหาบอสคนเดียว ไม่ส่งถึงลูกค้า · ใช้ token ชั่วคราวที่ขอใหม่เอง จึงไม่ไปรบกวนระบบอื่นที่ใช้ OA ร้านอยู่ · ข้อความนับรวมโควตาข้อความรายเดือนของ OA</p>' +
       '<div class="form" style="margin-top:10px">' +
       '<div><label>Channel ID ' + ok(s.lineChannelId) + '</label><input type="tel" id="s-cid" placeholder="' + (s.lineChannelId ? 'ใส่ไว้แล้ว — ว่างไว้ถ้าไม่เปลี่ยน' : 'ตัวเลข 10 หลัก') + '" autocomplete="off"></div>' +
@@ -2081,6 +2082,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="btn-row"><button class="btn btn-primary" data-act="aSaveLine">บันทึก</button><button class="btn btn-ghost" data-act="aTestLine">ทดสอบส่ง</button></div>' +
       (S.admin.lineMsg ? '<div class="note ' + (/✓/.test(S.admin.lineMsg) ? 'ok' : 'bad') + '">' + esc(S.admin.lineMsg) + '</div>' : '') +
       '</div></div>' +
+      groupSettings(s) +
       '<div class="section-h">🔐 รหัส</div><div class="card form" style="padding:16px">' +
       '<div class="two"><div><label>รหัสร้านใหม่ (4)</label><input type="tel" id="s-spin" maxlength="4" inputmode="numeric"></div>' +
       '<div><label>รหัสบอสใหม่ (6)</label><input type="tel" id="s-apin" maxlength="6" inputmode="numeric"></div></div>' +
@@ -2093,6 +2095,47 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<b>ลิงก์แอพ (ส่งให้ทีมครัว):</b><br>' + esc(s.appUrl || '(ยังไม่ได้ deploy)') +
       '<br><br><b>Google Sheet ข้อมูล:</b><br><a href="' + esc(s.sheetUrl) + '" target="_blank" rel="noopener">เปิดชีต</a> — ดูได้ แต่อย่าแก้หัวตาราง' +
       (s.ownerEmail ? '<br><br><b>อีเมลสำรอง (ถ้า LINE ส่งไม่ได้):</b> ' + esc(s.ownerEmail) : '') + '</div>';
+  }
+
+  function groupSettings(s) {
+    var A = S.admin, ok = s.groupLinked;
+    return '<div class="section-h">👥 ส่งรายงานเข้ากลุ่ม LINE (แบบบอทขุนทอง)</div><div class="card form" style="padding:16px">' +
+      (ok ? '<div class="note ok">✅ เชื่อมกลุ่มแล้ว' + (s.groupName ? ': <b>' + esc(s.groupName) + '</b>' : '') + '</div>' : '<div class="note warn">ยังไม่ได้เชื่อมกลุ่ม — ตอนนี้ทุกข้อความส่งหาบอสคนเดียว</div>') +
+      '<ol class="steps">' +
+      '<li><a href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developers</a> → channel ของ OA ที่ใช้กับแอพ → แท็บ <b>Messaging API</b> → <b>Webhook URL</b> วางลิงก์ด้านล่าง → Update → เปิด <b>Use webhook</b></li>' +
+      '<li><a href="https://manager.line.biz" target="_blank" rel="noopener">LINE OA Manager</a> → ตั้งค่า → เปิด <b>อนุญาตให้บัญชีเข้าร่วมกลุ่มแชท</b> · และตั้งค่าการตอบกลับ → ปิด <b>ข้อความตอบกลับอัตโนมัติ</b> (ไม่งั้นบอทจะตอบทุกข้อความในกลุ่ม)</li>' +
+      '<li>สร้างกลุ่ม LINE (บอส แม่ เดียร์) → เชิญ OA เข้ากลุ่ม</li>' +
+      '<li>กด <b>สร้างรหัสเชื่อมกลุ่ม</b> → พิมพ์ในกลุ่มตามที่ขึ้น เช่น <b>เชื่อม 123456</b> → บอทตอบว่าเชื่อมแล้ว</li></ol>' +
+      '<div class="muted" style="font-size:13.5px;word-break:break-all">Webhook URL: <b>' + esc(s.webhookUrl || '') + '</b></div>' +
+      '<button class="btn btn-ghost" data-act="aCopyWebhook">📋 คัดลอก Webhook URL</button>' +
+      (A.linkCode ? '<div class="note info center" style="font-size:15px">พิมพ์ในกลุ่ม LINE ว่า<div style="font-size:30px;font-weight:800;letter-spacing:.04em;margin:4px 0">เชื่อม ' + esc(A.linkCode) + '</div>ใช้ได้ 30 นาที · ' + (A.linkWaiting ? '<span class="spin-sm"></span>รอบอทยืนยัน…' : '') + '</div>' : '') +
+      '<div class="btn-row"><button class="btn btn-primary" data-act="aLinkCode">' + (ok ? 'เชื่อมกลุ่มใหม่' : 'สร้างรหัสเชื่อมกลุ่ม') + '</button>' +
+      (ok ? '<button class="btn btn-ghost" data-act="aTestGroup">ทดสอบส่งเข้ากลุ่ม</button>' : '') + '</div>' +
+      (A.groupMsg ? '<div class="note ' + (/✓/.test(A.groupMsg) ? 'ok' : 'bad') + '">' + esc(A.groupMsg) + '</div>' : '') +
+      '<div><label>รายงานนับ + ของที่ต้องซื้อ ส่งไปที่</label><select data-input="aReportTo">' +
+      [['group', 'กลุ่ม (แนะนำ — บอสอยู่ในกลุ่มด้วย)'], ['both', 'กลุ่ม + แชทส่วนตัวบอส'], ['boss', 'บอสคนเดียว']].map(function (o) {
+        return '<option value="' + o[0] + '"' + (s.reportTo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select></div>' +
+      '<p class="muted" style="margin:0;font-size:13.5px">รับของ และแจ้งด่วน ส่งหาบอสคนเดียวเหมือนเดิม · ข้อความเข้ากลุ่มนับโควตาตามจำนวนคนในกลุ่ม (กลุ่ม 3 คน = 3 ข้อความ จากโควตาฟรี 300 ข้อความ/เดือน)</p>' +
+      (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
+  }
+
+  // รอให้บอสพิมพ์รหัสในกลุ่ม แล้วเช็คว่าบอทยืนยันหรือยัง (ทุก 5 วินาที ไม่เกิน 30 นาที)
+  function waitGroupLink() {
+    var A = S.admin, started = Date.now();
+    A.linkWaiting = true;
+    (function poll() {
+      if (!S.admin || S.admin !== A || !A.linkCode) return;
+      if (Date.now() - started > 30 * 60000) { A.linkWaiting = false; return; }
+      api('apiAdminLoad', A.pin).then(function (d) {
+        if (d.settings.groupLinked && !d.settings.linkPending) {
+          A.data.settings = d.settings; A.linkCode = ''; A.linkWaiting = false;
+          A.groupMsg = 'เชื่อมกลุ่มแล้ว ✓' + (d.settings.groupName ? ' (' + d.settings.groupName + ')' : '');
+          if (S.screen === 'admin') rerenderKeepScroll();
+          toast('✅ เชื่อมกลุ่ม LINE แล้ว');
+        } else setTimeout(poll, 5000);
+      }, function () { setTimeout(poll, 8000); });
+    })();
   }
 
   function adminEditScreen() {
@@ -2150,6 +2193,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (lb) lb.textContent = '1 หน่วยซื้อ ≈ กี่ ' + (el.value.trim() || 'หน่วยนับ');
   };
   INPUT.aUmm = function (el) { el.dataset.manual = '1'; };
+  INPUT.aReportTo = function (el) {
+    if (el.value === S.admin.data.settings.reportTo) return;
+    api('apiAdminSaveSettings', S.admin.pin, { REPORT_TO: el.value }).then(function (st) {
+      S.admin.data.settings = st; toast('บันทึกแล้ว ✓');
+    }, function (e) { toast(errMsg(e)); });
+  };
   INPUT.poSupplier = function (el) { S.admin.poEdit.supplier_id = el.value; };
   function peSaveLabel() {
     var b = document.getElementById('pe-save');
@@ -2384,6 +2433,35 @@ if (typeof module !== 'undefined') module.exports = Logic;
         toast('บันทึกร้านค้าแล้ว ✓'); rerenderKeepScroll();
       }, function (e) { el.disabled = false; toast(errMsg(e)); });
     },
+    aCopyWebhook: function () {
+      copyText(S.admin.data.settings.webhookUrl).then(function () { toast('คัดลอกแล้ว — ไปวางใน LINE Developers'); }, function () { toast('คัดลอกไม่ได้ — กดค้างที่ลิงก์แล้วเลือกคัดลอก'); });
+    },
+    aLinkCode: function (el) {
+      el.disabled = true;
+      api('apiAdminLinkCode', S.admin.pin).then(function (r) {
+        S.admin.linkCode = r.code; S.admin.groupMsg = '';
+        rerenderKeepScroll();
+        waitGroupLink();
+      }, function (e) { el.disabled = false; toast(errMsg(e)); });
+    },
+    aTestGroup: function (el) {
+      el.disabled = true;
+      api('apiAdminTestGroup', S.admin.pin).then(function (r) {
+        S.admin.groupMsg = r.ok ? 'ส่งเข้ากลุ่มแล้ว ✓' : explainLine(r);
+        rerenderKeepScroll();
+      }, function (e) { S.admin.groupMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    aUnlinkGroup: function () {
+      confirmBox('ยกเลิกการเชื่อมกลุ่ม?', 'รายงานจะกลับไปส่งหาบอสคนเดียว (บอทยังอยู่ในกลุ่มจนกว่าจะลบออกเอง)', [
+        { key: 'no', html: 'ไม่ยกเลิก' }, { key: 'yes', html: 'ยกเลิกการเชื่อม', cls: 'btn-danger' }
+      ]).then(function (k) {
+        if (k !== 'yes') return;
+        api('apiAdminUnlinkGroup', S.admin.pin).then(function () {
+          S.admin.data.settings.groupLinked = false; S.admin.data.settings.groupName = ''; S.admin.groupMsg = '';
+          toast('ยกเลิกการเชื่อมกลุ่มแล้ว'); rerenderKeepScroll();
+        }, function (e) { toast(errMsg(e)); });
+      });
+    },
     aForget: function () { store.del('apin'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
     aStaffAdd: function () { S.admin.staffDraft.push({ name: '', role: 'helper', active: true }); rerenderKeepScroll(); },
     aStaffSave: function (el) {
@@ -2423,6 +2501,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function explainLine(r) {
     var st = r.status || '';
+    if (st === 'group_not_linked') return 'ยังไม่ได้เชื่อมกลุ่ม';
     if (st === 'line_not_set') return 'ยังใส่ข้อมูล LINE ไม่ครบ (ต้องมี Channel ID, Channel secret และ Your user ID)';
     if (/line_400/.test(st)) return 'LINE ปฏิเสธ (400) — มักเป็นเพราะ User ID ผิด หรือบอสยังไม่ได้แอด OA ร้านเป็นเพื่อน · ' + (r.detail || '');
     if (/line_401|token/.test(st + (r.detail || ''))) return 'Channel ID หรือ secret ไม่ถูก (401) · ' + (r.detail || '');
