@@ -499,6 +499,18 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .sec-pick button { min-height: 34px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); font: inherit; font-size: 13.5px; color: var(--muted); }
 .sec-pick button.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 700; }
 .sec-pick button small { font-size: 11.5px; }
+/* อ่านบิลด้วย AI (หน้ารับของ) */
+.bill-box { padding: 4px 14px 14px; margin-top: 12px; }
+.bill-box .field { margin-top: 10px; }
+.bill-box > .btn { margin-top: 10px; }
+.rline .bill-tag { color: var(--brand); }
+.rline .bill-tag.low { color: var(--warn); font-weight: 700; }
+/* ตรวจชื่อพม่า */
+.mmrev { padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.mmrev .row { display: flex; gap: 10px; align-items: baseline; }
+.mmrev .row small { width: 48px; flex: none; }
+.mmrev .row .mm { font-size: 16px; }
+.mmrev .row .mm.new { color: var(--brand); font-weight: 700; }
 
 </style>
 </head>
@@ -617,6 +629,16 @@ var I18N = {
   noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
+  // อ่านบิลด้วย AI (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ယူနစ်, ကြည်ကြည်, တိုက်ကြည့်, ဘေလ်အတိုင်း, တကယ်ရောက်ရင်)
+  readBill: ['อ่านบิลด้วย AI', 'ဘေလ်ကို AI နဲ့ ဖတ်မယ်'],
+  readingBill: ['กำลังอ่านบิล… (10–40 วินาที)', 'ဘေလ် ဖတ်နေတယ်… (10–40 စက္ကန့်)'],
+  needBillPhoto: ['ถ่ายรูปบิลก่อน', 'ဘေလ်ပုံ အရင်ရိုက်ပါ'],
+  billFilled: ['ใส่จำนวนจากบิลให้แล้ว {n} รายการ — ตรวจกับของจริงก่อนกดยืนยัน', 'ဘေလ်အတိုင်း ပစ္စည်း {n} ခုရဲ့ အရေအတွက် ထည့်ပေးပြီးပြီ — ရောက်လာတဲ့ပစ္စည်းနဲ့ တိုက်ကြည့်ပြီးမှ အတည်ပြုပါ'],
+  billUnmatched: ['ในบิลมี แต่ไม่ตรงกับรายการไหน — ถ้ามาจริงให้เพิ่มเองที่ "➕ เพิ่มของที่มา":', 'ဘေလ်ထဲမှာ ပါပေမဲ့ စာရင်းထဲက ဘယ်ပစ္စည်းနဲ့ ကိုက်လဲ မသိဘူး — တကယ်ရောက်ရင် "➕ ပစ္စည်း ထပ်ထည့်" မှာ ကိုယ်တိုင် ထည့်ပါ:'],
+  billUnitUnsure: ['หน่วยในบิลไม่ตรงกับใบสั่ง — ใส่จำนวนเอง:', 'ဘေလ်ထဲက ယူနစ်က မှာထားတာနဲ့ မတူဘူး — အရေအတွက် ကိုယ်တိုင် ထည့်ပါ:'],
+  billUnreadable: ['อ่านบิลไม่ออก — ถ่ายใหม่ให้ชัด ตรง ไม่เบลอ', 'ဘေလ် ဖတ်လို့မရဘူး — ကြည်ကြည်၊ တည့်တည့်၊ မဝါးအောင် ပြန်ရိုက်ပါ'],
+  billFromBill: ['จากบิล', 'ဘေလ်အတိုင်း'],
+  billCheckThis: ['AI ไม่แน่ใจ ตรวจตัวเลขนี้', 'AI မသေချာဘူး၊ ဒီဂဏန်း စစ်ပါ'],
   recvHow: ['ชั่งหรือนับของที่มา แล้วใส่ตัวเลข · ใส่แล้วขึ้น ✓ เอง ไม่ต้องกดติ๊ก', 'ရောက်လာတဲ့ပစ္စည်းကို ချိန်/ရေတွက်ပြီး ဂဏန်း ထည့်ပါ · ထည့်လိုက်တာနဲ့ ✓ အလိုလို ပေါ်လာမယ်၊ ခြစ်စရာ မလိုဘူး'],
   weighGot: ['ชั่งได้', 'ချိန်လို့ ထွက်တာ'],
   overBy: ['มากกว่าที่สั่ง {n} {u}', 'မှာထားတာထက် {n} {um} ပိုနေတယ်'],
@@ -1354,9 +1376,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return attempt(0);
   }
+  var SLOW_API = { apiReadBill: 120000 }; // Claude อ่านรูปบิล ใช้เวลานานกว่าปกติ
   function postOnce(fn, args, rid) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 30000);
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, SLOW_API[fn] || 30000);
     return fetch(API_URL, {
       method: 'POST', redirect: 'follow', credentials: 'omit', signal: ctl ? ctl.signal : undefined,
       headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, rid: rid })
@@ -1483,8 +1506,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       my.onValue = function (snap) {
         var v = snap.val() || {};
         my.entries = v.e || {};
-        if (v.submitted) my.submitted = v.submitted;
-        if (v.subs) my.subs = v.subs;
+        if (v.submitted) { my.submitted = v.submitted; if (v.submitted.subs) my.subs = v.submitted.subs; }
         if (!my.ready) { my.ready = true; fbSeed(my); }
         fbCompose();
         refreshLive();
@@ -2047,6 +2069,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
           '<select class="inp" data-input="recvSupplier"><option value="">' + esc(tr('unknownShop').th + ' · ' + tr('unknownShop').mm) + '</option>' +
           sups.map(function (x) { return '<option' + (R.supplier_name === x.name ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></div>';
       }
+      var ai = !!(S.boot && S.boot.ai);
+      if (ai) h += '<div class="card bill-box">' + photoField(R, 'recv', 'billPhoto', true) +
+        '<button class="btn btn-ghost stack" data-act="recvReadBill"' + (R.reading || R.sending ? ' disabled' : '') + '>' +
+        (R.reading ? '<span><span class="spin-sm"></span>' + esc(tr('readingBill').th) + '</span><span class="mm">' + esc(tr('readingBill').mm) + '</span>' : biIcon('🧾', 'readBill')) + '</button>' +
+        billResultHtml(R) + '</div>';
       h += '<div class="list" style="margin-top:10px">' + R.lines.map(recvLineHtml).join('') + '</div>';
       h += '<div class="field"><label>➕ ' + esc(tr('addItem').th) + '<span class="mm">' + esc(tr('addItem').mm) + '</span></label>' +
         '<input class="inp" id="recv-q" data-input="recvQ" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(R.q) + '">' +
@@ -2054,7 +2081,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += '<div class="field"><label>💵 ' + esc(tr('billAmount').th) + '<span class="mm">' + esc(tr('billAmount').mm) + '</span></label>' +
         '<input class="inp" type="number" inputmode="decimal" step="any" min="0" data-input="recvAmount" value="' + esc(R.amount) + '" placeholder="0"></div>';
       if (ed && ed.photoCount) h += '<p class="muted" style="margin:14px 0 0;font-size:14px">📷 มีรูปเดิม ' + ed.photoCount + ' รูป (เพิ่มรูปได้ด้านล่าง)</p>';
-      h += photoField(R, 'recv', 'billPhoto');
+      if (!ai) h += photoField(R, 'recv', 'billPhoto');
       h += '<div class="field"><label>📝 ' + esc(tr('detail').th) + '<span class="mm">' + esc(tr('detail').mm) + '</span></label>' +
         '<textarea data-input="recvNote" maxlength="300" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(R.note) + '</textarea>' +
         '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div></div>';
@@ -2072,6 +2099,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     azedit: function () { return zoneEditScreen(); },
     aplace: function () { return placeAssignScreen(); },
     apodetail: function () { return poDetailScreen(); },
+    ammrev: function () { return mmRevScreen(); },
     admin: function () { return adminScreen(); },
     aedit: function () { return adminEditScreen(); }
   };
@@ -2127,6 +2155,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
           size: l.size || '', ordered: l.qty, prev: prev, remaining: Math.max(0, L.round2(l.qty - prev)),
           locked: !mine && L.lineDone(l), factor: l.factor || 1, count_unit: l.count_unit || l.unit,
           qty: mine ? String(mine.qty) : '', count: mine && mine.count ? String(mine.count) : '', ticked: !!mine,
+          price: mine && mine.price ? mine.price : '', amount: mine && mine.amount ? mine.amount : '',
           done: mine ? !!mine.done : L.isMeasured(l.unit), extra: false
         });
       })
@@ -2145,7 +2174,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var it = l.item_id ? itemById(l.item_id) : null;
       R.lines.push(recvWeigh({ key: l.key, item_id: l.item_id || '', name_th: l.name_th, name_mm: l.name_mm || '', unit: l.unit, unit_mm: UNITS[l.unit] || (it && it.unit_mm) || '',
         size: l.size || '', ordered: 0, prev: 0, remaining: 0, factor: l.conv && l.qty ? L.round2(l.qty_count / l.qty) : 1, count_unit: l.count_unit || l.unit,
-        qty: String(l.qty), count: l.count ? String(l.count) : '', ticked: true, extra: true }));
+        qty: String(l.qty), count: l.count ? String(l.count) : '', ticked: true, extra: true, price: l.price || '', amount: l.amount || '' }));
     });
     R.amount = rc.amount ? String(rc.amount) : '';
     R.note = rc.note || '';
@@ -2212,7 +2241,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var h = '<div class="card rline' + (l.ticked ? ' on' : '') + (done ? ' done' : '') + '" id="rl-' + i + '">' +
       '<span class="tick' + (l.ticked || done ? ' on' : '') + '" aria-hidden="true">' + (l.ticked || done ? '✓' : l.g ? '⚖️' : '') + '</span>' +
       '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>' +
-      (l.order_name ? '<div class="hint">🧾 ' + esc(l.order_name) + '</div>' : '');
+      (l.order_name ? '<div class="hint">🧾 ' + esc(l.order_name) + '</div>' : '') +
+      (l.fromBill ? '<div class="hint bill-tag' + (l.fromBill === 'low' ? ' low' : '') + '">🤖 ' + bi1(l.fromBill === 'low' ? 'billCheckThis' : 'billFromBill') +
+        (Number(l.amount) > 0 ? ' · ฿' + L.fmtNum(Number(l.amount)) : '') + '</div>' : Number(l.amount) > 0 ? '<div class="hint bill-tag">🧾 ฿' + L.fmtNum(Number(l.amount)) + '</div>' : '');
     if (l.ordered > 0) {
       h += '<div class="hint">' + esc(tr('ordered').th) + ' <b>' + L.fmtNum(l.ordered) + '</b> ' + unit + (l.g > 1 ? ' = <b>' + gramsTxt(l.ordered * l.g) + '</b>' : '') +
         (l.prev ? ' · ได้แล้ว ' + (l.g ? gramsTxt(l.prev * l.g) : L.fmtNum(l.prev)) : '') +
@@ -2237,6 +2268,60 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     if (l.extra) h += '<button class="mini-x" data-act="recvDel" data-k="' + i + '" aria-label="ลบ">✕</button>';
     return h + '</div></div>';
+  }
+
+  function extraLine(it) {
+    var conv = it.buy_unit && it.buy_factor > 0;
+    return recvWeigh({ key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: conv ? it.buy_unit : it.unit,
+      unit_mm: conv ? (UNITS[it.buy_unit] || '') : unitMm(it), size: conv ? '' : (it.size || ''), ordered: 0, prev: 0, remaining: 0,
+      factor: conv ? it.buy_factor : 1, count_unit: it.unit, qty: '', count: '', ticked: false, extra: true });
+  }
+
+  // ---------- อ่านบิลด้วย Claude: ใส่จำนวน (แปลงหน่วย) + ยอดเงินให้ แล้วน้องตรวจก่อนกดยืนยัน ----------
+  function billSetLine(l, x) {
+    var u = x.unit || l.unit;
+    if (l.g) {
+      var g = L.gramsPer(u) || (u === l.unit ? l.g : 0);
+      if (!g) return false;
+      var grams = L.round2(x.qty * g), cg = L.gramsPer(l.count_unit);
+      l.grams = String(grams);
+      l.qty = String(Math.round(grams / l.g * 10000) / 10000);
+      if (l.factor !== 1 && cg) l.count = String(L.round2(grams / cg));
+    } else {
+      var f = u === l.unit ? 1 : L.unitFactor(u, l.unit);
+      if (!f) return false;
+      l.qty = String(L.round2(x.qty * f));
+    }
+    var amt = x.amount || L.round2((x.unit_price || 0) * x.qty);
+    l.amount = amt || '';
+    l.price = amt && Number(l.qty) > 0 ? L.round2(amt / Number(l.qty)) : '';
+    l.ticked = Number(l.qty) > 0;
+    l.fromBill = x.confidence || 'medium';
+    return true;
+  }
+  function billApply(R, b) {
+    var out = { readable: b.readable, filled: 0, unmatched: [], unsure: [], note: b.note, shop: b.shop, total: b.total };
+    (b.lines || []).forEach(function (x) {
+      if (!(x.qty > 0) || !x.match) { if (x.text) out.unmatched.push(x); return; }
+      var l = R.lines.filter(function (y) { return y.key === x.match || (y.item_id && y.item_id === x.match); })[0];
+      if (!l && x.kind === 'item' && itemById(x.match)) { l = extraLine(itemById(x.match)); R.lines.push(l); }
+      if (!l) { out.unmatched.push(x); return; }
+      if (l.locked) return;
+      if (billSetLine(l, x)) out.filled++; else out.unsure.push(x);
+    });
+    if (!(Number(R.amount) > 0) && b.total) R.amount = String(b.total);
+    R.bill = out;
+  }
+  function billLineText(x) { return esc(x.text) + (x.qty ? ' ' + L.fmtNum(x.qty) + ' ' + esc(x.unit) : '') + (x.amount ? ' · ฿' + L.fmtNum(x.amount) : ''); }
+  function billResultHtml(R) {
+    var b = R.bill;
+    if (!b) return '';
+    if (!b.readable) return '<div class="note warn" style="margin-top:10px">' + bi1('billUnreadable') + '</div>';
+    var h = b.filled ? '<div class="note ok" style="margin-top:10px">✓ ' + bi1('billFilled', { n: b.filled }) + (b.total ? '<br>🧾 ' + esc(tr('billAmount').th) + ' ฿' + L.fmtNum(b.total) : '') + '</div>' : '';
+    if (b.unsure.length) h += '<div class="note warn" style="margin-top:8px">' + bi1('billUnitUnsure') + '<br>' + b.unsure.map(billLineText).join('<br>') + '</div>';
+    if (b.unmatched.length) h += '<div class="note info" style="margin-top:8px">' + bi1('billUnmatched') + '<br>' + b.unmatched.map(billLineText).join('<br>') + '</div>';
+    if (b.note) h += '<p class="muted" style="font-size:13px;margin:8px 0 0">🤖 ' + esc(b.note) + '</p>';
+    return h;
   }
 
   function recvRowUpdate(i) {
@@ -2420,7 +2505,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // ---------- รูปแนบ (แจ้งด่วน) ----------
-  function photoField(u, target, labelKey) {
+  function photoField(u, target, labelKey, compact) {
     var lb = tr(labelKey || 'photo');
     var h = '<div class="field"><label>📷 ' + esc(lb.th) + '<span class="mm">' + esc(lb.mm) + '</span></label>';
     if (target === 'urgent' && u.type === 'spoiled' && !u.photos.length) h += '<div class="note warn" style="margin-bottom:10px">' + bi1('spoiledPhotoHint') + '</div>';
@@ -2431,20 +2516,20 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += '<label class="ph add' + (u.busy ? ' busy' : '') + '">' + (u.busy ? bi('photoBusy') : '<span class="ic">📷</span>' + bi('addPhoto')) +
         '<input type="file" accept="image/*" multiple data-input="photo" data-target="' + target + '"' + (u.busy ? ' disabled' : '') + '></label>';
     }
-    return h + '</div><div class="muted" style="font-size:13px;margin-top:6px">' + bi1('maxPhotos') + '</div></div>';
+    return h + '</div>' + (compact ? '' : '<div class="muted" style="font-size:13px;margin-top:6px">' + bi1('maxPhotos') + '</div>') + '</div>';
   }
 
   // ย่อรูปในเครื่องก่อนส่ง (ด้านยาวสุด 1280px) — รูปมือถือ 3-5MB เหลือราว 150-300KB
-  function resizeImage(file) {
+  function resizeImage(file, maxSide, quality) {
     return new Promise(function (res, rej) {
       var url = URL.createObjectURL(file), img = new Image();
       img.onload = function () {
-        var s = Math.min(1, 1280 / Math.max(img.naturalWidth, img.naturalHeight));
+        var s = Math.min(1, (maxSide || 1280) / Math.max(img.naturalWidth, img.naturalHeight));
         var c = document.createElement('canvas');
         c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(url);
-        res(c.toDataURL('image/jpeg', 0.72));
+        res(c.toDataURL('image/jpeg', quality || 0.72));
       };
       img.onerror = function () { URL.revokeObjectURL(url); rej(new Error('อ่านรูปไม่ได้ ลองรูปอื่น')); };
       img.src = url;
@@ -2725,13 +2810,28 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
     },
     recvDel: function (el) { S.recv.lines.splice(+el.dataset.k, 1); rerenderKeepScroll(); },
+    recvReadBill: function () {
+      var R = S.recv;
+      if (R.reading) return;
+      if (!R.photos.length) return toast('📷 ' + tr('needBillPhoto').th + ' · ' + tr('needBillPhoto').mm);
+      R.reading = true; rerenderKeepScroll();
+      Promise.all(R.photos.map(function (p, i) { var f = R.files && R.files[i]; return f ? resizeImage(f, 1568, 0.8).then(null, function () { return p; }) : p; })).then(function (hi) {
+        return api('apiReadBill', R.edit && R.edit.admin ? S.admin.pin : S.pin, S.me || 'บอส', { photos: hi, po_id: R.po_id });
+      }).then(function (b) {
+        if (S.recv !== R) return;
+        R.reading = false;
+        billApply(R, b);
+        buzz();
+        rerenderKeepScroll();
+      }, function (e) {
+        R.reading = false; rerenderKeepScroll();
+        toast(isNetErr(e) ? tr('offline').th : errMsg(e));
+      });
+    },
     recvPick: function (el) {
       var it = itemById(el.dataset.id), R = S.recv;
       if (R.lines.some(function (l) { return l.item_id === it.id; })) { toast('มีรายการนี้แล้ว'); R.q = ''; return rerenderKeepScroll(); }
-      var conv = it.buy_unit && it.buy_factor > 0;
-      R.lines.push(recvWeigh({ key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: conv ? it.buy_unit : it.unit,
-        unit_mm: conv ? (UNITS[it.buy_unit] || '') : unitMm(it), size: conv ? '' : (it.size || ''), ordered: 0, prev: 0, remaining: 0,
-        factor: conv ? it.buy_factor : 1, count_unit: it.unit, qty: '', count: '', ticked: false, extra: true }));
+      R.lines.push(extraLine(it));
       R.q = '';
       rerenderKeepScroll();
     },
@@ -2773,7 +2873,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (R.busy || R.sending) return;
       var lines = R.lines.filter(function (l) { return Number(l.qty) > 0; }).map(function (l) {
         return { key: l.key, item_id: l.item_id, name_th: l.name_th, unit: l.unit, qty: Number(l.qty), count: Number(l.count) > 0 ? Number(l.count) : null,
-          done: recvIsShort(l) && !!l.done };
+          done: recvIsShort(l) && !!l.done, price: Number(l.price) > 0 ? Number(l.price) : null, amount: Number(l.amount) > 0 ? Number(l.amount) : null };
       });
       var amount = Number(R.amount) > 0 ? Number(R.amount) : '';
       if (R.edit) {
@@ -2802,7 +2902,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     urgPick: function (el) { S.urgent.item = itemById(el.dataset.id).name_th; S.urgent.q = ''; rerenderKeepScroll(); },
     urgPickText: function () { S.urgent.item = S.urgent.q.trim(); S.urgent.q = ''; rerenderKeepScroll(); },
     urgClear: function () { S.urgent.item = ''; rerenderKeepScroll(); },
-    photoDel: function (el) { S[el.dataset.target].photos.splice(+el.dataset.i, 1); rerenderKeepScroll(); },
+    photoDel: function (el) { var u = S[el.dataset.target]; u.photos.splice(+el.dataset.i, 1); if (u.files) u.files.splice(+el.dataset.i, 1); rerenderKeepScroll(); },
     urgSend: function (el) {
       var u = S.urgent;
       if (!u.type) return;
@@ -2905,7 +3005,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!files.length) return;
       u.busy = true; rerenderKeepScroll();
       files.reduce(function (p, f) {
-        return p.then(function () { return resizeImage(f).then(function (d) { u.photos.push(d); }); });
+        // เก็บไฟล์ต้นฉบับไว้ในเครื่อง (รับของ) — ตอนกดอ่านบิลค่อยทำรูปละเอียด ไม่ให้การส่งช้าลง
+        return p.then(function () { return resizeImage(f).then(function (d) { u.photos.push(d); if (el.dataset.target === 'recv') (u.files = u.files || [])[u.photos.length - 1] = f; }); });
       }, Promise.resolve()).catch(function (e) { toast(errMsg(e)); }).then(function () { u.busy = false; rerenderKeepScroll(); });
     }
   };
@@ -3850,7 +3951,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var A = S.admin, u = s.claudeUsage || {};
     return '<div class="section-h">✨ แปลภาษาด้วย Claude</div><div class="card form" style="padding:16px">' +
       (s.claudeKey ? '<div class="note ok">✅ ใช้ Claude แปลอยู่</div>' : '<div class="note warn">ยังไม่ได้ใส่ API key — ตอนนี้ใช้ Google แปล (ชื่อของกินเพี้ยนบ่อย)</div>') +
-      '<p class="muted" style="margin:0;font-size:14px">Claude แปล 2 อย่าง: <b>ชื่อวัตถุดิบไทย → พม่า</b> (ตอนเพิ่ม/เปลี่ยนชื่อ) และ <b>ข้อความพม่าของน้อง → ไทย</b> (แจ้งด่วน, หมายเหตุ MON, รับของ) · ใช้ชื่อพม่าที่ตรวจแล้วในร้านเป็นอภิธานศัพท์ทุกครั้ง · ถ้า Claude ใช้ไม่ได้ แอพสลับไป Google ให้เอง</p>' +
+      '<p class="muted" style="margin:0;font-size:14px">Claude ทำ 3 อย่าง: <b>ชื่อวัตถุดิบไทย → พม่า</b> (ตอนเพิ่ม/เปลี่ยนชื่อ) · <b>ข้อความพม่าของน้อง → ไทย</b> (แจ้งด่วน, หมายเหตุ MON, รับของ) · <b>อ่านบิล</b> ตอนรับของ (ปุ่ม 🧾 ในหน้ารับของ ใส่จำนวน+ราคาให้) · ถ้า Claude ใช้ไม่ได้ แอพสลับไป Google ให้เอง</p>' +
       '<ol class="steps">' +
       '<li>เปิด <a href="https://console.anthropic.com" target="_blank" rel="noopener">Anthropic Console</a> → สมัคร/ล็อกอิน (บัญชี API แยกจาก Claude ที่บอสใช้แชท ต้องเติมเงินแยก)</li>' +
       '<li><b>Billing</b> → เติมเครดิต (เริ่มจากจำนวนน้อยก่อนได้)</li>' +
@@ -3861,10 +3962,39 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (s.claudeKey ? '<label class="check"><input type="checkbox" id="s-clearckey"> เลิกใช้ Claude (ลบ key กลับไปใช้ Google)</label>' : '') +
       '<div class="btn-row"><button class="btn btn-primary" data-act="aSaveClaude">บันทึก</button>' +
       (s.claudeKey ? '<button class="btn btn-ghost" data-act="aTestClaude">ทดสอบแปล</button>' : '') + '</div>' +
+      (s.claudeKey ? '<button class="btn btn-ghost" data-act="mmRevOpen">🌐 ให้ Claude ตรวจชื่อพม่าทุกรายการ</button>' : '') +
       (A.claudeMsg ? '<div class="note ' + (/✓/.test(A.claudeMsg) ? 'ok' : 'bad') + '" style="white-space:pre-line">' + esc(A.claudeMsg) + '</div>' : '') +
       (u.calls ? '<p class="muted" style="margin:0;font-size:13.5px">เดือนนี้ใช้ ' + u.calls + ' ครั้ง' + (u.fail ? ' (ไม่สำเร็จ ' + u.fail + ' → ใช้ Google แทน)' : '') +
         ' · ประมาณ $' + L.fmtNum(u.usd < 0.01 && u.usd > 0 ? 0.01 : u.usd) + ' <span style="opacity:.8">(ค่าประมาณจากจำนวน token × ราคา Opus 5.5 — ยอดเรียกเก็บจริงดูใน Console)</span> · รายละเอียดอยู่ในชีต "การใช้ Claude"</p>' : '') +
       '</div>';
+  }
+
+  // ---------- ตรวจชื่อพม่าทั้งหมดด้วย Claude (ทีละ 25) → เลือกใช้ชื่อใหม่/คงเดิม → บันทึกเฉพาะชื่อพม่า ----------
+  var MMREV_BATCH = 25;
+  function mmRevScreen() {
+    var R = S.admin.mmRev, all = S.admin.data.items.filter(function (it) { return it.active !== false && it.name_th; });
+    var flagged = all.filter(function (it) { var x = R.sugg[it.id]; return x && !x.ok; });
+    var picked = Object.keys(R.pick).filter(function (id) { return R.pick[id] === 'new'; }).length;
+    var h = top({ th: '🌐 ตรวจชื่อพม่า', back: 'mmRevBack', net: false }) + '<div class="wrap screen">' +
+      '<p class="sub">Claude ตรวจชื่อพม่าทีละ ' + MMREV_BATCH + ' รายการ แล้วเสนอชื่อใหม่เฉพาะอันที่น่าจะผิด · ชื่อที่เลือกใช้จะติดป้าย "Claude แปล" ไว้ จนกว่า MON จะยืนยัน (กด ✓ MON ตรวจแล้ว)</p>';
+    var done = Object.keys(R.sugg).length;
+    if (R.running) h += '<div class="note info"><span class="spin-sm"></span>กำลังตรวจ… ' + done + ' / ' + all.length + ' รายการ</div>';
+    else if (done < all.length) h += '<button class="btn btn-primary" data-act="mmRevRun">🤖 ' + (done ? 'ตรวจต่อ (เหลือ ' + (all.length - done) + ')' : 'เริ่มตรวจ ' + all.length + ' รายการ') + '</button>';
+    else h += '<div class="note ok">✓ ตรวจครบ ' + all.length + ' รายการ · Claude ว่าน่าจะผิด ' + flagged.length + ' รายการ</div>';
+    h += '<div class="list" style="margin-top:12px">' + flagged.map(function (it) {
+      var x = R.sugg[it.id], pk = R.pick[it.id] || '';
+      return '<div class="card mmrev"><b>' + esc(it.name_th) + '</b>' +
+        '<div class="row"><small class="muted">เดิม</small><span class="mm">' + esc(it.name_mm || '–') + '</span></div>' +
+        '<div class="row"><small class="muted">Claude</small><span class="mm new">' + esc(x.mm) + '</span></div>' +
+        (x.why ? '<small class="muted">💬 ' + esc(x.why) + '</small>' : '') +
+        '<div class="seg"><button class="' + (pk === 'new' ? 'on' : '') + '" data-act="mmRevPick" data-id="' + esc(it.id) + '" data-v="new">ใช้ชื่อใหม่</button>' +
+        '<button class="' + (pk === 'keep' ? 'on' : '') + '" data-act="mmRevPick" data-id="' + esc(it.id) + '" data-v="keep">คงเดิม</button>' +
+        '<button class="' + (pk === 'mon' ? 'on' : '') + '" data-act="mmRevPick" data-id="' + esc(it.id) + '" data-v="mon">✓ MON ตรวจแล้ว (ใช้ชื่อใหม่)</button></div></div>';
+    }).join('') + '</div>';
+    var nSave = Object.keys(R.pick).filter(function (id) { return R.pick[id] === 'new' || R.pick[id] === 'mon'; }).length;
+    h += '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="mmRevSave"' + (nSave && !R.saving ? '' : ' disabled') + '>' +
+      (R.saving ? 'กำลังบันทึก…' : '💾 บันทึกชื่อใหม่ (' + nSave + ')') + '</button></div></div>';
+    return h;
   }
 
   // รอให้บอสพิมพ์รหัสในกลุ่ม แล้วเช็คว่าบอทยืนยันหรือยัง (ทุก 5 วินาที ไม่เกิน 30 นาที)
@@ -4706,6 +4836,40 @@ if (typeof module !== 'undefined') module.exports = Logic;
         if (r.usage) S.admin.data.settings.claudeUsage = r.usage;
         rerenderKeepScroll();
       }, function (e) { S.admin.claudeMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    mmRevOpen: function () { S.admin.mmRev = S.admin.mmRev || { sugg: {}, pick: {} }; go('ammrev'); },
+    mmRevBack: function () { go('admin'); },
+    mmRevRun: function () {
+      var A = S.admin, R = A.mmRev;
+      if (R.running) return;
+      R.running = true; rerenderKeepScroll();
+      var todo = A.data.items.filter(function (it) { return it.active !== false && it.name_th && !R.sugg[it.id]; }).map(function (it) { return it.id; });
+      (function next() {
+        if (S.admin !== A || !todo.length) { R.running = false; if (S.screen === 'ammrev') rerenderKeepScroll(); return; }
+        var ids = todo.splice(0, MMREV_BATCH);
+        api('apiAdminReviewMm', A.pin, ids).then(function (r) {
+          r.items.forEach(function (x) { R.sugg[x.id] = x; });
+          ids.forEach(function (id) { if (!R.sugg[id]) R.sugg[id] = { ok: true }; });
+          if (S.screen === 'ammrev') rerenderKeepScroll();
+          next();
+        }, function (e) { R.running = false; rerenderKeepScroll(); toast(errMsg(e)); });
+      })();
+    },
+    mmRevPick: function (el) { var R = S.admin.mmRev; R.pick[el.dataset.id] = R.pick[el.dataset.id] === el.dataset.v ? '' : el.dataset.v; rerenderKeepScroll(); },
+    mmRevSave: function () {
+      var A = S.admin, R = A.mmRev;
+      var ch = Object.keys(R.pick).filter(function (id) { return (R.pick[id] === 'new' || R.pick[id] === 'mon') && R.sugg[id] && R.sugg[id].mm; })
+        .map(function (id) { return { id: id, mm: R.sugg[id].mm, verified: R.pick[id] === 'mon' }; });
+      if (!ch.length) return;
+      R.saving = true; rerenderKeepScroll();
+      api('apiAdminSetMm', A.pin, ch).then(function (r) {
+        A.data.items = r.items;
+        if (S.boot) S.boot.items = r.items.filter(function (i) { return i.active !== false; });
+        ch.forEach(function (c) { delete R.sugg[c.id]; delete R.pick[c.id]; R.sugg[c.id] = { ok: true }; });
+        R.saving = false;
+        toast('บันทึกชื่อพม่า ' + r.saved + ' รายการแล้ว ✓');
+        rerenderKeepScroll();
+      }, function (e) { R.saving = false; rerenderKeepScroll(); toast(errMsg(e)); });
     },
     aRetranslate: function (el) {
       el.disabled = true; el.textContent = 'Claude กำลังแปล… (รายการละไม่กี่วินาที)';
