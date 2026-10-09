@@ -2707,6 +2707,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     toAdminPin: function () {
       var ap = store.get('apin');
       if (!ap) { S.pinBuf = ''; S.pinMsg = ''; return go('adminpin'); }
+      if (adminFromCache(ap)) return;
       go('loading');
       loadAdmin(ap).catch(function () { store.del('apin'); S.pinBuf = ''; S.pinMsg = ''; go('adminpin'); });
     },
@@ -3045,16 +3046,61 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   // ================= หน้าบอส (ภาษาไทยอย่างเดียว) =================
   function loadAdmin(pin, tab) {
-    return api('apiAdminLoad', pin).then(function (d) {
+    return api('apiAdminLoad', pin, true).then(function (d) {
       useZones(d.zones);
       var prev = S.admin || {};
       S.admin = { pin: pin, data: d, tab: tab || prev.tab || 'dash', zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '',
         dash: prev.dash || null, dashF: prev.dashF, dashQ: prev.dashQ };
       go('admin');
-      if (S.admin.tab === 'po') loadPoData();
-      if (S.admin.tab === 'dash') loadDash();
-      if (S.admin.tab === 'history') loadReports();
+      adminTabLoad();
+      loadExtras();
+      adminCacheSave();
     });
+  }
+  function adminTabLoad() {
+    if (S.admin.tab === 'po') loadPoData();
+    if (S.admin.tab === 'dash') loadDash();
+    if (S.admin.tab === 'history') loadReports();
+  }
+  // ประวัติรับของ/แจ้งด่วน/ค่า Claude — ไม่ต้องรอตอนเข้าหน้า
+  function loadExtras() {
+    var A = S.admin;
+    return api('apiAdminExtras', A.pin).then(function (x) {
+      if (S.admin !== A) return;
+      A.data.receipts = x.receipts; A.data.alerts = x.alerts; A.data.settings.claudeUsage = x.claudeUsage;
+      if (S.screen === 'admin' && (A.tab === 'history' || A.tab === 'settings')) rerenderKeepScroll();
+    }, function () { /* ไว้โหลดใหม่ตอนเปิดแท็บ */ });
+  }
+  // เครื่องบอสที่จำรหัสไว้: จำข้อมูลหน้าบอสไว้ด้วย → ครั้งหน้าเปิดได้ทันที แล้วค่อยอัปเดตตามหลัง
+  function adminCacheSave() {
+    var A = S.admin;
+    if (!A || !store.get('apin')) return;
+    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings }, dash: A.dash || null });
+  }
+  function adminFromCache(ap) {
+    var c = store.get('adminCache');
+    if (!c || !c.d || !c.d.items || Date.now() - (c.at || 0) > 3 * 86400000) return false;
+    useZones(c.d.zones);
+    S.admin = { pin: ap, data: c.d, tab: 'dash', zone: ZONES[0].id, edit: null, staffDraft: null, lineMsg: '', dash: c.dash || null, stale: true };
+    go('admin');
+    var A = S.admin;
+    api('apiAdminLoad', ap, true).then(function (d) {
+      if (S.admin !== A) return;
+      useZones(d.zones);
+      d.receipts = A.data.receipts; d.alerts = A.data.alerts;
+      if (A.data.settings && A.data.settings.claudeUsage) d.settings.claudeUsage = A.data.settings.claudeUsage;
+      A.data = d; A.stale = false;
+      if (S.screen === 'admin' && !A.staffDraft && !A.move) rerenderKeepScroll();
+      adminTabLoad();
+      loadExtras();
+      adminCacheSave();
+    }, function (e) {
+      if (S.admin !== A) return;
+      if (/BAD_PIN/.test(errMsg(e))) { store.del('apin'); store.del('adminCache'); S.admin = null; S.pinBuf = ''; S.pinMsg = ''; return go('adminpin'); }
+      A.stale = false; rerenderKeepScroll();
+      toast(isNetErr(e) ? tr('offline').th : errMsg(e));
+    });
+    return true;
   }
 
   // ================= สั่งซื้อ (หน้าบอส) =================
@@ -3253,6 +3299,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     S.admin.dashErr = '';
     return api('apiAdminDashboard', S.admin.pin).then(function (d) {
       S.admin.dash = d;
+      adminCacheSave();
       if (S.screen === 'admin' || S.screen === 'adash') rerenderKeepScroll();
     }, function (e) { S.admin.dashErr = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
   }
@@ -3522,6 +3569,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var h = top({ th: 'ตั้งค่าร้าน (บอส)', back: 'adminExit', net: false }) + '<div class="wrap"><div class="tabs">' +
       tabs.map(function (t) { return '<button class="' + (A.tab === t[0] ? 'on' : '') + '" data-act="aTab" data-v="' + t[0] + '">' + esc(t[1]) + '</button>'; }).join('') +
       '</div></div><div class="wrap screen">';
+    if (A.stale) h += '<p class="muted" style="margin:0 0 8px;font-size:13px"><span class="spin-sm"></span>เปิดจากข้อมูลในเครื่อง · กำลังอัปเดตล่าสุด…</p>';
     if (A.tab === 'dash') {
       h += dashTab();
     } else if (A.tab === 'setup') {
@@ -3604,8 +3652,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<p class="muted" style="font-size:13px;margin-top:10px">แผนกใหม่ (เช่น หน้าร้าน) → เพิ่มที่เก็บของแผนกนั้นที่ 📋 รายการของ → 🗂️ จัดการที่เก็บ แล้วใส่ชื่อแผนกให้ตรงกัน</p>';
     } else if (A.tab === 'history') {
       h += reportsSection();
-      h += '<div class="section-h">📦 รับของ (30 ครั้งล่าสุด)</div>' + ((d.receipts || []).length ? '<div class="list">' + d.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
-      h += '<div class="section-h">แจ้งด่วน (30 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
+      if (!d.receipts) h += '<p class="muted"><span class="spin-sm"></span>กำลังโหลดรับของ/แจ้งด่วน…</p>';
+      else h += '<div class="section-h">📦 รับของ (30 ครั้งล่าสุด)</div>' + ((d.receipts || []).length ? '<div class="list">' + d.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
+      if (d.alerts) h += '<div class="section-h">แจ้งด่วน (30 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
         return '<div class="card hist"><div style="display:flex;justify-content:space-between;gap:8px"><b>' + esc(a.by) + ' · ' + esc(String(a.at).slice(0, 10)) + ' ' + esc(L.bkkTime(a.at)) + '</b>' + statusLabel(a.notify_status) + '</div>' +
           '<div>' + esc({ runout: '⏳ จะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 อื่นๆ' }[a.type] || a.type) + (a.item ? ' — ' + esc(a.item_th || a.item) + (a.item_th ? ' <span class="mm muted">(' + esc(a.item) + ')</span>' : '') : '') +
           (a.qty ? ' (' + esc(a.qty_th || a.qty) + ')' : '') + '</div>' +
@@ -4024,8 +4073,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     (function poll() {
       if (!S.admin || S.admin !== A || !A.linkCode) return;
       if (Date.now() - started > 30 * 60000) { A.linkWaiting = false; return; }
-      api('apiAdminLoad', A.pin).then(function (d) {
+      api('apiAdminLoad', A.pin, true).then(function (d) {
         if (d.settings.groupLinked && !d.settings.linkPending) {
+          d.settings.claudeUsage = A.data.settings.claudeUsage;
           A.data.settings = d.settings; A.linkCode = ''; A.linkWaiting = false;
           A.groupMsg = 'เชื่อมกลุ่มแล้ว ✓' + (d.settings.groupName ? ' (' + d.settings.groupName + ')' : '');
           if (S.screen === 'admin') rerenderKeepScroll();
@@ -4776,7 +4826,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         }, function (e) { toast(errMsg(e)); });
       });
     },
-    aForget: function () { store.del('apin'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
+    aForget: function () { store.del('apin'); store.del('adminCache'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
     aStaffAdd: function () { S.admin.staffDraft.push({ name: '', role: 'helper', active: true, sections: '' }); rerenderKeepScroll(); },
     aStaffSec: function (el) {
       var s = S.admin.staffDraft[+el.dataset.i], v = el.dataset.v, mine = L.staffSections(s);
