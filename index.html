@@ -437,6 +437,17 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .tg { font-style: normal; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-weight: 600; }
 .tg.k { background: #efece7; color: var(--ink); }
 .tg.k.prep { background: var(--warn-soft); color: var(--warn); }
+/* จัดของเข้าที่เก็บ */
+.pl-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pl-row > span { flex: 1 1 140px; font-weight: 700; }
+.pl-row .tagc { padding: 6px 10px; font-size: 13px; }
+.pl-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-left: 5px solid transparent; }
+.pl-item.on { border-left-color: var(--brand); background: linear-gradient(90deg, var(--brand-soft), var(--card) 60%); }
+.pl-item .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pl-tick { width: 44px; height: 44px; border-radius: 12px; border: 2px solid var(--line); background: var(--card); font-size: 22px; font-weight: 800; color: #fff; flex: none; }
+.pl-item.on .pl-tick { background: var(--brand); border-color: var(--brand); }
+.tg.old { background: #efece7; color: var(--muted); }
+.kbtn { border: 0; cursor: pointer; flex: none; }
 
 </style>
 </head>
@@ -1517,8 +1528,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     home: function () {
       var sum = summary(), b = S.boot;
-      var due = ZONES.filter(function (z) { return sum.zones[z.id].due || sum.zones[z.id].started || sum.zones[z.id].todo; });
-      var later = ZONES.filter(function (z) { return due.indexOf(z) < 0; });
+      var used = ZONES.filter(function (z) { return sum.zones[z.id].total > 0; });
+      var due = used.filter(function (z) { return sum.zones[z.id].due || sum.zones[z.id].started || sum.zones[z.id].todo; });
+      var later = used.filter(function (z) { return due.indexOf(z) < 0; });
       var total = 0, counted = 0, below = 0;
       due.forEach(function (z) { total += sum.zones[z.id].total; counted += sum.zones[z.id].counted; below += sum.zones[z.id].below; });
       var pct = total ? Math.round(counted / total * 100) : 0;
@@ -1678,6 +1690,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adash: function () { return dashItemScreen(); },
     azones: function () { return zonesScreen(); },
     azedit: function () { return zoneEditScreen(); },
+    aplace: function () { return placeAssignScreen(); },
     apodetail: function () { return poDetailScreen(); },
     admin: function () { return adminScreen(); },
     aedit: function () { return adminEditScreen(); }
@@ -2843,7 +2856,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
           }).join('') + '</div>';
       }
     } else if (A.tab === 'items') {
-      h += '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
+      h += shopPlacesCard() + '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
         return '<button class="' + (A.zone === z.id ? 'on' : '') + '" data-act="aZone" data-v="' + z.id + '">' + z.icon + ' ' + esc(z.th) + '</button>';
       }).join('') + '</div>';
       var list = d.items.filter(function (it) { return L.itemLocs(it).indexOf(A.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
@@ -2908,6 +2921,86 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += adminSettings();
     }
     return h + '</div>';
+  }
+
+  // ที่เก็บจริงของร้าน (บอสกำหนด 9 ต.ค. 69) — เรียงตามทางเดินนับ · ชื่อพม่า: ရေခဲသေတ္တာ = ตู้เย็น, ဖရီဇာ = ตู้ฟรีซ (รอ MON ยืนยัน)
+  var SHOP_PLACES = [
+    { th: 'CHILL-1', mm: 'ရေခဲသေတ္တာ 1', icon: '🧊', weekly: false },
+    { th: 'FREEZER-1', mm: 'ဖရီဇာ 1', icon: '❄️', weekly: false },
+    { th: 'CHILL-2', mm: 'ရေခဲသေတ္တာ 2', icon: '🧊', weekly: false },
+    { th: 'FREEZER-2', mm: 'ဖရီဇာ 2', icon: '❄️', weekly: false },
+    { th: 'ของแห้ง', mm: 'အခြောက်ပစ္စည်း', icon: '📦', weekly: true }
+  ];
+  function shopZoneIds() {
+    return SHOP_PLACES.map(function (p) { var z = ZONES.filter(function (x) { return x.th === p.th; })[0]; return z ? z.id : null; }).filter(Boolean);
+  }
+  function inShop(it) { var ids = shopZoneIds(); return L.itemLocs(it).some(function (z) { return ids.indexOf(z) >= 0; }); }
+
+  // การ์ดในแท็บรายการของ: ยังไม่มีที่เก็บชุดใหม่ → สร้าง · มีแล้วแต่ยังจัดไม่ครบ → ไปจัด
+  function shopPlacesCard() {
+    var A = S.admin, missing = SHOP_PLACES.filter(function (p) { return !ZONES.some(function (z) { return z.th === p.th; }); });
+    if (missing.length) {
+      var W = A.placeWeekly || (A.placeWeekly = {});
+      return '<div class="card form" style="padding:16px;margin-bottom:12px"><b>📍 ตั้งที่เก็บของร้าน (นับตามตู้จริง)</b>' +
+        '<p class="muted" style="margin:0;font-size:14px">จะสร้าง ' + missing.map(function (p) { return esc(p.th); }).join(', ') + ' เรียงตามลำดับเดินนับ แล้วพาไปหน้าจัดของเข้าแต่ละตู้ · ระหว่างจัด น้องยังนับแบบเดิมได้</p>' +
+        missing.map(function (p) {
+          var wk = W[p.th] !== undefined ? W[p.th] : p.weekly;
+          return '<div class="pl-row"><span>' + esc(p.icon + ' ' + p.th) + ' <small class="mm muted">' + esc(p.mm) + '</small></span>' +
+            '<button class="tagc' + (wk ? '' : ' on') + '" data-act="plWeekly" data-th="' + esc(p.th) + '" data-v="0">นับทุกวัน</button>' +
+            '<button class="tagc' + (wk ? ' on' : '') + '" data-act="plWeekly" data-th="' + esc(p.th) + '" data-v="1">สัปดาห์ละครั้ง</button></div>';
+        }).join('') +
+        '<button class="btn btn-primary" data-act="plCreate">สร้างที่เก็บ ' + missing.length + ' ที่</button></div>';
+    }
+    var left = A.data.items.filter(function (it) { return it.active !== false && !inShop(it); }).length;
+    var old = ZONES.filter(function (z) { return shopZoneIds().indexOf(z.id) < 0; });
+    if (!left && !old.length) return '';
+    return '<div class="card" style="padding:14px 16px;margin-bottom:12px"><b>📍 จัดของเข้าที่เก็บ</b><div class="muted" style="font-size:14px;margin:4px 0 10px">' +
+      (left ? 'ยังไม่ได้จัด ' + left + ' รายการ (ยังอยู่หมวดเดิม)' : '✅ จัดครบแล้ว — ลบหมวดเดิม ' + old.length + ' หมวดได้') + '</div>' +
+      '<button class="btn ' + (left ? 'btn-primary' : 'btn-ghost') + '" data-act="plOpen">' + (left ? 'ไปจัดของเข้าตู้' : 'ดู/แก้การจัด') + '</button></div>';
+  }
+
+  function placeAssignScreen() {
+    var A = S.admin, P = A.plAssign, ids = shopZoneIds(), tgt = P.target;
+    var q = (P.q || '').trim().toLowerCase();
+    var list = A.data.items.filter(function (it) { return it.active !== false; })
+      .filter(function (it) { return !q || it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0; })
+      .filter(function (it) { return !P.onlyLeft || !plPlaces(it).some(function (z) { return ids.indexOf(z) >= 0; }) || plPlaces(it).indexOf(tgt) >= 0; })
+      .sort(function (a, b) { return a.name_th.localeCompare(b.name_th, 'th'); });
+    var left = A.data.items.filter(function (it) { return it.active !== false && !plPlaces(it).some(function (z) { return ids.indexOf(z) >= 0; }); }).length;
+    var n = Object.keys(P.changed).length;
+    var h = top({ th: '📍 จัดของเข้าที่เก็บ', back: 'plBack', net: false }) + '<div class="wrap screen">' +
+      '<p class="sub">1) เลือกตู้ที่ยืนอยู่ 2) แตะรายการที่อยู่ในตู้นั้นให้ขึ้น ✓ (ของอยู่หลายตู้ ก็ติ๊กในแต่ละตู้) 3) ทำครบทุกตู้แล้วกดบันทึก</p>' +
+      '<div class="tagbox">' + ids.map(function (id) {
+        var z = zoneOf(id), c = A.data.items.filter(function (it) { return it.active !== false && plPlaces(it).indexOf(id) >= 0; }).length;
+        return '<button class="tagc' + (tgt === id ? ' on' : '') + '" data-act="plTarget" data-v="' + esc(id) + '">' + esc(z.icon + ' ' + z.th) + ' <small>(' + c + ')</small></button>';
+      }).join('') + '</div>' +
+      '<input class="inp" style="margin:12px 0 8px" data-input="plQ" placeholder="🔍 ค้นหาของ" value="' + esc(P.q || '') + '" autocomplete="off">' +
+      '<label class="check" style="margin-bottom:10px"><input type="checkbox" data-input="plOnlyLeft"' + (P.onlyLeft ? ' checked' : '') + '> เฉพาะที่ยังไม่ได้จัด (' + left + ')</label>' +
+      '<div class="list" id="pl-list">' + list.map(function (it) { return plRow(it, tgt); }).join('') + '</div></div>' +
+      '<div class="bottom"><div class="wrap"><div class="btn-row">' +
+      (!left && !n && ZONES.some(function (z) { return ids.indexOf(z.id) < 0; }) ? '<button class="btn btn-danger" data-act="plDropOld">🧹 ลบหมวดเดิม</button>' : '') +
+      '<button class="btn btn-primary" data-act="plSave" id="pl-save"' + (n && !P.saving ? '' : ' disabled') + '>' + (P.saving ? 'กำลังบันทึก…' : '💾 บันทึก ' + n + ' รายการ') + '</button></div></div></div>';
+    return h;
+  }
+
+  // ที่เก็บของรายการระหว่างจัด: ถ้าติ๊กตู้ใหม่แล้ว ใช้เฉพาะตู้ใหม่ (หมวดเดิมหลุดไปเอง) · ยังไม่ติ๊กเลย = หมวดเดิม
+  function plPlaces(it) {
+    var c = S.admin.plAssign && S.admin.plAssign.changed[it.id];
+    return c ? c.places : L.itemLocs(it);
+  }
+  function plRow(it, tgt) {
+    var pl = plPlaces(it), on = pl.indexOf(tgt) >= 0, ids = shopZoneIds();
+    var kind = (S.admin.plAssign.changed[it.id] || {}).kind || it.kind;
+    return '<div class="card pl-item' + (on ? ' on' : '') + '" id="pl-' + esc(it.id) + '"><button class="pl-tick" data-act="plToggle" data-id="' + esc(it.id) + '">' + (on ? '✓' : '') + '</button>' +
+      '<span class="nm"><b>' + esc(it.name_th) + '</b><small class="mm">' + esc(it.name_mm) + '</small><span class="tagline">' +
+      pl.map(function (z) { return '<i class="tg' + (ids.indexOf(z) >= 0 ? '' : ' old') + '">' + esc(zoneOf(z).icon + ' ' + zoneOf(z).th) + '</i>'; }).join('') + '</span></span>' +
+      '<button class="tg k' + (kind === 'prep' ? ' prep' : '') + ' kbtn" data-act="plKind" data-id="' + esc(it.id) + '">' + (kind === 'prep' ? '🔪 ตัดแต่งแล้ว' : '🛒 ยังไม่ตัดแต่ง') + '</button></div>';
+  }
+  function plRefresh(id) {
+    var it = S.admin.data.items.filter(function (x) { return x.id === id; })[0], el = document.getElementById('pl-' + id);
+    if (it && el) { var t = document.createElement('div'); t.innerHTML = plRow(it, S.admin.plAssign.target); el.replaceWith(t.firstChild); }
+    var b = document.getElementById('pl-save'), n = Object.keys(S.admin.plAssign.changed).length;
+    if (b) { b.disabled = !n; b.textContent = '💾 บันทึก ' + n + ' รายการ'; }
   }
 
   var ZONE_ICONS = ['🥬', '🔪', '🍲', '🧊', '❄️', '📦', '🥩', '🐟', '🦐', '🥚', '🍜', '🧂', '🍶', '🥫', '🌶️', '🧄', '🍚', '🧃', '🥤', '🧻', '🧽', '🍳'];
@@ -3198,6 +3291,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var box = el.closest('.seg');
     if (box) box.querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', l.contains(el)); });
   };
+  INPUT.plQ = function (el) {
+    S.admin.plAssign.q = el.value;
+    var P = S.admin.plAssign, box = document.getElementById('pl-list');
+    if (!box) return;
+    var q = el.value.trim().toLowerCase(), ids = shopZoneIds();
+    box.innerHTML = S.admin.data.items.filter(function (it) { return it.active !== false; })
+      .filter(function (it) { return !q || it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0; })
+      .filter(function (it) { return !P.onlyLeft || !plPlaces(it).some(function (z) { return ids.indexOf(z) >= 0; }) || plPlaces(it).indexOf(P.target) >= 0; })
+      .sort(function (a, b) { return a.name_th.localeCompare(b.name_th, 'th'); })
+      .map(function (it) { return plRow(it, P.target); }).join('');
+  };
+  INPUT.plOnlyLeft = function (el) { S.admin.plAssign.onlyLeft = el.checked; rerenderKeepScroll(); };
   INPUT.mvPick = function (el) {
     S.admin.move.picked[el.dataset.id] = el.checked;
     var n = Object.keys(S.admin.move.picked).filter(function (k) { return S.admin.move.picked[k]; }).length, b = document.getElementById('mv-save');
@@ -3351,6 +3456,88 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aZone: function (el) { leaveReorder(function () { S.admin.zone = el.dataset.v; S.admin.move = null; rerenderKeepScroll(); }); },
+    plWeekly: function (el) {
+      S.admin.placeWeekly = S.admin.placeWeekly || {};
+      S.admin.placeWeekly[el.dataset.th] = el.dataset.v === '1';
+      rerenderKeepScroll();
+    },
+    plCreate: function (el) {
+      var A = S.admin, W = A.placeWeekly || {};
+      var cur = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; });
+      var shop = SHOP_PLACES.map(function (p) {
+        var ex = cur.filter(function (z) { return z.th === p.th; })[0];
+        return ex || { icon: p.icon, th: p.th, mm: p.mm, kind: 'buy', weekly: W[p.th] !== undefined ? W[p.th] : p.weekly };
+      });
+      var rest = cur.filter(function (z) { return !SHOP_PLACES.some(function (p) { return p.th === z.th; }); });
+      el.disabled = true; el.textContent = 'กำลังสร้าง…';
+      api('apiAdminSaveZones', A.pin, shop.concat(rest)).then(function (r) {
+        useZones(r.zones); if (S.boot) S.boot.zones = r.zones;
+        toast('สร้างที่เก็บแล้ว ✓ — ต่อไปจัดของเข้าแต่ละตู้');
+        ADMIN_ACT.plOpen();
+      }, function (e) { el.disabled = false; el.textContent = 'สร้างที่เก็บ'; toast(errMsg(e)); });
+    },
+    plOpen: function () {
+      var ids = shopZoneIds();
+      S.admin.plAssign = { target: ids[0], q: '', onlyLeft: false, changed: {}, saving: false };
+      go('aplace');
+    },
+    plBack: function () {
+      if (!Object.keys(S.admin.plAssign.changed).length) return go('admin');
+      confirmBox('ยังไม่ได้บันทึก', 'ที่จัดไว้จะหายถ้าออกตอนนี้', [{ key: 'stay', html: 'จัดต่อ' }, { key: 'leave', html: 'ทิ้งที่จัด', cls: 'btn-danger' }])
+        .then(function (k) { if (k === 'leave') go('admin'); });
+    },
+    plTarget: function (el) { S.admin.plAssign.target = el.dataset.v; rerenderKeepScroll(); },
+    plToggle: function (el) {
+      var P = S.admin.plAssign, it = S.admin.data.items.filter(function (x) { return x.id === el.dataset.id; })[0], ids = shopZoneIds();
+      var cur = plPlaces(it), shopNow = cur.filter(function (z) { return ids.indexOf(z) >= 0; });
+      var i = shopNow.indexOf(P.target);
+      if (i >= 0) shopNow.splice(i, 1); else shopNow.push(P.target);
+      if (shopNow.length > 1 && !L.isConfigured(it)) { toast('รายการนี้ยังไม่มี Min/Max — อยู่ได้ตู้เดียว'); return; }
+      var places = shopNow.length ? ids.filter(function (z) { return shopNow.indexOf(z) >= 0; }) : L.itemLocs(it);
+      var c = P.changed[it.id] || {};
+      c.places = places;
+      var same = places.join(',') === L.itemLocs(it).join(',') && (!c.kind || c.kind === it.kind);
+      if (same) delete P.changed[it.id]; else P.changed[it.id] = c;
+      buzz();
+      plRefresh(it.id);
+    },
+    plKind: function (el) {
+      var P = S.admin.plAssign, it = S.admin.data.items.filter(function (x) { return x.id === el.dataset.id; })[0];
+      var c = P.changed[it.id] || { places: L.itemLocs(it) }, k = (c.kind || it.kind) === 'prep' ? 'buy' : 'prep';
+      c.kind = k;
+      if (c.places.join(',') === L.itemLocs(it).join(',') && k === it.kind) delete P.changed[it.id]; else P.changed[it.id] = c;
+      plRefresh(it.id);
+    },
+    plSave: function () {
+      var A = S.admin, P = A.plAssign;
+      var list = Object.keys(P.changed).map(function (id) {
+        var it = JSON.parse(JSON.stringify(A.data.items.filter(function (x) { return x.id === id; })[0])), c = P.changed[id];
+        it.zone = c.places[0]; it.more_zones = c.places.slice(1).join(',');
+        if (c.kind) it.kind = c.kind;
+        return it;
+      });
+      P.saving = true; rerenderKeepScroll();
+      adminSaveItems(list).then(function () {
+        P.saving = false; P.changed = {};
+        toast('บันทึกแล้ว ' + list.length + ' รายการ ✓');
+        rerenderKeepScroll();
+      }, function (e) { P.saving = false; rerenderKeepScroll(); toast(errMsg(e)); });
+    },
+    plDropOld: function (el) {
+      var A = S.admin, ids = shopZoneIds(), old = ZONES.filter(function (z) { return ids.indexOf(z.id) < 0; });
+      confirmBox('ลบหมวดเดิม ' + old.length + ' หมวด?', esc(old.map(function (z) { return z.th; }).join(', ')) + ' — ของทุกรายการอยู่ในที่เก็บใหม่แล้ว', [
+        { key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: '🧹 ลบหมวดเดิม', cls: 'btn-danger' }
+      ]).then(function (k) {
+        if (k !== 'yes') return;
+        el.disabled = true;
+        api('apiAdminSaveZones', A.pin, ids.map(function (id) { var z = zoneOf(id); return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })).then(function (r) {
+          useZones(r.zones); if (S.boot) S.boot.zones = r.zones;
+          A.data.items = r.items; A.zone = ZONES[0].id;
+          toast('ลบหมวดเดิมแล้ว — ตอนนี้นับตามที่เก็บ ' + r.zones.length + ' ที่ ✓');
+          A.tab = 'items'; go('admin');
+        }, function (e) { el.disabled = false; toast(errMsg(e)); });
+      });
+    },
     tagPlace: function (el) {
       var P = S.admin.edit._places, i = P.indexOf(el.dataset.v);
       if (i >= 0) P.splice(i, 1); else P.push(el.dataset.v);
