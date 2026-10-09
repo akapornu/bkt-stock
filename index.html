@@ -57,6 +57,7 @@ input, textarea, select { font: inherit; color: var(--ink); }
 .net { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
 .net.saving { background: var(--warn); animation: pulse 1s infinite; }
 .net.offline { background: var(--bad); }
+.net.slow { background: var(--warn); }
 @keyframes pulse { 50% { opacity: .35; } }
 
 /* ---------- ทั่วไป ---------- */
@@ -519,6 +520,7 @@ var I18N = {
   saving: ['กำลังบันทึก…', 'သိမ်းနေတယ်…'],
   saved: ['บันทึกแล้ว', 'သိမ်းပြီးပြီ'],
   offline: ['ไม่มีเน็ต — จะบันทึกเองเมื่อเน็ตกลับมา', 'အင်တာနက် မရှိ — ပြန်ရရင် အလိုလို သိမ်းမယ်'],
+  serverSlow: ['ระบบช้า กำลังส่งอยู่ — ที่นับไว้เก็บในเครื่องแล้ว ไม่หาย นับต่อได้เลย', 'စနစ် နှေးနေတယ်၊ ပို့နေဆဲ — ရေတွက်ထားတာ ဖုန်းထဲ သိမ်းပြီးပြီ၊ မပျောက်ဘူး၊ ဆက်ရေတွက်လို့ရတယ်'],
   error: ['มีปัญหา ลองใหม่อีกครั้ง', 'ပြဿနာ ရှိတယ်၊ ထပ်စမ်းကြည့်ပါ'],
   uncountedWarn: ['ยังไม่นับ {n} รายการ — ส่งเลยไหม?', 'မရေတွက်ရသေး {n} ခု — အခု ပို့မလား?'],
   goCount: ['ไปนับต่อ', 'ဆက်ရေတွက်မယ်'],
@@ -1165,15 +1167,28 @@ if (typeof module !== 'undefined') module.exports = Logic;
       r[fn].apply(r, args);
     });
   }
+  // Google Apps Script ตอบช้าแบบสุ่ม (1–30 วินาที) และบางครั้งตอบ 404 ทั้งที่ทำสำเร็จแล้ว
+  // → ลองใหม่เองสูงสุด 3 ครั้ง ด้วย rid เดิม (หลังบ้านจำผลไว้ ไม่บันทึกซ้ำ)
   function postApi(fn, args) {
+    var rid = (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)).slice(0, 24);
+    var waits = [1200, 3500];
+    function attempt(n) {
+      return postOnce(fn, args, rid).then(null, function (e) {
+        if (!isNetErr(e) || n >= waits.length) throw e;
+        return new Promise(function (res) { setTimeout(res, waits[n]); }).then(function () { return attempt(n + 1); });
+      });
+    }
+    return attempt(0);
+  }
+  function postOnce(fn, args, rid) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 45000);
+    var timer = setTimeout(function () { if (ctl) ctl.abort(); }, 30000);
     return fetch(API_URL, {
       method: 'POST', redirect: 'follow', credentials: 'omit', signal: ctl ? ctl.signal : undefined,
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args })
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args, rid: rid })
     }).then(function (r) {
       if (!r.ok) throw new Error('network: HTTP ' + r.status);
-      return r.json();
+      return r.json().then(null, function () { throw new Error('network: bad response'); });
     }, function (e) {
       throw new Error('network: ' + (e && e.name === 'AbortError' ? 'timeout' : errMsg(e)));
     }).then(function (j) {
@@ -1267,7 +1282,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (e) S.draft.entries[id] = e; else delete S.draft.entries[id];
     S.pending[id] = e;
     store.set('pending:' + S.boot.date, S.pending);
-    scheduleSave(900);
+    scheduleSave(500);
     buzz();
   }
 
@@ -1286,7 +1301,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var send = {};
     ids.forEach(function (id) { send[id] = snap[id] ? { v: snap[id].v, lv: snap[id].lv } : null; });
     return api('apiSave', S.pin, S.boot.date, S.me, send).then(function (d) {
-      S.inflight = null;
+      S.inflight = null; S.failSince = 0;
       store.set('pending:' + S.boot.date, S.pending);
       applyServerDraft(d);
       setNet('ok');
@@ -1298,8 +1313,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       store.set('pending:' + S.boot.date, S.pending);
       if (/BAD_PIN/.test(errMsg(e))) return logout();
       if (/ไม่พบชื่อ/.test(errMsg(e))) { S.me = null; store.del('me'); toast(errMsg(e)); return boot(S.pin).catch(bootFail); }
-      setNet('offline');
-      scheduleSave(5000);
+      S.failSince = S.failSince || Date.now();
+      setNet(navigator.onLine === false || Date.now() - S.failSince > 60000 ? 'offline' : 'slow');
+      scheduleSave(3000);
     });
   }
 
@@ -1309,21 +1325,41 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (dot) dot.className = 'net ' + n;
     var off = document.getElementById('offline-note');
     if (off) off.classList.toggle('hidden', n !== 'offline');
+    var slow = document.getElementById('slow-note');
+    if (slow) slow.classList.toggle('hidden', n !== 'slow');
   }
+  window.addEventListener('online', function () { if (S.boot && Object.keys(S.pending).length) scheduleSave(200); });
 
-  // ดึงผลนับของคนอื่นทุก 15 วินาที
-  setInterval(function () {
-    if (!S.boot || S.inflight || document.visibilityState !== 'visible') return;
-    if (['home', 'zone', 'review'].indexOf(S.screen) < 0) return;
-    api('apiDraft', S.pin, S.boot.date).then(function (d) {
-      if (S.inflight) return;
-      applyServerDraft(d);
-      refreshLive();
-    }, function () { /* เงียบไว้ รอบหน้าค่อยลอง */ });
-  }, 15000);
+  // ---------- ดึงผลนับของคนอื่น: ถี่ขึ้นตอนกำลังนับ (5 วินาที) ห่างลงตอนไม่ได้แตะจอ ----------
+  var pollT = null;
+  function pollDelay() {
+    var active = Date.now() - (S.lastTouch || 0) < 120000;
+    if (S.screen === 'zone') return active ? 5000 : 15000;
+    if (S.screen === 'home' || S.screen === 'review') return active ? 8000 : 20000;
+    return 20000;
+  }
+  function pollLoop(ms) {
+    clearTimeout(pollT);
+    pollT = setTimeout(function () {
+      if (!S.boot || S.inflight || S.polling || document.visibilityState !== 'visible' || ['home', 'zone', 'review'].indexOf(S.screen) < 0) return pollLoop();
+      S.polling = true;
+      api('apiDraft', S.pin, S.boot.date).then(function (d) {
+        S.polling = false;
+        if (!S.inflight) {
+          applyServerDraft(d);
+          refreshLive();
+          if (S.net !== 'ok' && !Object.keys(S.pending).length) setNet('ok');
+        }
+        pollLoop();
+      }, function () { S.polling = false; pollLoop(); });
+    }, ms === undefined ? pollDelay() : ms);
+  }
+  function pollNow() { if (!S.polling) pollLoop(300); }
+  pollLoop();
 
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState !== 'visible' || !S.boot) return;
+    pollNow();
     if (L.businessDate() !== S.boot.date || Date.now() - S.bootAt > 30 * 60000) boot(S.pin, true).catch(bootFail);
   });
 
@@ -1457,7 +1493,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (o.net === false ? '' : '<span class="net ' + S.net + '" title="สถานะบันทึก"></span>') +
       (o.me && S.me ? '<button class="chip-me" data-act="who">👤 ' + esc(S.me) + '</button>' : '') +
       '</div></div>' +
-      '<div class="wrap"><div id="offline-note" class="note bad' + (S.net === 'offline' ? '' : ' hidden') + '" style="margin-top:10px">📶 ' + bi1('offline') + '</div></div>' + (['pin', 'who', 'home'].indexOf(S.screen) >= 0 ? newLinkBanner() : '');
+      '<div class="wrap"><div id="offline-note" class="note bad' + (S.net === 'offline' ? '' : ' hidden') + '" style="margin-top:10px">📶 ' + bi1('offline') + '</div>' +
+      '<div id="slow-note" class="note warn' + (S.net === 'slow' ? '' : ' hidden') + '" style="margin-top:10px">⏳ ' + bi1('serverSlow') + '</div></div>' + (['pin', 'who', 'home'].indexOf(S.screen) >= 0 ? newLinkBanner() : '');
   }
 
   // ป้อนรหัส: ครบหลักปุ๊บขึ้น "กำลังตรวจรหัส" ทันที (ล็อกแป้นกันกดซ้ำ) · ผิด = สั่น + แดง · ถูก = ไปหน้าถัดไป
@@ -2160,7 +2197,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     who: function () { go('who'); },
     pickMe: function (el) { S.me = el.dataset.name; store.set('me', S.me); go('home'); },
     toHome: function () { flush(); go('home'); },
-    openZone: function (el) { S.zone = el.dataset.z; S.onlyUncounted = false; S.zoneQ = ''; go('zone'); },
+    openZone: function (el) { S.zone = el.dataset.z; S.onlyUncounted = false; S.zoneQ = ''; go('zone'); pollNow(); },
     findGo: function (el) {
       S.zone = el.dataset.z; S.onlyUncounted = false; S.zoneQ = ''; S.homeQ = '';
       go('zone');
@@ -2467,6 +2504,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   };
 
   document.addEventListener('click', function (ev) {
+    S.lastTouch = Date.now();
     var el = ev.target.closest('[data-act]');
     if (!el || el.disabled) return;
     var f = ACT[el.dataset.act] || ADMIN_ACT[el.dataset.act];
