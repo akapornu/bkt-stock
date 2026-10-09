@@ -748,6 +748,10 @@ var Logic = (function () {
           L.push('• ' + r.item.name_th + ' → สั่ง ' + fmtNum(b.qty) + ' ' + b.unit + (b.size ? ' (' + b.size + ')' : '') +
             (b.approxCount !== null ? ' (≈' + fmtNum(b.approxCount) + ' ' + r.item.unit + ')' : ''));
           L.push('   เหลือ ' + fmtNum(r.qty) + ' | Min ' + fmtNum(r.item.min) + ' | Max ' + fmtNum(r.item.max) + (b.approxCount !== null ? ' (' + r.item.unit + ')' : ''));
+          if (r.parts) L.push('   แยกที่: ' + Object.keys(r.parts).map(function (zid) {
+            var zz = zones.filter(function (x) { return x.id === zid; })[0];
+            return (zz ? zz.th : zid) + ' ' + fmtNum(r.parts[zid]);
+          }).join(' + '));
         });
       });
     }
