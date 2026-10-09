@@ -2647,6 +2647,26 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
+  // กล่องพิมพ์ของแอพเอง — แทน window.prompt ที่เบราว์เซอร์ใน LINE/บางเครื่องปิดไว้ (กดแล้วเงียบ)
+  function promptBox(title, placeholder) {
+    return new Promise(function (res) {
+      var el = document.createElement('div');
+      el.className = 'modal';
+      el.innerHTML = '<div class="card"><h3>' + esc(title) + '</h3><input class="inp" type="text" maxlength="40" autocomplete="off" placeholder="' + esc(placeholder || '') + '" style="margin-top:10px">' +
+        '<div class="btn-row" style="margin-top:14px"><button class="btn btn-ghost" data-k="no">ยกเลิก</button><button class="btn btn-primary" data-k="ok">ตกลง</button></div></div>';
+      var inp = el.querySelector('input');
+      var done = function (v) { el.remove(); res(v); };
+      el.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-k]');
+        if (b) return done(b.dataset.k === 'ok' ? inp.value.trim() : null);
+        if (ev.target === el) done(null);
+      });
+      inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); done(inp.value.trim()); } });
+      document.body.appendChild(el);
+      setTimeout(function () { inp.focus(); }, 50);
+    });
+  }
+
   // ---------- การกดต่างๆ ----------
   var ACT = {
     retry: function () { go('loading'); start(); },
@@ -4252,6 +4272,23 @@ if (typeof module !== 'undefined') module.exports = Logic;
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
 
+  // เพิ่มที่เก็บใหม่จากหน้าแก้รายการ (ชื่อจากกล่องพิมพ์)
+  function tagNewPlaceAdd(el, name) {
+    if (ZONES.some(function (z) { return z.th === name; })) return toast('มีที่เก็บชื่อนี้แล้ว');
+    el.disabled = true; el.textContent = 'กำลังเพิ่ม…';
+    var list = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })
+      .concat([{ icon: '📦', th: name, mm: '', kind: S.admin.edit.kind || 'buy', weekly: false }]);
+    api('apiAdminSaveZones', S.admin.pin, list).then(function (r) {
+      useZones(r.zones);
+      if (S.boot) S.boot.zones = r.zones;
+      var nz = r.zones.filter(function (z) { return z.th === name; })[0];
+      if (nz) S.admin.edit._places.push(nz.id);
+      var box = document.getElementById('e-places');
+      if (box) box.innerHTML = placeTags(S.admin.edit);
+      toast('เพิ่ม "' + name + '" แล้ว — แก้ชื่อ/ไอคอนได้ที่ 🗂️ จัดการที่เก็บ');
+    }, function (e) { el.disabled = false; el.textContent = '＋ ที่ใหม่'; toast(errMsg(e)); });
+  }
+
   var ADMIN_ACT = {
     adminExit: function () {
       leaveReorder(function () {
@@ -4417,21 +4454,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       el.parentNode.querySelectorAll('.tagc').forEach(function (b) { b.classList.toggle('on', b === el); });
     },
     tagNewPlace: function (el) {
-      var name = (window.prompt('ชื่อที่เก็บใหม่ (เช่น ตู้ฟรีซ 2)') || '').trim();
-      if (!name) return;
-      if (ZONES.some(function (z) { return z.th === name; })) return toast('มีที่เก็บชื่อนี้แล้ว');
-      el.disabled = true; el.textContent = 'กำลังเพิ่ม…';
-      var list = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })
-        .concat([{ icon: '📦', th: name, mm: '', kind: S.admin.edit.kind || 'buy', weekly: false }]);
-      api('apiAdminSaveZones', S.admin.pin, list).then(function (r) {
-        useZones(r.zones);
-        if (S.boot) S.boot.zones = r.zones;
-        var nz = r.zones.filter(function (z) { return z.th === name; })[0];
-        if (nz) S.admin.edit._places.push(nz.id);
-        var box = document.getElementById('e-places');
-        if (box) box.innerHTML = placeTags(S.admin.edit);
-        toast('เพิ่ม "' + name + '" แล้ว — แก้ชื่อ/ไอคอนได้ที่ 🗂️ จัดการที่เก็บ');
-      }, function (e) { el.disabled = false; el.textContent = '＋ ที่ใหม่'; toast(errMsg(e)); });
+      promptBox('ชื่อที่เก็บใหม่', 'เช่น ตู้ฟรีซ 2').then(function (name) { if (name) tagNewPlaceAdd(el, name); });
     },
     zonesOpen: function () {
       S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, section: L.sectionOf(z), th0: z.th, mm0: z.mm }; });
@@ -4764,12 +4787,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
     },
     aStaffSecNew: function (el) {
-      var name = L.cleanSection(window.prompt('ชื่อแผนกใหม่ (เช่น หน้าร้าน, บาร์)') || '');
-      if (!name) return;
-      var s = S.admin.staffDraft[+el.dataset.i], mine = L.staffSections(s);
-      if (mine.indexOf(name) < 0) mine.push(name);
-      s.sections = mine.join(',');
-      rerenderKeepScroll();
+      var i = +el.dataset.i;
+      promptBox('ชื่อแผนกใหม่', 'เช่น หน้าร้าน, บาร์').then(function (v) {
+        var name = L.cleanSection(v || '');
+        if (!name || !S.admin || !S.admin.staffDraft) return;
+        var s = S.admin.staffDraft[i], mine = L.staffSections(s);
+        if (mine.indexOf(name) < 0) mine.push(name);
+        s.sections = mine.join(',');
+        rerenderKeepScroll();
+      });
     },
     aStaffSave: function (el) {
       el.disabled = true;
