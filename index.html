@@ -3080,9 +3080,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="card form" style="padding:16px">' +
       '<div><label>ที่เก็บ (หมวด)</label><select id="e-zone">' + zoneOpts + '</select></div>' +
       '<div><label>ประเภท</label><div class="seg">' +
-      '<label class="' + (it.kind !== 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="buy"' + (it.kind !== 'prep' ? ' checked' : '') + '> 🛒 ของซื้อ<small>ต่ำกว่า Min = สั่งซื้อ</small></label>' +
-      '<label class="' + (it.kind === 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="prep"' + (it.kind === 'prep' ? ' checked' : '') + '> 🔪 ของเตรียม/ทำเอง<small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></label></div></div>' +
-      '<div><label>📍 เก็บที่อื่นด้วย <span class="muted" style="font-weight:500">(ของชิ้นเดียวกันอยู่หลายที่ — น้องนับแยกแต่ละที่ แอพรวมยอดให้)</span></label><div class="loc-pick">' +
+      '<label class="' + (it.kind !== 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="buy"' + (it.kind !== 'prep' ? ' checked' : '') + '> 🛒 ของซื้อ (ยังไม่ตัดแต่ง)<small>ต่ำกว่า Min = สั่งซื้อ</small></label>' +
+      '<label class="' + (it.kind === 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="prep"' + (it.kind === 'prep' ? ' checked' : '') + '> 🔪 ของเตรียม (ตัดแต่งแล้ว/ทำเอง)<small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></label></div></div>' +
+      '<div><label>📍 เก็บที่อื่นด้วย <span class="muted" style="font-weight:500">(ของชิ้นนี้อยู่มากกว่า 1 ที่ — น้องนับแยกแต่ละที่ แอพรวมยอดให้ · Min/Max ด้านล่าง = ยอดรวมทุกที่)</span></label><div class="loc-pick">' +
       ZONES.map(function (z) {
         var more = String(it.more_zones || '').split(',');
         return '<label class="check"><input type="checkbox" class="e-more" value="' + esc(z.id) + '"' + (more.indexOf(z.id) >= 0 && z.id !== it.zone ? ' checked' : '') + '> ' + esc(z.icon + ' ' + z.th) + '</label>';
