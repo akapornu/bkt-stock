@@ -460,6 +460,17 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .rep-month { font-weight: 700; color: var(--muted); font-size: 14px; margin: 8px 2px 0; }
 .rep-card { display: block; width: 100%; text-align: left; padding: 12px 14px; }
 .sum-row .q .tag { display: inline-block; margin-top: 3px; }
+/* วางรายการสั่งซื้อ */
+.imp-block { padding: 12px 14px; margin-bottom: 12px; }
+.imp-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.imp-head select, .imp-item { height: 42px; border-radius: 10px; border: 1.5px solid var(--line); padding: 0 10px; background: var(--card); font-size: 14.5px; max-width: 100%; }
+.imp-line { display: grid; grid-template-columns: 30px 1fr auto; gap: 8px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line); }
+.imp-line.off { opacity: .5; }
+.imp-line .nm { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.imp-line .nm small { font-size: 12.5px; line-height: 1.4; }
+.imp-q { display: flex; align-items: center; gap: 6px; }
+.imp-q .inp.sm { width: 74px; }
+.imp-q span { font-size: 14px; min-width: 30px; }
 
 </style>
 </head>
@@ -876,13 +887,73 @@ var Logic = (function () {
 
   function lineQtyText(qty, l) { return fmtNum(qty) + ' ' + l.unit + (l.size ? ' (' + l.size + ')' : ''); }
 
+  // ---------- วางรายการสั่งซื้อเป็นข้อความ → แยกเป็นใบสั่งตามผู้ขาย ----------
+  // "ผู้ขาย: พี่แหลม" ขึ้นใบใหม่ · บรรทัด "ชื่อ จำนวน หน่วย" เช่น "กระเทียมจีน 1.5 กก." · ก่อนมีหัวผู้ขาย = ไม่ระบุร้าน
+  function parseOrderText(text) {
+    var blocks = [], cur = null;
+    String(text || '').split(/\r?\n/).forEach(function (raw) {
+      var line = raw.replace(/\u00a0/g, ' ').trim();
+      if (!line) return;
+      var h = /^(ผู้ขาย|ร้านค้า|ร้าน|ซื้อที่)\s*[:：]\s*(.*)$/.exec(line);
+      if (h) { cur = { vendor: h[2].trim(), lines: [] }; blocks.push(cur); return; }
+      if (!cur) { cur = { vendor: '', lines: [] }; blocks.push(cur); }
+      var m = /^(.+?)\s*(\d+(?:[.,]\d+)?)\s*([^\d\s]+)?\s*$/.exec(line.replace(/^[-•*\d]+[.)]\s+/, ''));
+      if (m) cur.lines.push({ name: m[1].trim(), qty: Number(m[2].replace(',', '.')), unit: (m[3] || '').trim(), raw: line });
+      else cur.lines.push({ name: line, qty: null, unit: '', raw: line });
+    });
+    return blocks.filter(function (b) { return b.lines.length; });
+  }
+  // เทียบชื่อแบบไม่สนวรรณยุกต์/ช่องว่าง/วงเล็บ (กุ้ยช่าย = กุยช่าย, เห็ดต้มยำ(ชิเมจิ) ≈ เห็ดชิเมจิ (ต้มยำ))
+  function normName(t) { return String(t || '').toLowerCase().replace(/[\u0E48-\u0E4C]/g, '').replace(/[^\u0E00-\u0E7Fa-z0-9]/g, ''); }
+  function bigrams(t) { var o = {}; for (var i = 0; i < t.length - 1; i++) o[t.substr(i, 2)] = (o[t.substr(i, 2)] || 0) + 1; return o; }
+  function nameScore(a, b) {
+    a = normName(a); b = normName(b);
+    if (!a || !b) return 0;
+    if (a === b) return 1;
+    var A = bigrams(a), B = bigrams(b), inter = 0, na = 0, nb = 0;
+    Object.keys(A).forEach(function (k) { na += A[k]; if (B[k]) inter += Math.min(A[k], B[k]); });
+    Object.keys(B).forEach(function (k) { nb += B[k]; });
+    var dice = na + nb ? 2 * inter / (na + nb) : 0;
+    var contain = a.indexOf(b) >= 0 || b.indexOf(a) >= 0 ? 0.6 + 0.4 * Math.min(a.length, b.length) / Math.max(a.length, b.length) : 0;
+    // ไม่มีชื่อไหนอยู่ในอีกชื่อ ต้องเหมือนกันมากจริง (กระเทียมไทย ≠ กระเทียมปั่น)
+    return Math.max(contain, dice >= 0.8 ? dice : dice * 0.6);
+  }
+  // หารายการที่ตรงที่สุด (ของซื้อได้เปรียบเล็กน้อย) — ต่ำกว่าเกณฑ์ = ของนอกรายการ
+  function matchItemName(name, items) {
+    var best = null, score = 0;
+    (items || []).forEach(function (it) {
+      if (it.active === false) return;
+      var sc = nameScore(name, it.name_th) + (it.kind !== 'prep' ? 0.05 : 0);
+      if (sc > score) { score = sc; best = it; }
+    });
+    return score >= 0.5 ? { item: best, score: round2(score) } : { item: null, score: round2(score) };
+  }
+  // แปลงหน่วย: น้ำหนัก/ปริมาตร คิดได้แน่นอน · แผง = 30 ฟอง (แผงไข่มาตรฐาน — แก้ได้ในใบสั่ง)
+  var UNIT_BASE = { 'กรัม': ['g', 1], 'g': ['g', 1], 'ขีด': ['g', 100], 'กก.': ['g', 1000], 'กิโล': ['g', 1000], 'kg': ['g', 1000],
+    'มล.': ['ml', 1], 'ml': ['ml', 1], 'ลิตร': ['ml', 1000], 'ฟอง': ['egg', 1], 'แผง': ['egg', 30], 'โหล': ['pc12', 12] };
+  function unitFactor(from, to) {
+    if (!from || !to) return null;
+    if (from === to) return 1;
+    var a = UNIT_BASE[from], b = UNIT_BASE[to];
+    return a && b && a[0] === b[0] ? round2(a[1] / b[1]) : null;
+  }
+  // บรรทัดใบสั่งจากรายการที่จับคู่ได้: หน่วยตามที่สั่ง · factor = 1 หน่วยสั่ง ได้กี่หน่วยนับ (ไม่รู้ = นับตามหน่วยที่สั่ง)
+  function poLineFromOrder(line, it, unitsMm) {
+    var unit = line.unit || (it ? (it.buy_unit || it.unit) : '');
+    if (!it) return { key: 'c:' + line.name, item_id: '', name_th: line.name, name_mm: '', unit: unit, unit_mm: (unitsMm && unitsMm[unit]) || '', size: '', qty: line.qty, factor: 1, count_unit: unit };
+    var f = it.buy_unit && unit === it.buy_unit && it.buy_factor ? it.buy_factor : unitFactor(unit, it.unit);
+    return { key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: unit, unit_mm: (unitsMm && unitsMm[unit]) || '',
+      size: unit === it.unit ? (it.size || '') : '', qty: line.qty, factor: f || 1, count_unit: f ? it.unit : unit,
+      order_name: normName(line.name) !== normName(it.name_th) ? line.name : '' }; // ข้อความถึงร้านใช้ชื่อที่บอสพิมพ์
+  }
+
   // ข้อความคัดลอกไปส่งร้าน/ซัพพลายเออร์
   function buildPoText(po, meta) {
     var L = ['สั่งของ ร้านบ้านขาวต้ม · ใบสั่ง #' + po.id, thaiDate(meta.date)];
     if (po.supplier_name) L.push('ถึง: ' + po.supplier_name);
     L.push('');
     (po.lines || []).filter(function (l) { return l.qty > 0; }).forEach(function (l, i) {
-      L.push((i + 1) + '. ' + l.name_th + ' ' + lineQtyText(l.qty, l));
+      L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + lineQtyText(l.qty, l));
     });
     if (po.note) { L.push(''); L.push('หมายเหตุ: ' + po.note); }
     L.push('');
@@ -1144,6 +1215,7 @@ var Logic = (function () {
     buildReceiveMessage: buildReceiveMessage, round2: round2,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
+    parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
 })();
@@ -1843,6 +1915,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
 
     apoedit: function () { return poEditScreen(); },
+    apoimport: function () { return poImportScreen(); },
     adash: function () { return dashItemScreen(); },
     areport: function () { return reportDayScreen(); },
     azones: function () { return zonesScreen(); },
@@ -1900,7 +1973,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       lines: po.lines.filter(function (l) { return l.qty > 0; }).map(function (l) {
         var mine = mineByKey[l.key], prev = L.round2((l.received || 0) - (mine ? mine.qty : 0));
         return {
-          key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm || '', unit: l.unit, unit_mm: l.unit_mm || UNITS[l.unit] || '',
+          key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm || '', order_name: l.order_name || '', unit: l.unit, unit_mm: l.unit_mm || UNITS[l.unit] || '',
           size: l.size || '', ordered: l.qty, prev: prev, remaining: Math.max(0, L.round2(l.qty - prev)),
           locked: !mine && L.lineDone(l), factor: l.factor || 1, count_unit: l.count_unit || l.unit,
           qty: mine ? String(mine.qty) : '', count: mine && mine.count ? String(mine.count) : '', ticked: !!mine,
@@ -1972,7 +2045,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var unit = esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + (l.unit_mm ? ' <span class="mm">' + esc(l.unit_mm) + '</span>' : '');
     var h = '<div class="card rline' + (l.ticked ? ' on' : '') + (done ? ' done' : '') + '" id="rl-' + i + '">' +
       (done ? '<span class="tick">✓</span>' : '<button class="tick' + (l.ticked ? ' on' : '') + '" data-act="recvTick" data-k="' + i + '" aria-label="มาครบ">✓</button>') +
-      '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>';
+      '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>' +
+      (l.order_name ? '<div class="hint">🧾 ' + esc(l.order_name) + '</div>' : '');
     if (l.ordered > 0) {
       h += '<div class="hint">' + esc(tr('ordered').th) + ' <b>' + L.fmtNum(l.ordered) + '</b> ' + unit + (l.prev ? ' · ได้แล้ว ' + L.fmtNum(l.prev) : '') +
         ' <span class="mm">(' + esc(tr('ordered').mm) + ' ' + L.fmtNum(l.ordered) + (l.unit_mm ? ' ' + esc(l.unit_mm) : '') + ')</span></div>';
@@ -2645,6 +2719,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="muted" style="margin-top:4px">ต้องซื้อ ' + rnd.lines.length + ' รายการ · สั่งแล้ว ' + (rnd.lines.length - notYet.length) + ' · ยังไม่สั่ง ' + notYet.length + '</div>' +
       '<div class="btn-row" style="margin-top:12px"><button class="btn btn-primary" data-act="poFromRound"' + (notYet.length ? '' : ' disabled') + '>🛒 สร้างใบสั่งจากรอบนี้</button>' +
       '<button class="btn btn-ghost" data-act="poBlank">＋ ใบสั่งเปล่า</button></div>' +
+      '<button class="btn btn-ghost" style="margin-top:10px" data-act="impOpen">📋 วางรายการสั่งซื้อ (หลายร้านทีเดียว)</button>' +
       '<p class="muted" style="margin:10px 0 0;font-size:13.5px">ของหลายร้าน: ติ๊กเฉพาะของร้านแรก → บันทึก → กดสร้างอีกใบสำหรับร้านถัดไป (ของที่สั่งแล้วจะไม่ขึ้นซ้ำ)</p></div>';
     // ร้านค้า
     h += '<div class="section-h">🏪 ร้านค้า <button class="muted" data-act="supToggle" style="text-decoration:underline;font-size:14px;font-weight:500">' + (A.supDraft ? 'ปิด' : 'แก้ไข / เพิ่มร้าน') + '</button></div>';
@@ -2664,6 +2739,68 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return '<button class="card po-card" data-act="poOpen" data-id="' + po.id + '"><div class="po-no">#' + po.id + '</div><div class="tx"><b>' + esc(po.supplier_name || 'ไม่ระบุร้าน') + '</b> ' + poStatusTag(po.status) +
         '<div class="muted" style="font-size:13px">' + poDateTh(po.created_at) + ' · ' + lines.length + ' รายการ · รับแล้ว ' + got + '/' + lines.length + '</div></div></button>';
     }).join('') + '</div>' : '<p class="muted">ยังไม่มีใบสั่ง</p>';
+    return h;
+  }
+
+  // ---------- วางรายการสั่งซื้อเป็นข้อความ → หลายใบสั่งทีเดียว ----------
+  function impVendor(v) {
+    var sups = (S.admin.po && S.admin.po.suppliers || []).filter(function (x) { return x.active !== false; });
+    if (!v || /^(ไม่ระบุ|-|ไม่มี)$/.test(v.trim())) return '';
+    var best = null, sc = 0;
+    sups.forEach(function (x) { var t = L.nameScore(v, x.name); if (t > sc) { sc = t; best = x; } });
+    return best && sc >= 0.5 ? best.id : 'new:' + v.trim();
+  }
+  function impParse() {
+    var I = S.admin.imp, items = S.admin.data.items.filter(function (it) { return it.active !== false; });
+    I.blocks = L.parseOrderText(I.text).map(function (b) {
+      return { vendor: b.vendor, supplier: impVendor(b.vendor), lines: b.lines.map(function (l) {
+        var m = L.matchItemName(l.name, items);
+        return { name: l.name, qty: l.qty, unit: l.unit, item_id: m.item ? m.item.id : '', include: l.qty > 0 };
+      }) };
+    });
+  }
+  function impItem(id) { return S.admin.data.items.filter(function (x) { return x.id === id; })[0] || null; }
+  function impLine(l) { return L.poLineFromOrder({ name: l.name, qty: Number(l.qty), unit: l.unit }, impItem(l.item_id), UNITS); }
+
+  function poImportScreen() {
+    var I = S.admin.imp, h = top({ th: '📋 วางรายการสั่งซื้อ', back: 'impBack', net: false }) + '<div class="wrap screen">';
+    if (I.results) {
+      h += '<div class="note ok">✅ สร้างใบสั่ง ' + I.results.length + ' ใบแล้ว</div><div class="list" style="margin-top:12px">' + I.results.map(function (r, i) {
+        return '<div class="card" style="padding:14px 16px"><div class="dr-top"><b>#' + r.po.id + ' ' + esc(r.po.supplier_name || 'ไม่ระบุร้าน') + '</b><span class="muted">' + r.po.lines.length + ' รายการ</span></div>' +
+          '<div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-act="impCopy" data-i="' + i + '">📋 คัดลอกไปส่งร้าน</button><button class="btn btn-ghost" data-act="poOpen" data-id="' + r.po.id + '">เปิดใบสั่ง</button></div></div>';
+      }).join('') + '</div></div><div class="bottom"><div class="wrap"><button class="btn btn-ghost" data-act="impDone">เสร็จ</button></div></div>';
+      return h;
+    }
+    if (!I.blocks) {
+      return h + '<p class="sub">วางข้อความรายการสั่งซื้อ แยกร้านด้วยบรรทัด <b>ผู้ขาย: ชื่อร้าน</b> แต่ละบรรทัด <b>ชื่อ จำนวน หน่วย</b></p>' +
+        '<textarea id="imp-text" data-input="impText" rows="14" style="width:100%;font-size:15px" placeholder="ผู้ขาย: พี่แหลม&#10;พริกจินดาแดง 1 กก.&#10;กระเทียมจีน 1.5 กก.&#10;&#10;ผู้ขาย: ตลาดแกรนด์&#10;มะเขือเทศ 1 กก.">' + esc(I.text || '') + '</textarea>' +
+        '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="impParse">แยกรายการ ›</button></div></div>';
+    }
+    var sups = (S.admin.po && S.admin.po.suppliers || []).filter(function (x) { return x.active !== false; });
+    var itemOpts = S.admin.data.items.filter(function (it) { return it.active !== false; }).slice().sort(function (a, b) { return a.name_th.localeCompare(b.name_th, 'th'); });
+    var nPo = 0, nLine = 0;
+    h += '<p class="sub">ตรวจว่าแต่ละบรรทัดจับคู่ถูกรายการ (เปลี่ยนได้) แล้วกดสร้าง · ไม่ติ๊ก = ไม่ใส่ในใบสั่ง</p>';
+    h += I.blocks.map(function (b, bi) {
+      var inc = b.lines.filter(function (l) { return l.include && Number(l.qty) > 0; }).length;
+      if (inc) { nPo++; nLine += inc; }
+      var opts = '<option value="">— ไม่ระบุร้าน —</option>' + sups.map(function (x) { return '<option value="' + esc(x.id) + '"' + (b.supplier === x.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') +
+        (b.supplier.indexOf('new:') === 0 ? '<option value="' + esc(b.supplier) + '" selected>＋ เพิ่มร้านใหม่: ' + esc(b.supplier.slice(4)) + '</option>' : '');
+      return '<div class="card imp-block"><div class="imp-head"><span class="muted" style="font-size:13px">ผู้ขาย: ' + esc(b.vendor || '(ไม่ได้ระบุ)') + '</span>' +
+        '<select data-input="impSup" data-b="' + bi + '">' + opts + '</select></div>' +
+        b.lines.map(function (l, li) {
+          var it = impItem(l.item_id), pl = l.qty > 0 ? impLine(l) : null;
+          var conv = it && pl && pl.factor !== 1 && pl.count_unit === it.unit ? '≈ ' + L.fmtNum(L.round2(Number(l.qty) * pl.factor)) + ' ' + esc(it.unit) : '';
+          var warn = it && pl && pl.count_unit !== it.unit ? 'สั่งเป็น ' + esc(l.unit || '-') + ' แต่นับเป็น ' + esc(it.unit || '-') + ' (ตอนรับของจะบันทึกเป็น ' + esc(l.unit || '-') + ')' : '';
+          return '<div class="imp-line' + (l.include ? '' : ' off') + '"><label class="check"><input type="checkbox" data-input="impInc" data-b="' + bi + '" data-l="' + li + '"' + (l.include ? ' checked' : '') + '></label>' +
+            '<div class="nm"><b>' + esc(l.name) + '</b>' +
+            '<select class="imp-item" data-input="impItem" data-b="' + bi + '" data-l="' + li + '"><option value="">➕ ของนอกรายการ (ชื่อตามที่พิมพ์)</option>' +
+            itemOpts.map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === l.item_id ? ' selected' : '') + '>' + esc(x.name_th) + (x.kind === 'prep' ? ' 🔪' : '') + ' (' + esc(x.unit || '-') + ')</option>'; }).join('') + '</select>' +
+            (conv ? '<small class="muted">' + conv + '</small>' : '') + (warn ? '<small style="color:var(--warn)">' + warn + '</small>' : '') + '</div>' +
+            '<div class="imp-q"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="impQty" data-b="' + bi + '" data-l="' + li + '" value="' + (l.qty === null ? '' : esc(String(l.qty))) + '"><span>' + esc(l.unit) + '</span></div></div>';
+        }).join('') + '</div>';
+    }).join('');
+    h += '</div><div class="bottom"><div class="wrap"><div class="btn-row"><button class="btn btn-ghost" data-act="impEdit">แก้ข้อความ</button>' +
+      '<button class="btn btn-primary" data-act="impSave"' + (nPo && !I.saving ? '' : ' disabled') + '>' + (I.saving ? 'กำลังสร้าง…' : 'สร้าง ' + nPo + ' ใบสั่ง (' + nLine + ' รายการ)') + '</button></div></div></div>';
     return h;
   }
 
@@ -2718,7 +2855,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var st = !l.qty ? '' : !done ? ' · <span style="color:var(--bad)">ค้าง ' + L.fmtNum(rem) + '</span>' : v ? ' · ' + esc(v) : ' ✓';
       var btn = closed || !l.qty ? '' : !done ? '<button class="mini-link" data-act="poLineDone" data-k="' + esc(l.key) + '" data-v="1">⛔ ไม่รอแล้ว</button>'
         : l.done && rem ? '<button class="mini-link" data-act="poLineDone" data-k="' + esc(l.key) + '" data-v="0">↩️ เปลี่ยนเป็นยังรอ</button>' : '';
-      return '<div class="sum-row"><div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.extra ? '<small class="muted">มาเกินใบสั่ง</small>' : '') + '</div><div class="q">' +
+      return '<div class="sum-row"><div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.order_name ? '<small class="muted">สั่งว่า: ' + esc(l.order_name) + '</small>' : '') + (l.extra ? '<small class="muted">มาเกินใบสั่ง</small>' : '') + '</div><div class="q">' +
         (l.qty ? '<small>สั่ง</small> <b>' + L.fmtNum(l.qty) + ' ' + esc(l.unit) + '</b>' : '') +
         '<small style="display:block">รับแล้ว ' + L.fmtNum(l.received || 0) + st + '</small>' + btn + '</div></div>';
     }).join('') + '</div>';
@@ -3628,6 +3765,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var n = Object.keys(S.admin.move.picked).filter(function (k) { return S.admin.move.picked[k]; }).length, b = document.getElementById('mv-save');
     if (b) { b.disabled = !n; b.textContent = 'ทำกับ ' + n + ' รายการ'; }
   };
+  INPUT.impText = function (el) { S.admin.imp.text = el.value; };
+  INPUT.impSup = function (el) { S.admin.imp.blocks[+el.dataset.b].supplier = el.value; };
+  INPUT.impInc = function (el) { S.admin.imp.blocks[+el.dataset.b].lines[+el.dataset.l].include = el.checked; rerenderKeepScroll(); };
+  INPUT.impItem = function (el) { S.admin.imp.blocks[+el.dataset.b].lines[+el.dataset.l].item_id = el.value; rerenderKeepScroll(); };
+  INPUT.impQty = function (el) { var l = S.admin.imp.blocks[+el.dataset.b].lines[+el.dataset.l]; l.qty = el.value === '' ? null : Number(el.value); };
   INPUT.poSupplier = function (el) { S.admin.poEdit.supplier_id = el.value; };
   function peSaveLabel() {
     var b = document.getElementById('pe-save');
@@ -4057,6 +4199,54 @@ if (typeof module !== 'undefined') module.exports = Logic;
         lines: rnd.lines.filter(function (l) { return !l.ordered_in; }).map(function (l) { var x = JSON.parse(JSON.stringify(l)); x.include = true; x.qty = String(l.qty); return x; }) };
       go('apoedit');
     },
+    impOpen: function () { S.admin.imp = { text: (S.admin.imp && !S.admin.imp.results && S.admin.imp.text) || '', blocks: null }; go('apoimport'); },
+    impBack: function () { if (S.admin.imp.blocks && !S.admin.imp.results) { S.admin.imp.blocks = null; return go('apoimport'); } go('admin'); loadPoData(); },
+    impParse: function () {
+      var I = S.admin.imp;
+      if (!L.parseOrderText(I.text).length) return toast('ยังไม่มีรายการ — วางข้อความก่อน');
+      impParse(); go('apoimport');
+    },
+    impEdit: function () { S.admin.imp.blocks = null; go('apoimport'); },
+    impDone: function () { S.admin.imp = null; go('admin'); loadPoData(); },
+    impCopy: function (el) {
+      copyText(S.admin.imp.results[+el.dataset.i].text).then(function () { toast('คัดลอกแล้ว — ไปวางในแชทร้านได้เลย'); }, function () { toast('คัดลอกไม่ได้'); });
+    },
+    impSave: function () {
+      var A = S.admin, I = A.imp;
+      var blocks = I.blocks.map(function (b) {
+        var lines = {}, order = [];
+        b.lines.forEach(function (l) {
+          if (!l.include || !(Number(l.qty) > 0)) return;
+          var pl = impLine(l);
+          if (lines[pl.key]) lines[pl.key].qty = L.round2(lines[pl.key].qty + pl.qty); else { lines[pl.key] = pl; order.push(pl.key); }
+        });
+        return { supplier: b.supplier, lines: order.map(function (k) { return lines[k]; }) };
+      }).filter(function (b) { return b.lines.length; });
+      if (!blocks.length) return toast('ไม่มีรายการที่ติ๊ก');
+      I.saving = true; rerenderKeepScroll();
+      // ร้านใหม่ที่ยังไม่มี → เพิ่มก่อน
+      var newNames = blocks.map(function (b) { return b.supplier; }).filter(function (v, i, a) { return v.indexOf('new:') === 0 && a.indexOf(v) === i; });
+      var ready = newNames.length ? api('apiAdminSaveSuppliers', A.pin, A.po.suppliers.concat(newNames.map(function (v) { return { id: '', name: v.slice(4), active: true }; }))).then(function (rows) {
+        A.po.suppliers = rows;
+        blocks.forEach(function (b) { if (b.supplier.indexOf('new:') === 0) { var x = rows.filter(function (r) { return r.name === b.supplier.slice(4); })[0]; b.supplier = x ? x.id : ''; } });
+      }) : Promise.resolve();
+      var results = [];
+      ready.then(function () {
+        return blocks.reduce(function (p, b) {
+          return p.then(function () {
+            return api('apiAdminPoSave', A.pin, { supplier_id: b.supplier, source_date: '', note: '', lines: b.lines }).then(function (r) { results.push(r); });
+          });
+        }, Promise.resolve());
+      }).then(function () {
+        I.saving = false; I.results = results;
+        toast('สร้างใบสั่ง ' + results.length + ' ใบแล้ว ✓');
+        go('apoimport');
+      }, function (e) {
+        I.saving = false;
+        if (results.length) { I.results = results; go('apoimport'); toast('สร้างได้ ' + results.length + ' ใบ แล้วติดปัญหา: ' + errMsg(e)); }
+        else { rerenderKeepScroll(); toast(errMsg(e)); }
+      });
+    },
     poBlank: function () { S.admin.poEdit = { id: 0, supplier_id: '', source_date: '', note: '', q: '', lines: [] }; go('apoedit'); },
     poEditBack: function () { go(S.admin.poEdit && S.admin.poEdit.id ? 'apodetail' : 'admin'); },
     pePick: function (el) {
@@ -4077,7 +4267,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     peSave: function () {
       var E = S.admin.poEdit;
       var lines = E.lines.filter(function (l) { return l.include && Number(l.qty) > 0; }).map(function (l) {
-        return { key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm, unit: l.unit, unit_mm: l.unit_mm, size: l.size, qty: Number(l.qty), factor: l.factor, count_unit: l.count_unit };
+        return { key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm, unit: l.unit, unit_mm: l.unit_mm, size: l.size, qty: Number(l.qty), factor: l.factor, count_unit: l.count_unit, order_name: l.order_name || '' };
       });
       if (!lines.length) return toast('ติ๊กและใส่จำนวนอย่างน้อย 1 รายการ');
       E.saving = true; rerenderKeepScroll();
