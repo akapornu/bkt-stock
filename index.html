@@ -425,6 +425,18 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .row .multi .mm, .kp-head .multi .mm { font-size: 12.5px; }
 .loc-pick { display: grid; gap: 6px; margin-top: 4px; }
 .loc-pick .check { font-size: 15px; }
+/* แท็ก */
+.tagbox { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.tagc { padding: 9px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); font-size: 14.5px; font-weight: 600; color: var(--muted); line-height: 1.3; }
+.tagc small { font-weight: 500; font-size: 12px; }
+.tagc.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); }
+.tagc.on::before { content: '✓ '; }
+.tagc.kind.on { border-color: var(--ink); background: var(--ink); color: #fff; }
+.tagc.add { border-style: dashed; color: var(--brand); }
+.tagline { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.tg { font-style: normal; font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+.tg.k { background: #efece7; color: var(--ink); }
+.tg.k.prep { background: var(--warn-soft); color: var(--warn); }
 
 </style>
 </head>
@@ -668,7 +680,7 @@ var Logic = (function () {
   }
 
   // สรุปทั้งรอบ: ของต้องซื้อ / ต้องทำเพิ่ม / รายการที่ต้องดู / ที่ยังไม่นับ
-  // หมวดนับเป็นช่อง (รายการ × ที่เก็บ) · ยอดรายการ = รวมทุกที่ · รายการต้องนับวันนี้ไหม ดูจากที่หลัก
+  // หมวดนับเป็นช่อง (รายการ × ที่เก็บ) · ยอดรายการ = รวมทุกที่ · ต้องนับวันนี้ ถ้าที่เก็บใดที่หนึ่งถึงรอบนับ
   function summarize(items, zones, draft, opts) {
     var raw = (draft && draft.entries) || {};
     var zoneById = {};
@@ -687,7 +699,7 @@ var Logic = (function () {
     list.sort(function (a, b) { return zones.indexOf(zoneById[a.zone]) - zones.indexOf(zoneById[b.zone]) || a.sort - b.sort; })
       .forEach(function (it) {
         var home = out.zones[it.zone], e = entries[it.id], locs = locsOf[it.id];
-        var due = home.due || locs.some(function (z) { return started[z]; });
+        var due = locs.some(function (z) { return out.zones[z].due || started[z]; });
         locs.forEach(function (z) {
           var zs = out.zones[z], se = raw[slotKey(it, z)];
           zs.total++;
@@ -695,7 +707,7 @@ var Logic = (function () {
             zs.counted++;
             counters[se.by] = true;
             if (se.by && zs.by.indexOf(se.by) < 0) zs.by.push(se.by);
-          } else if (due && z !== it.zone && !zs.due) zs.todo++; // ของนับทุกวันที่มีบางส่วนอยู่ในหมวดรายสัปดาห์
+          } else if (due && !zs.due) zs.todo++; // ของนับทุกวันที่มีบางส่วนอยู่ในที่เก็บรายสัปดาห์
         });
         if (!hasCount(e)) {
           if (due) out.uncounted.push(it);
@@ -1194,9 +1206,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   // รายการในหมวด: ที่หลักอยู่หมวดนี้ก่อน ตามด้วยของที่เก็บหลายที่ซึ่งมีบางส่วนอยู่ที่นี่
   function zoneItems(zid) {
-    var all = items();
-    return all.filter(function (i) { return i.zone === zid; })
-      .concat(all.filter(function (i) { return i.zone !== zid && L.itemLocs(i).indexOf(zid) >= 0; }));
+    return items().filter(function (i) { return L.itemLocs(i).indexOf(zid) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
   }
   function itemById(id) { return ((S.boot && S.boot.items) || []).filter(function (i) { return i.id === id; })[0]; }
   // ผลนับรวมของรายการ (ของหลายที่ = รวมทุกที่ เมื่อนับครบ)
@@ -2836,7 +2846,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
         return '<button class="' + (A.zone === z.id ? 'on' : '') + '" data-act="aZone" data-v="' + z.id + '">' + z.icon + ' ' + esc(z.th) + '</button>';
       }).join('') + '</div>';
-      var list = d.items.filter(function (it) { return it.zone === A.zone; }).sort(function (a, b) { return a.sort - b.sort; });
+      var list = d.items.filter(function (it) { return L.itemLocs(it).indexOf(A.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
       if (A.reorder && A.reorder.zone === A.zone) {
         var byId = {};
         list.forEach(function (it) { byId[it.id] = it; });
@@ -2852,22 +2862,23 @@ if (typeof module !== 'undefined') module.exports = Logic;
           '<button class="btn btn-primary" data-act="roSave">บันทึกลำดับ</button></div></div></div>';
       } else if (A.move && A.move.zone === A.zone) {
         var pk = A.move.picked, n = Object.keys(pk).filter(function (k) { return pk[k]; }).length;
-        h += '<div class="note info" style="margin-top:10px">ติ๊กรายการที่จะย้าย แล้วเลือกหมวดปลายทางด้านล่าง</div><div class="list" style="margin-top:10px">' + list.map(function (it) {
+        h += '<div class="note info" style="margin-top:10px">ติ๊กรายการ แล้วเลือกว่าจะทำอะไรด้านล่าง</div><div class="list" style="margin-top:10px">' + list.map(function (it) {
           return '<label class="card mv-row' + (it.active === false ? ' off' : '') + '"><input type="checkbox" data-input="mvPick" data-id="' + esc(it.id) + '"' + (pk[it.id] ? ' checked' : '') + '>' +
             '<span class="nm"><b>' + esc(it.name_th) + '</b><small class="mm">' + esc(it.name_mm) + '</small></span></label>';
         }).join('') + '</div>' +
-          '<div class="bottom"><div class="wrap"><div class="mv-bar"><select id="mv-to">' + ZONES.filter(function (z) { return z.id !== A.zone; }).map(function (z) {
-            return '<option value="' + esc(z.id) + '">' + esc(z.icon + ' ' + z.th) + '</option>';
-          }).join('') + '</select><div class="btn-row"><button class="btn btn-ghost" data-act="mvCancel">ยกเลิก</button>' +
-          '<button class="btn btn-primary" data-act="mvSave" id="mv-save"' + (n ? '' : ' disabled') + '>ย้าย ' + n + ' รายการ</button></div></div></div></div>';
+          '<div class="bottom"><div class="wrap"><div class="mv-bar"><select id="mv-to">' +
+          '<optgroup label="📍 ย้ายจากที่นี่ไป">' + ZONES.filter(function (z) { return z.id !== A.zone; }).map(function (z) { return '<option value="move:' + esc(z.id) + '">ย้ายไป ' + esc(z.icon + ' ' + z.th) + '</option>'; }).join('') + '</optgroup>' +
+          '<optgroup label="📍 เพิ่มแท็กที่เก็บ (อยู่ทั้งที่นี่และที่ใหม่)">' + ZONES.filter(function (z) { return z.id !== A.zone; }).map(function (z) { return '<option value="add:' + esc(z.id) + '">+ ' + esc(z.icon + ' ' + z.th) + '</option>'; }).join('') + '</optgroup>' +
+          '<optgroup label="📍 อื่นๆ"><option value="remove">เอาแท็กที่นี่ออก (เหลือที่อื่น)</option></optgroup>' +
+          '<optgroup label="🏷️ ประเภท"><option value="kind:buy">🛒 ยังไม่ตัดแต่ง</option><option value="kind:prep">🔪 ตัดแต่งแล้ว/ทำเอง</option></optgroup>' +
+          '</select><div class="btn-row"><button class="btn btn-ghost" data-act="mvCancel">ยกเลิก</button>' +
+          '<button class="btn btn-primary" data-act="mvSave" id="mv-save"' + (n ? '' : ' disabled') + '>ทำกับ ' + n + ' รายการ</button></div></div></div></div>';
       } else {
-        var also = d.items.filter(function (it) { return it.zone !== A.zone && L.itemLocs(it).indexOf(A.zone) >= 0; });
         h += '<div class="list" style="margin-top:10px">' + list.map(function (it) { return adminItemBtn(it, false); }).join('') + '</div>' +
-          (also.length ? '<div class="section-h" style="font-size:15px">📍 เก็บที่นี่ด้วย <span class="n">(ที่หลักอยู่หมวดอื่น)</span></div><div class="list">' + also.map(function (it) { return adminItemBtn(it, true); }).join('') + '</div>' : '') +
           '<div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aNew">＋ เพิ่มรายการ</button>' +
           '<button class="btn btn-ghost" data-act="roStart">↕️ จัดลำดับ</button></div>' +
-          '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="mvStart"' + (list.length && ZONES.length > 1 ? '' : ' disabled') + '>☑️ ย้ายหลายรายการ</button>' +
-          '<button class="btn btn-ghost" data-act="zonesOpen">🗂️ จัดการหมวด</button></div>';
+          '<div class="btn-row" style="margin-top:10px"><button class="btn btn-ghost" data-act="mvStart"' + (list.length ? '' : ' disabled') + '>🏷️ ติดแท็กหลายรายการ</button>' +
+          '<button class="btn btn-ghost" data-act="zonesOpen">🗂️ จัดการที่เก็บ</button></div>';
       }
     } else if (A.tab === 'po') {
       h += poTab();
@@ -2904,24 +2915,26 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function zonesScreen() {
     var Z = S.admin.zoneDraft, counts = {};
     S.admin.data.items.forEach(function (it) {
-      var c = counts[it.zone] = counts[it.zone] || { buy: 0, prep: 0 };
-      c[it.kind === 'prep' ? 'prep' : 'buy']++;
+      L.itemLocs(it).forEach(function (z) {
+        var c = counts[z] = counts[z] || { buy: 0, prep: 0 };
+        c[it.kind === 'prep' ? 'prep' : 'buy']++;
+      });
     });
-    var h = top({ th: '🗂️ จัดการหมวด', back: 'zonesBack', net: false }) + '<div class="wrap screen">' +
-      '<p class="sub">หมวด = ที่เก็บของจริง (เช่น ตู้เย็น 1, ชั้นของแห้ง) ทีมนับทีละที่ไม่ต้องเดินไปมา · ในที่เดียวกันมีทั้งของซื้อและของเตรียมได้ · ลำดับหมวด = ลำดับที่ทีมเดินนับ</p><div class="list">' +
+    var h = top({ th: '🗂️ จัดการที่เก็บ', back: 'zonesBack', net: false }) + '<div class="wrap screen">' +
+      '<p class="sub">ที่เก็บ = ตู้/ชั้นจริง (เช่น ตู้เย็น 1, ตู้ฟรีซ 2) ทีมนับทีละที่ · ลำดับ = ลำดับที่ทีมเดินนับ · ติดแท็กที่เก็บให้รายการได้ที่หน้าแก้รายการ</p><div class="list">' +
       Z.map(function (z, i) {
         return '<div class="card zrow"><button class="zmain" data-act="zoneEdit" data-i="' + i + '"><span class="zic">' + esc(z.icon) + '</span><span class="nm"><b>' + esc(z.th || '(ยังไม่มีชื่อ)') + '</b>' +
-          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.weekly ? 'นับสัปดาห์ละครั้ง' : 'นับทุกวัน') + ' · 🛒 ของซื้อ ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ของเตรียม ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
+          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.weekly ? 'นับสัปดาห์ละครั้ง' : 'นับทุกวัน') + ' · 🛒 ยังไม่ตัดแต่ง ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ตัดแต่งแล้ว ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
           '<span class="zmv"><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="-1" aria-label="ขึ้น">↑</button><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="1" aria-label="ลง">↓</button></span></div>';
       }).join('') + '</div>' +
-      '<button class="btn btn-ghost" style="margin-top:12px" data-act="zoneAdd">＋ เพิ่มหมวดใหม่</button>' +
-      '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="zonesSave"' + (S.admin.zoneSaving ? ' disabled' : '') + '>' + (S.admin.zoneSaving ? 'กำลังบันทึก…' : '💾 บันทึกหมวด') + '</button></div></div>';
+      '<button class="btn btn-ghost" style="margin-top:12px" data-act="zoneAdd">＋ เพิ่มที่เก็บใหม่</button>' +
+      '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="zonesSave"' + (S.admin.zoneSaving ? ' disabled' : '') + '>' + (S.admin.zoneSaving ? 'กำลังบันทึก…' : '💾 บันทึกที่เก็บ') + '</button></div></div>';
     return h;
   }
 
   function zoneEditScreen() {
     var A = S.admin, z = A.zoneDraft[A.zoneIdx], n = A.data.items.filter(function (it) { return it.zone === z.id; }).length;
-    var h = top({ th: z.isNew ? 'เพิ่มหมวดใหม่' : 'แก้หมวด', back: 'zoneEditBack', net: false }) + '<div class="wrap screen"><div class="card form" style="padding:16px">' +
+    var h = top({ th: z.isNew ? 'เพิ่มที่เก็บใหม่' : 'แก้ที่เก็บ', back: 'zoneEditBack', net: false }) + '<div class="wrap screen"><div class="card form" style="padding:16px">' +
       '<div><label>ไอคอน</label><div class="icon-pick">' + ZONE_ICONS.map(function (ic) {
         return '<button class="' + (z.icon === ic ? 'on' : '') + '" data-act="zoneIcon" data-v="' + ic + '">' + ic + '</button>';
       }).join('') + '</div></div>' +
@@ -2944,14 +2957,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (mm) z.mm = mm.value.trim();
   }
 
+  function itemTags(it) {
+    return '<span class="tagline">' + L.itemLocs(it).map(function (z) { return '<i class="tg">' + esc(zoneOf(z).icon + ' ' + zoneOf(z).th) + '</i>'; }).join('') +
+      '<i class="tg k' + (it.kind === 'prep' ? ' prep' : '') + '">' + (it.kind === 'prep' ? '🔪 ตัดแต่งแล้ว' : '🛒 ยังไม่ตัดแต่ง') + '</i></span>';
+  }
+
   function adminItemBtn(it, showNote) {
     var cfg = L.isConfigured(it);
     return '<button class="card a-item' + (it.active === false ? ' off' : '') + '" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b>' +
       '<small>' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) : '⚠️ ' + esc(it.setup_note || 'ยังไม่ครบ')) +
       (it.mm_auto ? (it.mm_auto === 'claude' ? ' · ✨ พม่า Claude แปล' : ' · 🌐 พม่า Google แปล') : '') +
       (it.buy_unit && it.buy_factor ? ' · ซื้อเป็น ' + esc(it.buy_unit) + ' (1 ≈ ' + L.fmtNum(it.buy_factor) + ' ' + esc(it.unit) + ')' : '') +
-      (L.itemLocs(it).length > 1 ? ' · 📍 ' + esc(L.itemLocs(it).map(function (z) { return zoneOf(z).icon; }).join(' ')) + ' ' + L.itemLocs(it).length + ' ที่' : '') +
-      (showNote ? ' · ' + esc(zoneOf(it.zone).th) : '') + (it.active === false ? ' · ปิดใช้งาน' : '') + '</small></span><span class="muted">แก้ ›</span></button>';
+
+      (it.active === false ? ' · ปิดใช้งาน' : '') + '</small>' + itemTags(it) + '</span><span class="muted">แก้ ›</span></button>';
   }
 
   function adminSettings() {
@@ -3069,24 +3087,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
     })();
   }
 
+  // แท็กที่เก็บในฟอร์มแก้รายการ (แตะสลับ) + ปุ่มสร้างที่ใหม่
+  function placeTags(it) {
+    return ZONES.map(function (z) {
+      return '<button class="tagc' + (it._places.indexOf(z.id) >= 0 ? ' on' : '') + '" data-act="tagPlace" data-v="' + esc(z.id) + '">' + esc(z.icon + ' ' + z.th) + '</button>';
+    }).join('') + '<button class="tagc add" data-act="tagNewPlace">＋ ที่ใหม่</button>';
+  }
+
   function adminEditScreen() {
     var A = S.admin, it = A.edit;
-    var zoneOpts = ZONES.map(function (z) { return '<option value="' + z.id + '"' + (it.zone === z.id ? ' selected' : '') + '>' + z.icon + ' ' + esc(z.th) + '</option>'; }).join('');
+    if (!it._places) it._places = L.itemLocs({ zone: it.zone, more_zones: it.more_zones, min: 1, max: 2, unit: 'x' });
     var units = Object.keys(UNITS).map(function (u) { return '<option value="' + esc(u) + '">'; }).join('');
     var num = function (v) { return v === null || v === undefined ? '' : v; };
     return top({ th: it.isNew ? 'เพิ่มรายการ' : 'แก้รายการ', back: 'aBack', net: false }) + '<div class="wrap screen">' +
       (it.setup_note ? '<div class="note warn" style="margin-bottom:12px">⚠️ ' + esc(it.setup_note) + '</div>' : '') +
       (it.info ? '<div class="note info" style="margin-bottom:12px">ℹ️ ' + esc(it.info) + '</div>' : '') +
       '<div class="card form" style="padding:16px">' +
-      '<div><label>ที่เก็บ (หมวด)</label><select id="e-zone">' + zoneOpts + '</select></div>' +
-      '<div><label>ประเภท</label><div class="seg">' +
-      '<label class="' + (it.kind !== 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="buy"' + (it.kind !== 'prep' ? ' checked' : '') + '> 🛒 ของซื้อ (ยังไม่ตัดแต่ง)<small>ต่ำกว่า Min = สั่งซื้อ</small></label>' +
-      '<label class="' + (it.kind === 'prep' ? 'on' : '') + '"><input type="radio" name="e-kind" data-input="eKind" value="prep"' + (it.kind === 'prep' ? ' checked' : '') + '> 🔪 ของเตรียม (ตัดแต่งแล้ว/ทำเอง)<small>ต่ำกว่า Min = ครัวทำเพิ่ม</small></label></div></div>' +
-      '<div><label>📍 เก็บที่อื่นด้วย <span class="muted" style="font-weight:500">(ของชิ้นนี้อยู่มากกว่า 1 ที่ — น้องนับแยกแต่ละที่ แอพรวมยอดให้ · Min/Max ด้านล่าง = ยอดรวมทุกที่)</span></label><div class="loc-pick">' +
-      ZONES.map(function (z) {
-        var more = String(it.more_zones || '').split(',');
-        return '<label class="check"><input type="checkbox" class="e-more" value="' + esc(z.id) + '"' + (more.indexOf(z.id) >= 0 && z.id !== it.zone ? ' checked' : '') + '> ' + esc(z.icon + ' ' + z.th) + '</label>';
-      }).join('') + '</div><small class="muted">ไม่ต้องติ๊กที่หลัก (ช่อง "ที่เก็บ" ด้านบน) · ใช้ได้กับรายการที่นับเป็นตัวเลข (มี Min/Max)</small></div>' +
+      '<div><label>📍 ที่เก็บ <span class="muted" style="font-weight:500">(แตะเลือก ได้หลายที่ — อยู่หลายที่ น้องนับแยกแต่ละที่ แอพรวมยอดให้)</span></label>' +
+      '<div class="tagbox" id="e-places">' + placeTags(it) + '</div></div>' +
+      '<div><label>🏷️ ประเภท</label><div class="tagbox">' +
+      '<button class="tagc kind' + (it.kind !== 'prep' ? ' on' : '') + '" data-act="tagKind" data-v="buy">🛒 ยังไม่ตัดแต่ง <small>(ซื้อมา · ขาด = สั่งซื้อ)</small></button>' +
+      '<button class="tagc kind' + (it.kind === 'prep' ? ' on' : '') + '" data-act="tagKind" data-v="prep">🔪 ตัดแต่งแล้ว/ทำเอง <small>(ขาด = ครัวทำเพิ่ม)</small></button></div></div>' +
       '<div><label>ชื่อไทย</label><input type="text" id="e-th" data-input="aNameTh" value="' + esc(it.name_th) + '"></div>' +
       '<div><label>ชื่อพม่า <span class="tag ' + (it.mm_auto === 'claude' ? 'brand' : 'warn') + (it.mm_auto ? '' : ' hidden') + '" id="e-mm-tag">' + mmTagText(it.mm_auto) + '</span></label>' +
       '<div style="display:flex;gap:8px"><input type="text" id="e-mm" class="mm" data-input="aNameMm" value="' + esc(it.name_mm) + '" style="flex:1">' +
@@ -3113,11 +3134,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var g = function (id) { return document.getElementById(id); };
     var n = function (id) { var v = g(id).value.trim(); return v === '' ? null : Number(v); };
     var it = JSON.parse(JSON.stringify(S.admin.edit));
-    it.zone = g('e-zone').value; it.name_th = g('e-th').value.trim(); it.name_mm = g('e-mm').value.trim();
-    var k = document.querySelector('input[name="e-kind"]:checked');
-    it.kind = k ? k.value : (it.kind || 'buy');
-    it.more_zones = Array.prototype.map.call(document.querySelectorAll('.e-more:checked'), function (x) { return x.value; })
-      .filter(function (z) { return z !== it.zone; }).join(',');
+    // ที่เก็บเรียงตามลำดับหมวด — อันแรกเก็บใน zone ที่เหลือใน more_zones (บอสไม่ต้องรู้)
+    var places = ZONES.map(function (z) { return z.id; }).filter(function (id) { return S.admin.edit._places.indexOf(id) >= 0; });
+    it.zone = places[0] || ''; it.more_zones = places.slice(1).join(',');
+    it.kind = S.admin.edit.kind === 'prep' ? 'prep' : 'buy';
+    delete it._places;
+    it.name_th = g('e-th').value.trim(); it.name_mm = g('e-mm').value.trim();
     it.mm_auto = S.admin.edit.mm_auto || '';
     it.min = n('e-min'); it.max = n('e-max'); it.unit = g('e-unit').value.trim(); it.unit_mm = g('e-umm').value.trim();
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
@@ -3179,7 +3201,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   INPUT.mvPick = function (el) {
     S.admin.move.picked[el.dataset.id] = el.checked;
     var n = Object.keys(S.admin.move.picked).filter(function (k) { return S.admin.move.picked[k]; }).length, b = document.getElementById('mv-save');
-    if (b) { b.disabled = !n; b.textContent = 'ย้าย ' + n + ' รายการ'; }
+    if (b) { b.disabled = !n; b.textContent = 'ทำกับ ' + n + ' รายการ'; }
   };
   INPUT.poSupplier = function (el) { S.admin.poEdit.supplier_id = el.value; };
   function peSaveLabel() {
@@ -3329,6 +3351,32 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aZone: function (el) { leaveReorder(function () { S.admin.zone = el.dataset.v; S.admin.move = null; rerenderKeepScroll(); }); },
+    tagPlace: function (el) {
+      var P = S.admin.edit._places, i = P.indexOf(el.dataset.v);
+      if (i >= 0) P.splice(i, 1); else P.push(el.dataset.v);
+      el.classList.toggle('on', i < 0);
+    },
+    tagKind: function (el) {
+      S.admin.edit.kind = el.dataset.v;
+      el.parentNode.querySelectorAll('.tagc').forEach(function (b) { b.classList.toggle('on', b === el); });
+    },
+    tagNewPlace: function (el) {
+      var name = (window.prompt('ชื่อที่เก็บใหม่ (เช่น ตู้ฟรีซ 2)') || '').trim();
+      if (!name) return;
+      if (ZONES.some(function (z) { return z.th === name; })) return toast('มีที่เก็บชื่อนี้แล้ว');
+      el.disabled = true; el.textContent = 'กำลังเพิ่ม…';
+      var list = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })
+        .concat([{ icon: '📦', th: name, mm: '', kind: S.admin.edit.kind || 'buy', weekly: false }]);
+      api('apiAdminSaveZones', S.admin.pin, list).then(function (r) {
+        useZones(r.zones);
+        if (S.boot) S.boot.zones = r.zones;
+        var nz = r.zones.filter(function (z) { return z.th === name; })[0];
+        if (nz) S.admin.edit._places.push(nz.id);
+        var box = document.getElementById('e-places');
+        if (box) box.innerHTML = placeTags(S.admin.edit);
+        toast('เพิ่ม "' + name + '" แล้ว — แก้ไอคอน/รอบนับได้ที่ 🗂️ จัดการที่เก็บ');
+      }, function (e) { el.disabled = false; el.textContent = '＋ ที่ใหม่'; toast(errMsg(e)); });
+    },
     zonesOpen: function () {
       S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, th0: z.th, mm0: z.mm }; });
       S.admin.zoneDirty = false; S.admin.zoneSaving = false;
@@ -3392,24 +3440,35 @@ if (typeof module !== 'undefined') module.exports = Logic;
     mvStart: function () { S.admin.move = { zone: S.admin.zone, picked: {} }; rerenderKeepScroll(); },
     mvCancel: function () { S.admin.move = null; rerenderKeepScroll(); },
     mvSave: function (el) {
-      var A = S.admin, to = document.getElementById('mv-to').value, z = zoneOf(to);
+      var A = S.admin, op = document.getElementById('mv-to').value.split(':'), act = op[0], to = op[1];
       var ids = Object.keys(A.move.picked).filter(function (k) { return A.move.picked[k]; });
-      if (!ids.length || !to) return;
-      var maxSort = A.data.items.filter(function (i) { return i.zone === to; }).reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
-      var list = ids.map(function (id, k) {
+      if (!ids.length) return;
+      var order = ZONES.map(function (z) { return z.id; }), skipped = 0;
+      var maxSort = A.data.items.filter(function (i) { return L.itemLocs(i).indexOf(to) >= 0; }).reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
+      var list = [];
+      ids.forEach(function (id, k) {
         var it = JSON.parse(JSON.stringify(A.data.items.filter(function (i) { return i.id === id; })[0]));
-        it.zone = to; it.sort = maxSort + k + 1;
-        return it;
+        var places = L.itemLocs(it);
+        if (act === 'kind') { it.kind = to; list.push(it); return; }
+        if (act === 'move') { places = places.filter(function (z) { return z !== A.zone; }); if (places.indexOf(to) < 0) places.push(to); it.sort = maxSort + k + 1; }
+        if (act === 'add') { if (places.indexOf(to) < 0) places.push(to); }
+        if (act === 'remove') { if (places.length < 2) { skipped++; return; } places = places.filter(function (z) { return z !== A.zone; }); }
+        if (places.length > 1 && !L.isConfigured(it)) { skipped++; return; }
+        places.sort(function (a, b) { return order.indexOf(a) - order.indexOf(b); });
+        it.zone = places[0]; it.more_zones = places.slice(1).join(',');
+        list.push(it);
       });
-      el.disabled = true; el.textContent = 'กำลังย้าย…';
+      if (!list.length) return toast(skipped ? 'ทำไม่ได้: รายการที่ยังไม่มี Min/Max อยู่ได้ที่เดียว / เอาแท็กที่เดียวที่มีออกไม่ได้' : 'ไม่มีอะไรเปลี่ยน');
+      el.disabled = true; el.textContent = 'กำลังบันทึก…';
       adminSaveItems(list).then(function () {
-        A.move = null; A.zone = to;
-        toast('ย้าย ' + ids.length + ' รายการไป ' + z.th + ' แล้ว ✓');
+        A.move = null;
+        if (act === 'move') A.zone = to;
+        toast('เปลี่ยนแล้ว ' + list.length + ' รายการ ✓' + (skipped ? ' (ข้าม ' + skipped + ' — ยังไม่มี Min/Max หรือมีที่เดียว)' : ''));
         rerenderKeepScroll();
-      }, function (e) { el.disabled = false; el.textContent = 'ย้าย ' + ids.length + ' รายการ'; toast(errMsg(e)); });
+      }, function (e) { el.disabled = false; el.textContent = 'ทำกับ ' + ids.length + ' รายการ'; toast(errMsg(e)); });
     },
     roStart: function () {
-      var list = S.admin.data.items.filter(function (i) { return i.zone === S.admin.zone; }).sort(function (a, b) { return a.sort - b.sort; });
+      var list = S.admin.data.items.filter(function (i) { return L.itemLocs(i).indexOf(S.admin.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
       S.admin.reorder = { zone: S.admin.zone, order: list.map(function (i) { return i.id; }), dirty: false };
       rerenderKeepScroll();
     },
@@ -3441,7 +3500,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     aNew: function () {
       var z = S.admin.zone, inZone = S.admin.data.items.filter(function (i) { return i.zone === z; });
       var maxSort = inZone.reduce(function (m, i) { return Math.max(m, i.sort || 0); }, 0);
-      S.admin.edit = { isNew: true, id: z + '-' + Date.now().toString(36), zone: z, kind: zoneOf(z).kind === 'prep' ? 'prep' : 'buy', name_th: '', name_mm: '', min: null, max: null, unit: '', unit_mm: '', size: '', step: 1, sort: maxSort + 1, active: true, setup_note: '', info: '' };
+      S.admin.edit = { isNew: true, id: z + '-' + Date.now().toString(36), zone: z, _places: [z], kind: zoneOf(z).kind === 'prep' ? 'prep' : 'buy', name_th: '', name_mm: '', min: null, max: null, unit: '', unit_mm: '', size: '', step: 1, sort: maxSort + 1, active: true, setup_note: '', info: '' };
       go('aedit');
     },
     aBack: function () { go('admin'); window.scrollTo(0, S.admin.scrollY || 0); },
@@ -3453,6 +3512,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     aSave: function (el) {
       var it = readEditForm(), msg = document.getElementById('e-msg');
+      if (!it.zone) { msg.textContent = 'เลือกที่เก็บอย่างน้อย 1 ที่'; return; }
+      if (it.more_zones && !L.isConfigured(it)) { msg.textContent = 'เลือกหลายที่ได้เมื่อใส่ Min/Max และหน่วยแล้ว (ต้องนับเป็นตัวเลขถึงรวมยอดได้)'; return; }
       var errs = it.active ? L.validateItem(it) : [];
       if (errs.length) { msg.textContent = errs.join(' · '); return; }
       if (!it.active && !it.name_th) { msg.textContent = 'ต้องมีชื่อไทย'; return; }
