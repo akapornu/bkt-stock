@@ -456,6 +456,10 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .found .nm b { display: block; font-size: 16px; }
 .found .nm .mm { display: block; font-size: 14px; color: var(--muted); }
 .found .tagc small { font-weight: 700; color: var(--ink); }
+/* รายงานการนับย้อนหลัง */
+.rep-month { font-weight: 700; color: var(--muted); font-size: 14px; margin: 8px 2px 0; }
+.rep-card { display: block; width: 100%; text-align: left; padding: 12px 14px; }
+.sum-row .q .tag { display: inline-block; margin-top: 3px; }
 
 </style>
 </head>
@@ -1840,6 +1844,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     apoedit: function () { return poEditScreen(); },
     adash: function () { return dashItemScreen(); },
+    areport: function () { return reportDayScreen(); },
     azones: function () { return zonesScreen(); },
     azedit: function () { return zoneEditScreen(); },
     aplace: function () { return placeAssignScreen(); },
@@ -2617,6 +2622,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       go('admin');
       if (S.admin.tab === 'po') loadPoData();
       if (S.admin.tab === 'dash') loadDash();
+      if (S.admin.tab === 'history') loadReports();
     });
   }
 
@@ -3093,9 +3099,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
             '<label class="check" title="ใช้งาน"><input type="checkbox" data-input="aStaffActive" data-i="' + i + '"' + (s.active !== false ? ' checked' : '') + '></label></div>';
         }).join('') + '</div><div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aStaffAdd">＋ เพิ่มคน</button><button class="btn btn-primary" data-act="aStaffSave">บันทึกทีม</button></div>';
     } else if (A.tab === 'history') {
-      h += '<div class="section-h">ใบสั่งซื้อที่ส่งมา (30 ครั้งล่าสุด)</div>' + (d.history.length ? '<div class="list">' + d.history.map(function (r) {
-        return '<details class="card hist"><summary><span>' + esc(L.thaiDate(r.date)) + ' · ' + esc(r.by) + ' · ซื้อ ' + esc(r.buy_count) + ' รายการ</span>' + statusLabel(r.notify_status) + '</summary><pre>' + esc(r.message) + '</pre></details>';
-      }).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
+      h += reportsSection();
       h += '<div class="section-h">📦 รับของ (30 ครั้งล่าสุด)</div>' + ((d.receipts || []).length ? '<div class="list">' + d.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
       h += '<div class="section-h">แจ้งด่วน (30 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
         return '<div class="card hist"><div style="display:flex;justify-content:space-between;gap:8px"><b>' + esc(a.by) + ' · ' + esc(String(a.at).slice(0, 10)) + ' ' + esc(L.bkkTime(a.at)) + '</b>' + statusLabel(a.notify_status) + '</div>' +
@@ -3241,6 +3245,102 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function itemTags(it) {
     return '<span class="tagline">' + L.itemLocs(it).map(function (z) { return '<i class="tg">' + esc(zoneOf(z).icon + ' ' + zoneOf(z).th) + '</i>'; }).join('') +
       '<i class="tg k' + (it.kind === 'prep' ? ' prep' : '') + '">' + (it.kind === 'prep' ? '🔪 ตัดแต่งแล้ว' : '🛒 ยังไม่ตัดแต่ง') + '</i></span>';
+  }
+
+  // ---------- รายงานการนับย้อนหลัง ----------
+  function loadReports(more) {
+    var A = S.admin, R = A.rep || (A.rep = { list: [], more: false });
+    R.loading = true;
+    if (S.screen === 'admin') rerenderKeepScroll();
+    var before = more && R.list.length ? R.list[R.list.length - 1].date : '';
+    return api('apiAdminReports', A.pin, before, 40).then(function (r) {
+      R.list = more ? R.list.concat(r.list) : r.list; R.more = r.more; R.loading = false; R.err = '';
+      if (S.screen === 'admin') rerenderKeepScroll();
+    }, function (e) { R.loading = false; R.err = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
+  }
+
+  function reportsSection() {
+    var R = S.admin.rep;
+    var h = '<div class="section-h">📜 รายงานการนับย้อนหลัง</div>';
+    if (!R || (R.loading && !R.list.length)) return h + '<p class="muted"><span class="spin-sm"></span>กำลังโหลด…</p>';
+    if (R.err && !R.list.length) return h + '<div class="note bad">' + esc(R.err) + '</div>';
+    if (!R.list.length) return h + '<p class="muted">ยังไม่มีรายงาน — จะขึ้นเมื่อ MON กดส่งรายงานครั้งแรก</p>';
+    var month = '';
+    h += '<div class="list">' + R.list.map(function (r) {
+      var m = L.thaiDate(r.date).split(' ').slice(2).join(' '), head = '';
+      if (m !== month) { month = m; head = '<div class="rep-month">' + esc(m) + '</div>'; }
+      return head + '<button class="card rep-card" data-act="repOpen" data-v="' + esc(r.date) + '">' +
+        '<div class="dr-top"><b>' + esc(L.thaiDate(r.date)) + '</b><span class="muted" style="font-size:13px">' + esc(L.bkkTime(r.at)) + ' · ' + esc(r.by) + (r.sends > 1 ? ' · ส่ง ' + r.sends + ' ครั้ง' : '') + '</span></div>' +
+        '<div class="tagline">' + '<i class="tg">✏️ นับ ' + r.counted + '</i>' +
+        (r.buy ? '<i class="tg k" style="background:var(--bad-soft);color:var(--bad)">🛒 ซื้อ ' + r.buy + '</i>' : '<i class="tg k">🛒 ไม่ต้องซื้อ</i>') +
+        (r.prep ? '<i class="tg k prep">🔪 ทำเพิ่ม ' + r.prep + '</i>' : '') +
+        (r.attention ? '<i class="tg k prep">⚠️ ต้องดู ' + r.attention + '</i>' : '') +
+        (r.uncounted ? '<i class="tg k">⏳ ไม่ได้นับ ' + r.uncounted + '</i>' : '') + '</div>' +
+        (r.note ? '<small class="muted" style="display:block;margin-top:4px">📝 ' + esc(r.note) + '</small>' : '') + '</button>';
+    }).join('') + '</div>' +
+      (R.more ? '<button class="btn btn-ghost" style="margin-top:10px" data-act="repMore"' + (R.loading ? ' disabled' : '') + '>' + (R.loading ? 'กำลังโหลด…' : 'ดูเก่ากว่านี้') + '</button>' : '');
+    return h;
+  }
+
+  function reportDayScreen() {
+    var A = S.admin, D = A.repDay, f = A.repF || 'all', q = A.repQ || '';
+    var h = top({ th: '📜 ' + (D ? L.thaiDate(D.date) : ''), back: 'repBack', net: false }) + '<div class="wrap screen">';
+    if (!D || D.loading) return h + '<p class="muted center"><span class="spin-sm"></span>กำลังโหลด…</p></div>';
+    var rows = D.rows, last = D.sends[0];
+    var buy = rows.filter(function (r) { return r.need > 0 && r.kind !== 'prep'; }), prep = rows.filter(function (r) { return r.need > 0 && r.kind === 'prep'; });
+    var low = rows.filter(function (r) { return r.level === 'low' || r.level === 'out'; });
+    var countedIds = {};
+    rows.forEach(function (r) { countedIds[r.item_id] = true; });
+    var missing = A.data.items.filter(function (it) { return it.active !== false && !countedIds[it.id]; });
+    h += '<div class="card" style="padding:14px 16px">' + (last ? '<b>ส่งโดย ' + esc(last.by) + ' · ' + esc(L.bkkTime(last.at)) + '</b>' + (D.sends.length > 1 ? ' <span class="muted">(ส่ง ' + D.sends.length + ' ครั้ง ใช้ครั้งล่าสุด)</span>' : '') +
+      (last.counters ? '<div class="muted" style="font-size:14px">ช่วยนับ: ' + esc(last.counters) + '</div>' : '') +
+      ((last.note_th || last.note) ? '<div style="margin-top:6px">📝 ' + esc(last.note_th || last.note) + '</div>' : '') : '<span class="muted">วันนี้ไม่มีการกดส่ง</span>') + '</div>';
+    var chips = [['all', 'ทั้งหมด ' + rows.length], ['buy', '🛒 ต้องซื้อ ' + buy.length], ['prep', '🔪 ทำเพิ่ม ' + prep.length]]
+      .concat(low.length ? [['low', '⚠️ ใกล้หมด/หมด ' + low.length]] : []).concat([['miss', '⏳ ไม่ได้นับ ' + missing.length]]);
+    h += '<div class="tabs" style="padding-top:12px">' + chips.map(function (c) { return '<button class="' + (f === c[0] ? 'on' : '') + '" data-act="repFilter" data-v="' + c[0] + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' +
+      '<input class="inp" style="margin:8px 0 10px" data-input="repQ" type="search" autocomplete="off" placeholder="🔍 ค้นหาในวันนี้" value="' + esc(q) + '">' +
+      '<div id="rep-body">' + reportDayBody() + '</div>';
+    if (D.sends.length) {
+      h += '<div class="section-h">💬 ข้อความที่ส่ง LINE</div><div class="list">' + D.sends.map(function (x, i) {
+        return '<details class="card hist"' + (i === 0 ? ' open' : '') + '><summary><span>' + esc(L.bkkTime(x.at)) + ' · ' + esc(x.by) + (i === 0 ? ' (ล่าสุด)' : '') + '</span>' + statusLabel(x.status) + '</summary><pre>' + esc(x.message) + '</pre>' +
+          '<button class="mini-link" data-act="repCopy" data-i="' + i + '">📋 คัดลอกข้อความ</button></details>';
+      }).join('') + '</div>';
+    }
+    return h + '</div>';
+  }
+
+  function reportDayBody() {
+    var A = S.admin, D = A.repDay, f = A.repF || 'all';
+    if (f === 'miss') {
+      var countedIds = {};
+      D.rows.forEach(function (r) { countedIds[r.item_id] = true; });
+      var miss = A.data.items.filter(function (it) { return it.active !== false && !countedIds[it.id] && matchItem(it, A.repQ); });
+      return '<p class="muted" style="font-size:13px;margin:0 0 8px">เทียบกับรายการของตอนนี้ (รายการที่เพิ่มทีหลังจะขึ้นที่นี่ด้วย)</p>' +
+        (miss.length ? '<div class="card sum-list" style="padding:4px 16px">' + miss.map(function (it) {
+          return '<div class="sum-row"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span></div><div class="q"><small>' + esc(L.itemLocs(it).map(function (z) { return zoneOf(z).icon + ' ' + zoneOf(z).th; }).join(', ')) + '</small></div></div>';
+        }).join('') + '</div>' : (normQ(A.repQ) ? '<p class="muted">ไม่มีรายการที่ตรงกับคำค้น</p>' : '<div class="note ok">✅ นับครบทุกรายการ</div>'));
+    }
+    var rows = D.rows.filter(function (r) {
+      if (!matchItem(r, A.repQ)) return false;
+      if (f === 'buy') return r.need > 0 && r.kind !== 'prep';
+      if (f === 'prep') return r.need > 0 && r.kind === 'prep';
+      if (f === 'low') return r.level === 'low' || r.level === 'out';
+      return true;
+    });
+    if (!rows.length) return '<p class="muted">ไม่มีรายการ</p>';
+    var groups = {}, order = [];
+    rows.forEach(function (r) { if (!groups[r.zone]) { groups[r.zone] = []; order.push(r.zone); } groups[r.zone].push(r); });
+    order.sort(function (a, b) { var ia = ZONES.indexOf(zoneOf(a)), ib = ZONES.indexOf(zoneOf(b)); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+    return order.map(function (z) {
+      var zz = zoneOf(z);
+      return '<div class="zone-label">' + esc(zz.icon + ' ' + zz.th) + '</div><div class="card sum-list" style="padding:4px 16px;margin-bottom:10px">' + groups[z].map(function (r) {
+        var val = r.qty !== null ? L.fmtNum(r.qty) + ' ' + esc(r.unit) : esc((L.LEVEL_TH || {})[r.level] || r.level || '–');
+        var tag = r.need > 0 ? '<span class="tag ' + (r.kind === 'prep' ? 'warn' : 'bad') + '">' + (r.kind === 'prep' ? 'ทำเพิ่ม ' : 'สั่ง ') + L.fmtNum(r.need) + '</span>' : '';
+        return '<div class="sum-row"><div class="nm"><b>' + esc(r.name_th) + '</b><span class="mm">' + esc(r.name_mm) + '</span>' +
+          '<small class="muted" style="display:block;font-size:12px">' + (r.min !== null ? 'Min ' + L.fmtNum(r.min) + ' · Max ' + L.fmtNum(r.max) + ' · ' : '') + '👤 ' + esc(r.by || '-') + (r.at ? ' ' + esc(L.bkkTime(r.at)) : '') + '</small></div>' +
+          '<div class="q"><b>' + val + '</b>' + tag + '</div></div>';
+      }).join('') + '</div>';
+    }).join('');
   }
 
   function adminItemBtn(it, showNote) {
@@ -3500,6 +3600,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var box = el.closest('.seg');
     if (box) box.querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', l.contains(el)); });
   };
+  INPUT.repQ = function (el) {
+    S.admin.repQ = el.value;
+    var b = document.getElementById('rep-body');
+    if (b) b.innerHTML = reportDayBody();
+  };
   INPUT.aItemQ = function (el) {
     S.admin.itemQ = el.value;
     var f = document.getElementById('a-found'), w = document.getElementById('a-zonewrap');
@@ -3631,7 +3736,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
         go('admin');
         if (S.admin.tab === 'po') loadPoData();
         if (S.admin.tab === 'dash') loadDash();
+        if (S.admin.tab === 'history') loadReports();
       });
+    },
+    repMore: function () { loadReports(true); },
+    repOpen: function (el) {
+      var A = S.admin;
+      A.repScroll = window.scrollY; A.repF = 'all'; A.repQ = '';
+      A.repDay = { loading: true, date: el.dataset.v };
+      go('areport');
+      api('apiAdminReportDay', A.pin, el.dataset.v).then(function (d) { A.repDay = d; if (S.screen === 'areport') rerenderKeepScroll(); },
+        function (e) { A.repDay = null; go('admin'); toast(errMsg(e)); });
+    },
+    repBack: function () { go('admin'); window.scrollTo(0, S.admin.repScroll || 0); },
+    repFilter: function (el) { S.admin.repF = el.dataset.v; rerenderKeepScroll(); },
+    repCopy: function (el) {
+      copyText(S.admin.repDay.sends[+el.dataset.i].message).then(function () { toast('คัดลอกแล้ว'); }, function () { toast('คัดลอกไม่ได้ — กดค้างที่ข้อความแล้วเลือกคัดลอก'); });
     },
     dashReload: function () { S.admin.dash = null; rerenderKeepScroll(); loadDash(); },
     dashFilter: function (el) {
