@@ -1992,7 +1992,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminScreen() {
     var A = S.admin, d = A.data;
     var setupN = d.items.filter(needsSetup).length;
-    var tabs = [['po', '🛒 สั่งซื้อ'], ['setup', '⚠️ ต้องตั้งค่า (' + setupN + ')'], ['items', '📋 รายการของ'], ['staff', '👥 ทีม'], ['history', '🕘 ประวัติ'], ['settings', '🔐 LINE และรหัส']];
+    var tabs = [['po', '🛒 สั่งซื้อ'], ['setup', '⚠️ ต้องตั้งค่า (' + setupN + ')'], ['items', '📋 รายการของ'], ['staff', '👥 ทีม'], ['history', '🕘 ประวัติ'], ['settings', '⚙️ ตั้งค่า LINE · แปล · รหัส']];
     var h = top({ th: 'ตั้งค่าร้าน (บอส)', back: 'adminExit', net: false }) + '<div class="wrap"><div class="tabs">' +
       tabs.map(function (t) { return '<button class="' + (A.tab === t[0] ? 'on' : '') + '" data-act="aTab" data-v="' + t[0] + '">' + esc(t[1]) + '</button>'; }).join('') +
       '</div></div><div class="wrap screen">';
@@ -2004,9 +2004,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
         : '<div class="note ok">✅ ทุกรายการตั้งค่าครบแล้ว</div>';
       var auto = d.items.filter(function (it) { return it.active !== false && it.mm_auto; });
       if (auto.length) {
-        h += '<div class="section-h">🌐 ชื่อพม่าที่แปลอัตโนมัติ (' + auto.length + ')</div><p class="sub" style="margin-top:-6px">ให้ MON ช่วยดูว่าอ่านแล้วเข้าใจไหม ถ้าถูกแล้วกดแก้ → บันทึก (ป้ายจะหายเมื่อแก้ชื่อพม่าเอง)</p><div class="list">' +
+        var byGoogle = auto.filter(function (it) { return it.mm_auto !== 'claude'; }).length;
+        h += '<div class="section-h">🌐 ชื่อพม่าที่เครื่องแปล (' + auto.length + ')</div><p class="sub" style="margin-top:-6px">ให้ MON ช่วยดูว่าอ่านแล้วเข้าใจไหม ถ้าถูกแล้วกดแก้ → บันทึก (ป้ายจะหายเมื่อแก้ชื่อพม่าเอง)</p>' +
+          (byGoogle && d.settings.claudeKey ? '<button class="btn btn-ghost" style="margin-bottom:10px" data-act="aRetranslate">✨ ให้ Claude แปลใหม่ ' + byGoogle + ' รายการที่ Google แปลไว้</button>' : '') +
+          '<div class="list">' +
           auto.map(function (it) {
-            return '<button class="card a-item" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b><small class="mm">' + esc(it.name_mm) + '</small></span><span class="muted">แก้ ›</span></button>';
+            return '<button class="card a-item" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b><small><span class="mm">' + esc(it.name_mm) + '</span> · ' +
+              (it.mm_auto === 'claude' ? '✨ Claude แปล' : '🌐 Google แปล') + '</small></span><span class="muted">แก้ ›</span></button>';
           }).join('') + '</div>';
       }
     } else if (A.tab === 'items') {
@@ -2065,7 +2069,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var cfg = L.isConfigured(it);
     return '<button class="card a-item' + (it.active === false ? ' off' : '') + '" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b>' +
       '<small>' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) : '⚠️ ' + esc(it.setup_note || 'ยังไม่ครบ')) +
-      (it.mm_auto ? ' · 🌐 พม่าแปลอัตโนมัติ' : '') +
+      (it.mm_auto ? (it.mm_auto === 'claude' ? ' · ✨ พม่า Claude แปล' : ' · 🌐 พม่า Google แปล') : '') +
       (it.buy_unit && it.buy_factor ? ' · ซื้อเป็น ' + esc(it.buy_unit) + ' (1 ≈ ' + L.fmtNum(it.buy_factor) + ' ' + esc(it.unit) + ')' : '') +
       (showNote ? ' · ' + esc(zoneOf(it.zone).th) : '') + (it.active === false ? ' · ปิดใช้งาน' : '') + '</small></span><span class="muted">แก้ ›</span></button>';
   }
@@ -2091,6 +2095,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (S.admin.lineMsg ? '<div class="note ' + (/✓/.test(S.admin.lineMsg) ? 'ok' : 'bad') + '">' + esc(S.admin.lineMsg) + '</div>' : '') +
       '</div></div>' +
       groupSettings(s) +
+      claudeSettings(s) +
       '<div class="section-h">🔐 รหัส</div><div class="card form" style="padding:16px">' +
       '<div class="two"><div><label>รหัสร้านใหม่ (4)</label><input type="tel" id="s-spin" maxlength="4" inputmode="numeric"></div>' +
       '<div><label>รหัสบอสใหม่ (6)</label><input type="tel" id="s-apin" maxlength="6" inputmode="numeric"></div></div>' +
@@ -2128,6 +2133,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
   }
 
+  function claudeSettings(s) {
+    var A = S.admin, u = s.claudeUsage || {};
+    return '<div class="section-h">✨ แปลภาษาด้วย Claude</div><div class="card form" style="padding:16px">' +
+      (s.claudeKey ? '<div class="note ok">✅ ใช้ Claude แปลอยู่</div>' : '<div class="note warn">ยังไม่ได้ใส่ API key — ตอนนี้ใช้ Google แปล (ชื่อของกินเพี้ยนบ่อย)</div>') +
+      '<p class="muted" style="margin:0;font-size:14px">Claude แปล 2 อย่าง: <b>ชื่อวัตถุดิบไทย → พม่า</b> (ตอนเพิ่ม/เปลี่ยนชื่อ) และ <b>ข้อความพม่าของน้อง → ไทย</b> (แจ้งด่วน, หมายเหตุ MON, รับของ) · ใช้ชื่อพม่าที่ตรวจแล้วในร้านเป็นอภิธานศัพท์ทุกครั้ง · ถ้า Claude ใช้ไม่ได้ แอพสลับไป Google ให้เอง</p>' +
+      '<ol class="steps">' +
+      '<li>เปิด <a href="https://console.anthropic.com" target="_blank" rel="noopener">Anthropic Console</a> → สมัคร/ล็อกอิน (บัญชี API แยกจาก Claude ที่บอสใช้แชท ต้องเติมเงินแยก)</li>' +
+      '<li><b>Billing</b> → เติมเครดิต (เริ่มจากจำนวนน้อยก่อนได้)</li>' +
+      '<li><b>Limits</b> → ตั้งวงเงินสูงสุดต่อเดือน กันค่าใช้จ่ายบานปลาย</li>' +
+      '<li><b>API keys</b> → Create key → ก๊อปมาวางด้านล่าง (ขึ้นต้นด้วย sk-ant-)</li></ol>' +
+      '<div><label>Claude API key ' + (s.claudeKey ? '<span class="tag ok">ใส่แล้ว ✓</span>' : '<span class="tag bad">ยังไม่ใส่</span>') + '</label>' +
+      '<input type="password" id="s-ckey" placeholder="' + (s.claudeKey ? 'ใส่ไว้แล้ว — ว่างไว้ถ้าไม่เปลี่ยน' : 'sk-ant-…') + '" autocomplete="off"></div>' +
+      (s.claudeKey ? '<label class="check"><input type="checkbox" id="s-clearckey"> เลิกใช้ Claude (ลบ key กลับไปใช้ Google)</label>' : '') +
+      '<div class="btn-row"><button class="btn btn-primary" data-act="aSaveClaude">บันทึก</button>' +
+      (s.claudeKey ? '<button class="btn btn-ghost" data-act="aTestClaude">ทดสอบแปล</button>' : '') + '</div>' +
+      (A.claudeMsg ? '<div class="note ' + (/✓/.test(A.claudeMsg) ? 'ok' : 'bad') + '" style="white-space:pre-line">' + esc(A.claudeMsg) + '</div>' : '') +
+      (u.calls ? '<p class="muted" style="margin:0;font-size:13.5px">เดือนนี้ใช้ ' + u.calls + ' ครั้ง' + (u.fail ? ' (ไม่สำเร็จ ' + u.fail + ' → ใช้ Google แทน)' : '') +
+        ' · ประมาณ $' + L.fmtNum(u.usd < 0.01 && u.usd > 0 ? 0.01 : u.usd) + ' <span style="opacity:.8">(ค่าประมาณจากจำนวน token × ราคา Opus 5.5 — ยอดเรียกเก็บจริงดูใน Console)</span> · รายละเอียดอยู่ในชีต "การใช้ Claude"</p>' : '') +
+      '</div>';
+  }
+
   // รอให้บอสพิมพ์รหัสในกลุ่ม แล้วเช็คว่าบอทยืนยันหรือยัง (ทุก 5 วินาที ไม่เกิน 30 นาที)
   function waitGroupLink() {
     var A = S.admin, started = Date.now();
@@ -2157,7 +2183,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="card form" style="padding:16px">' +
       '<div><label>โซน</label><select id="e-zone">' + zoneOpts + '</select></div>' +
       '<div><label>ชื่อไทย</label><input type="text" id="e-th" data-input="aNameTh" value="' + esc(it.name_th) + '"></div>' +
-      '<div><label>ชื่อพม่า ' + (it.mm_auto ? '<span class="tag warn" id="e-mm-tag">🌐 แปลอัตโนมัติ — ให้ MON ช่วยดู</span>' : '<span class="tag hidden" id="e-mm-tag"></span>') + '</label>' +
+      '<div><label>ชื่อพม่า <span class="tag ' + (it.mm_auto === 'claude' ? 'brand' : 'warn') + (it.mm_auto ? '' : ' hidden') + '" id="e-mm-tag">' + mmTagText(it.mm_auto) + '</span></label>' +
       '<div style="display:flex;gap:8px"><input type="text" id="e-mm" class="mm" data-input="aNameMm" value="' + esc(it.name_mm) + '" style="flex:1">' +
       '<button class="btn btn-ghost" style="width:auto;min-height:48px;padding:0 12px;font-size:14px" data-act="aTranslate">🌐 แปล</button></div>' +
       '<div id="e-mm-note" class="muted" style="font-size:13px;margin-top:4px"></div></div>' +
@@ -2183,7 +2209,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var n = function (id) { var v = g(id).value.trim(); return v === '' ? null : Number(v); };
     var it = JSON.parse(JSON.stringify(S.admin.edit));
     it.zone = g('e-zone').value; it.name_th = g('e-th').value.trim(); it.name_mm = g('e-mm').value.trim();
-    it.mm_auto = S.admin.edit.mm_auto === true;
+    it.mm_auto = S.admin.edit.mm_auto || '';
     it.min = n('e-min'); it.max = n('e-max'); it.unit = g('e-unit').value.trim(); it.unit_mm = g('e-umm').value.trim();
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
     it.buy_unit = g('e-bunit').value.trim(); it.buy_factor = it.buy_unit ? n('e-bfactor') : null; it.buy_step = n('e-bstep');
@@ -2199,12 +2225,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   // เปลี่ยนหน่วยไทย → เติมหน่วยพม่าให้ตาม (ยกเว้นบอสพิมพ์หน่วยพม่าเองแล้ว)
   var mmTimer = null;
+  function mmTagText(engine) {
+    return engine === 'claude' ? '✨ Claude แปล — ให้ MON ดูอีกที' : engine ? '🌐 Google แปล — ควรให้ MON ช่วยดู' : '';
+  }
   function mmNote(text) { var n = document.getElementById('e-mm-note'); if (n) n.textContent = text || ''; }
-  function mmTag(auto) {
+  function mmTag(engine) {
     var t = document.getElementById('e-mm-tag');
     if (!t) return;
-    t.className = 'tag warn' + (auto ? '' : ' hidden');
-    t.textContent = auto ? '🌐 แปลอัตโนมัติ — ให้ MON ช่วยดู' : '';
+    t.className = 'tag ' + (engine === 'claude' ? 'brand' : 'warn') + (engine ? '' : ' hidden');
+    t.textContent = mmTagText(engine);
   }
   function translateName(force) {
     var th = (document.getElementById('e-th') || {}).value || '', mmEl = document.getElementById('e-mm');
@@ -2215,11 +2244,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     mmNote('กำลังแปล…');
     api('apiAdminTranslate', S.admin.pin, th.trim()).then(function (r) {
       if (!r.mm) { mmNote('แปลไม่ได้ — พิมพ์ชื่อพม่าเองได้'); return; }
-      mmEl.value = r.mm; E.mm_auto = true; mmTag(true); mmNote('');
+      mmEl.value = r.mm; E.mm_auto = r.engine || 'google'; mmTag(E.mm_auto); mmNote('');
     }, function (e) { mmNote(errMsg(e)); });
   }
   INPUT.aNameTh = function () { clearTimeout(mmTimer); mmTimer = setTimeout(function () { translateName(false); }, 800); };
-  INPUT.aNameMm = function () { S.admin.edit.mm_auto = false; mmTag(false); mmNote(''); };
+  INPUT.aNameMm = function () { S.admin.edit.mm_auto = ''; mmTag(''); mmNote(''); };
   INPUT.aUnit = function (el) {
     var mm = document.getElementById('e-umm');
     if (UNITS[el.value.trim()] && mm.dataset.manual !== '1') mm.value = UNITS[el.value.trim()];
@@ -2521,6 +2550,37 @@ if (typeof module !== 'undefined') module.exports = Logic;
         S.admin.lineMsg = r.ok ? 'ส่งแล้ว ✓ เช็ค LINE ได้เลย' + (r.translate ? ' · ทดสอบแปลพม่า→ไทยผ่าน: ' + r.translate : ' · ⚠️ ทดสอบแปลพม่าไม่ผ่าน') : explainLine(r);
         rerenderKeepScroll();
       }, function (e) { S.admin.lineMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    aSaveClaude: function (el) {
+      var k = (document.getElementById('s-ckey') || {}).value || '', clr = document.getElementById('s-clearckey');
+      k = k.trim();
+      if (!k && !(clr && clr.checked)) { S.admin.claudeMsg = 'วาง API key ก่อน'; rerenderKeepScroll(); return; }
+      el.disabled = true;
+      api('apiAdminSaveSettings', S.admin.pin, { ANTHROPIC_API_KEY: k, clearClaudeKey: !!(clr && clr.checked) })
+        .then(function (st) {
+          S.admin.data.settings = st;
+          S.admin.claudeMsg = st.claudeKey ? 'บันทึกแล้ว ✓ — กด "ทดสอบแปล" ได้เลย' : 'เลิกใช้ Claude แล้ว ✓ — กลับไปใช้ Google แปล';
+          rerenderKeepScroll();
+        }, function (e) { el.disabled = false; S.admin.claudeMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    aTestClaude: function (el) {
+      el.disabled = true; el.textContent = 'กำลังแปล…';
+      api('apiAdminTestClaude', S.admin.pin).then(function (r) {
+        var line = function (x) { return (x.engine === 'claude' ? '✨ Claude: ' : x.engine ? '🌐 Google (Claude ใช้ไม่ได้): ' : '❌ แปลไม่ได้: ') + (x.text || '-'); };
+        S.admin.claudeMsg = (r.ok ? 'Claude ใช้ได้ ✓' : r.error ? r.error : 'Claude ยังใช้ไม่ได้ — ดูคอลัมน์ error ในชีต "การใช้ Claude" (มักเป็น key ผิด หรือยังไม่ได้เติมเครดิต)') +
+          (r.name ? '\nหมูเด้งปลาอินทรีย์ → ' + line(r.name) + '\nဝက်သားစဉ်း ၂ အိတ် ပိုလာတယ် → ' + line(r.note) : '');
+        if (r.usage) S.admin.data.settings.claudeUsage = r.usage;
+        rerenderKeepScroll();
+      }, function (e) { S.admin.claudeMsg = errMsg(e); rerenderKeepScroll(); });
+    },
+    aRetranslate: function (el) {
+      el.disabled = true; el.textContent = 'Claude กำลังแปล… (รายการละไม่กี่วินาที)';
+      api('apiAdminRetranslate', S.admin.pin).then(function (r) {
+        S.admin.data.items = r.items;
+        if (S.boot) S.boot.items = r.items.filter(function (i) { return i.active !== false; });
+        toast(r.done ? '✨ Claude แปลใหม่ ' + r.done + ' รายการ' + (r.left ? ' · เหลืออีก ' + r.left + ' กดอีกครั้ง' : '') : 'Claude แปลไม่สำเร็จ — ลองกดทดสอบแปลในหน้าตั้งค่า');
+        rerenderKeepScroll();
+      }, function (e) { el.disabled = false; toast(errMsg(e)); });
     },
     aSaveCodes: function (el) {
       var g = function (id) { return document.getElementById(id).value.trim(); };
