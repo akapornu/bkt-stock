@@ -478,6 +478,28 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .imp-q .inp.sm { width: 74px; }
 .imp-q span { font-size: 14px; min-width: 30px; }
 
+/* ต้องทำเพิ่มวันนี้ */
+.prep-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: 100%; text-align: left; margin-top: 12px; }
+.prep-card .ic { font-size: 28px; flex: none; }
+.prep-card .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.prep-card .tx .mm { font-size: 14px; color: var(--muted); }
+.prep-card .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.prep-card .go { font-size: 26px; color: var(--muted); flex: none; }
+.prep-row { flex-wrap: wrap; }
+.prep-row .nm { cursor: pointer; flex: 1 1 100%; }
+.prep-row .nm small { display: block; margin-top: 3px; font-size: 14px; }
+.prep-row .nm small.mm { margin-top: 1px; font-size: 13px; color: var(--muted); }
+.prep-row .nm .mk { display: block; color: var(--bad); font-size: 15px; }
+.prep-row .full-btn { margin-left: auto; }
+/* แป้นนับ: ล้างตัวเลข */
+.kp-clear { margin-top: 6px; padding: 4px 10px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--card); font: inherit; font-size: 13px; color: var(--bad); }
+.kp-clear .mm { font-size: 12px; }
+/* ทีม: แผนกที่ดูแล */
+.staff-row .sec-pick { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; }
+.sec-pick button { min-height: 34px; padding: 4px 10px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--card); font: inherit; font-size: 13.5px; color: var(--muted); }
+.sec-pick button.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+.sec-pick button small { font-size: 11.5px; }
+
 </style>
 </head>
 <body>
@@ -580,6 +602,21 @@ var I18N = {
   countAsDone: ['ถือว่าครบ', 'စုံပြီလို့ မှတ်မယ်'],
   waitMore: ['รอของมาเพิ่ม', 'ကျန်တာ စောင့်မယ်'],
   // หน้ารับของแบบใส่ตัวเลข ไม่ต้องติ๊ก + ของชั่งใส่กรัม (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ကွက်တိပဲ, ချိန်/ရေတွက်, ချိန်လို့ ထွက်တာ, ဂဏန်း)
+  // ของต้องทำเพิ่ม + กันพิมพ์ผิด + แผนก (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน တာဝန်ခံ, ဌာန, ပြည့်အောင် လုပ်ပြီးပြီ, ဖြစ်သွားပြီ)
+  prepToday: ['ต้องทำเพิ่มวันนี้', 'ဒီနေ့ ထပ်လုပ်ရန်'],
+  prepCard: ['ต้องทำเพิ่ม {n} รายการ', 'ထပ်လုပ်စရာ {n} ခု ရှိတယ်'],
+  prepMakeTo: ['ทำเพิ่ม {n} {u} → ให้ถึง {t}', '{n} {um} ထပ်လုပ်ပါ → {t} ပြည့်အောင်'],
+  prepDoneBtn: ['ทำครบแล้ว', 'ပြည့်အောင် လုပ်ပြီးပြီ'],
+  prepUpdated: ['อัปเดตเป็น {n} {u} แล้ว', '{n} {um} ဖြစ်သွားပြီ'],
+  prepUncounted: ['ยังไม่ได้นับของตัดแต่ง/ทำเอง {n} รายการ — นับก่อน รายการนี้ถึงจะครบ', 'လှီးပြီးသား/ချက်ပြီးသား {n} ခု မရေတွက်ရသေးဘူး — အရင် ရေတွက်မှ ဒီစာရင်း စုံမယ်'],
+  prepUncountedShort: ['ยังไม่นับ {n}', 'မရေတွက်ရသေး {n} ခု'],
+  bigNumber: ['{n} {u} เยอะผิดปกติ (Max {max}) — ตัวเลขถูกไหม?', '{n} {um} က ပုံမှန်ထက် အရမ်းများနေတယ် (Max {max}) — ဂဏန်း မှန်ရဲ့လား?'],
+  fixIt: ['แก้ใหม่', 'ပြန်ပြင်မယ်'],
+  yesCorrect: ['ถูกแล้ว', 'မှန်ပါတယ်'],
+  clearCount: ['ล้าง (ยังไม่นับ)', 'ဂဏန်း ဖျက်မယ် (မရေတွက်ရသေး)'],
+  noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
+  roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
+  roleHelperShort: ['ผู้ช่วย', 'အကူ'],
   recvHow: ['ชั่งหรือนับของที่มา แล้วใส่ตัวเลข · ใส่แล้วขึ้น ✓ เอง ไม่ต้องกดติ๊ก', 'ရောက်လာတဲ့ပစ္စည်းကို ချိန်/ရေတွက်ပြီး ဂဏန်း ထည့်ပါ · ထည့်လိုက်တာနဲ့ ✓ အလိုလို ပေါ်လာမယ်၊ ခြစ်စရာ မလိုဘူး'],
   weighGot: ['ชั่งได้', 'ချိန်လို့ ထွက်တာ'],
   overBy: ['มากกว่าที่สั่ง {n} {u}', 'မှာထားတာထက် {n} {um} ပိုနေတယ်'],
@@ -702,6 +739,33 @@ var Logic = (function () {
     return draft;
   }
 
+  // ---------- แผนก (กลุ่มที่เก็บ) + พนักงานแต่ละคนดูแลแผนกไหน ----------
+  // ที่เก็บไม่ได้ระบุแผนก = ครัว · พนักงานไม่ได้ระบุแผนก = ดูแลทุกที่ (แบบเดิม)
+  var DEFAULT_SECTION = 'ครัว';
+  function cleanSection(s) { return String(s || '').replace(/[,.#$\[\]\/]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30); }
+  function sectionOf(z) { return cleanSection(z && z.section) || DEFAULT_SECTION; }
+  function sectionList(zones) {
+    var out = [];
+    (zones || []).forEach(function (z) { var x = sectionOf(z); if (out.indexOf(x) < 0) out.push(x); });
+    return out;
+  }
+  function staffSections(st) {
+    return String((st && st.sections) || '').split(',').map(cleanSection).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
+  }
+  // ที่เก็บที่คนนี้ต้องนับ
+  function scopeZones(zones, st) {
+    var mine = staffSections(st);
+    if (!mine.length) return zones;
+    return zones.filter(function (z) { return mine.indexOf(sectionOf(z)) >= 0; });
+  }
+  // ชื่อรอบส่ง: '' = ทั้งร้าน · ไม่งั้น = ชื่อแผนก (ใช้หัวข้อความถึงบอส + แยกสถานะ "ส่งแล้ว" ของแต่ละแผนก)
+  function scopeLabel(zones, st) {
+    var all = sectionList(zones), mine = staffSections(st);
+    if (!mine.length || all.every(function (x) { return mine.indexOf(x) >= 0; })) return '';
+    return mine.join(' + ');
+  }
+  function scopeKey(label) { return label ? 'S_' + label : 'ALL'; }
+
   // ---------- ของชิ้นเดียวเก็บหลายที่ ----------
   // ที่เก็บของรายการ: ที่หลัก (zone) + ที่เพิ่ม (more_zones) — นับแยกแต่ละที่แล้วรวม (เฉพาะรายการที่นับเป็นตัวเลข)
   function itemLocs(it) {
@@ -793,7 +857,7 @@ var Logic = (function () {
   // ข้อความ LINE ถึงบอส (ภาษาไทย) — สั้น อ่านจบในจอเดียวถ้าของไม่เยอะ
   function buildBossMessage(sum, zones, meta) {
     var L = [];
-    L.push('🛒 ของที่ต้องซื้อ — บ้านขาวต้ม' + (meta.resend ? ' (ฉบับแก้ไข)' : ''));
+    L.push('🛒 ของที่ต้องซื้อ — บ้านขาวต้ม' + (meta.section ? ' · ' + meta.section : '') + (meta.resend ? ' (ฉบับแก้ไข)' : ''));
     L.push(thaiDate(meta.date) + ' · ' + meta.by + ' ส่ง ' + bkkTime(meta.at));
     var helpers = sum.counters.filter(function (n) { return n !== meta.by; });
     if (helpers.length) L.push('ช่วยนับ: ' + helpers.join(', '));
@@ -819,14 +883,32 @@ var Logic = (function () {
         });
       });
     }
+    if (sum.prep.length) {
+      L.push('');
+      L.push('🔪 ครัวต้องทำเพิ่ม ' + sum.prep.length + ' รายการ (ทำให้ถึง Max)');
+      zones.forEach(function (z) {
+        var rows = sum.prep.filter(function (r) { return r.item.zone === z.id; });
+        if (!rows.length) return;
+        L.push(z.icon + ' ' + z.th);
+        rows.forEach(function (r) {
+          L.push('• ' + r.item.name_th + ' → ทำ ' + fmtNum(r.need) + ' ' + r.item.unit + ' (เหลือ ' + fmtNum(r.qty) + ' | Min ' + fmtNum(r.item.min) + ' | Max ' + fmtNum(r.item.max) + ')');
+        });
+      });
+    }
     if (sum.attention.length) {
       L.push('');
       L.push('⚠️ ยังไม่ตั้ง Min/Max แต่ใกล้หมด/หมด');
       sum.attention.forEach(function (r) { L.push('• ' + r.item.name_th + ' — ' + LEVEL_TH[r.level]); });
     }
     L.push('');
-    if (sum.prep.length) L.push('🔪 ครัวต้องทำเพิ่ม ' + sum.prep.length + ' รายการ (ทีมจัดการเอง)');
-    if (sum.uncounted.length) L.push('⏳ ยังไม่ได้นับ ' + sum.uncounted.length + ' รายการ');
+    if (sum.uncounted.length) {
+      var unPrep = sum.uncounted.filter(function (it) { return it.kind === 'prep'; }).length;
+      L.push('⏳ ยังไม่ได้นับ ' + sum.uncounted.length + ' รายการ' + (unPrep ? ' (ของตัดแต่ง/ทำเอง ' + unPrep + ' — รายการทำเพิ่มอาจไม่ครบ)' : ''));
+      zones.forEach(function (z) {
+        var names = sum.uncounted.filter(function (it) { return it.zone === z.id; }).map(function (it) { return it.name_th; });
+        if (names.length) L.push('   ' + z.icon + ' ' + z.th + ': ' + names.slice(0, 15).join(', ') + (names.length > 15 ? ' +อีก ' + (names.length - 15) : ''));
+      });
+    }
     if (meta.note) {
       L.push('📝 ' + meta.by + ': ' + (meta.note_th || meta.note));
       if (meta.note_th) L.push('   ↳ ต้นฉบับพม่า (แปลอัตโนมัติ): ' + meta.note);
@@ -1229,6 +1311,8 @@ var Logic = (function () {
     buildReceiveMessage: buildReceiveMessage, round2: round2,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
+    DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
+    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
@@ -1351,9 +1435,26 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function slotVal(it, z) { return S.draft.entries[L.slotKey(it, z)]; }
   function hereZone(it) { return S.screen === 'zone' && S.zone ? S.zone : it.zone; }
   function isMulti(it) { return L.itemLocs(it).length > 1; }
-  function summary() { return L.summarize(items(), ZONES, S.draft, { date: S.boot.date, fullCountDay: S.boot.fullCountDay }); }
+  function summary() { return L.summarize(items(), myZones(), S.draft, { date: S.boot.date, fullCountDay: S.boot.fullCountDay }); }
   function meStaff() { return S.boot && S.boot.staff.filter(function (s) { return s.name === S.me; })[0]; }
   function isLead() { var m = meStaff(); return !!m && m.role === 'lead'; }
+  // แผนก: คนนี้นับเฉพาะที่เก็บในแผนกของตัวเอง (ไม่ได้ระบุ = ทุกที่) · ส่งรายงานแยกแผนก
+  function myZones() { return L.scopeZones(ZONES, meStaff()); }
+  function myLabel() { return L.scopeLabel(ZONES, meStaff()); }
+  function multiSection() { return L.sectionList(ZONES).length > 1; }
+  function mySub() {
+    var d = S.draft || {}, k = L.scopeKey(myLabel());
+    return (d.subs && d.subs[k]) || (!d.subs ? d.submitted : null) || null;
+  }
+  function inMyZones(it) {
+    var ids = myZones().map(function (z) { return z.id; });
+    return L.itemLocs(it).some(function (z) { return ids.indexOf(z) >= 0; });
+  }
+  function roleText(st) {
+    if (!multiSection()) return bi1(st.role === 'lead' ? 'roleLead' : 'roleHelper');
+    var secs = L.staffSections(st);
+    return bi1(st.role === 'lead' ? 'roleLeadShort' : 'roleHelperShort') + ' · ' + esc(secs.length ? secs.join(', ') : 'ทุกแผนก');
+  }
 
   // ---------- Firebase: นับพร้อมกันหลายเครื่อง เห็นกันทันที (ถ้าบอสตั้งไว้ ไม่งั้นใช้ Apps Script แบบเดิม) ----------
   var FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
@@ -1373,7 +1474,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var base = 'bkt/' + b.fb.secret + '/drafts/' + b.date;
     if (S.fb && S.fb.base === base) return;
     fbStop();
-    var my = S.fb = { base: base, entries: {}, submitted: (b.draft && b.draft.submitted) || null, seed: (b.draft && b.draft.entries) || {} };
+    var my = S.fb = { base: base, entries: {}, submitted: (b.draft && b.draft.submitted) || null, subs: (b.draft && b.draft.subs) || null, seed: (b.draft && b.draft.entries) || {} };
     fbLoad().then(function () {
       if (S.fb !== my) return;
       var app = window.firebase.apps.filter(function (a) { return a.name === 'bkt'; })[0] || window.firebase.initializeApp(b.fb.config, 'bkt');
@@ -1383,6 +1484,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         var v = snap.val() || {};
         my.entries = v.e || {};
         if (v.submitted) my.submitted = v.submitted;
+        if (v.subs) my.subs = v.subs;
         if (!my.ready) { my.ready = true; fbSeed(my); }
         fbCompose();
         refreshLive();
@@ -1411,7 +1513,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var f = S.fb, ent = {};
     Object.keys(f.entries).forEach(function (k) { var e = f.entries[k]; if (e && !e.del) ent[k] = e; });
     Object.keys(S.pending).forEach(function (k) { var e = S.pending[k]; if (!e || e.del) delete ent[k]; else ent[k] = e; });
-    S.draft = { entries: ent, submitted: f.submitted || null };
+    S.draft = { entries: ent, submitted: f.submitted || null, subs: f.subs || null };
   }
   // ครั้งแรกที่เปิด Firebase ของวันนั้น: ผลนับที่เคยบันทึกในหลังบ้านแบบเดิม (ที่ Firebase ยังไม่มี) ยกขึ้นไปด้วย
   function fbSeed(f) {
@@ -1445,7 +1547,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     });
     S.draft = merged;
-    if (S.fb) { S.fb.submitted = merged.submitted || S.fb.submitted; if (fbOn()) fbCompose(); }
+    if (S.fb) { S.fb.submitted = merged.submitted || S.fb.submitted; S.fb.subs = merged.subs || S.fb.subs; if (fbOn()) fbCompose(); }
   }
 
   function setEntry(id, val) {
@@ -1761,20 +1863,21 @@ if (typeof module !== 'undefined') module.exports = Logic;
         staff.map(function (s) {
           return '<button class="card" data-act="pickMe" data-name="' + esc(s.name) + '">' +
             '<span class="av' + (s.role === 'lead' ? ' lead' : '') + '">' + esc((s.name.replace(/[^A-Za-z0-9ก-๙]/g, '') || s.name).slice(0, 2)) + '</span>' +
-            '<span><b>' + esc(s.name) + '</b><span class="muted">' + bi1(s.role === 'lead' ? 'roleLead' : 'roleHelper') + '</span></span></button>';
+            '<span><b>' + esc(s.name) + '</b><span class="muted">' + roleText(s) + '</span></span></button>';
         }).join('') + '</div>' + bossLink() + '</div>';
     },
 
     home: function () {
       var sum = summary(), b = S.boot;
-      var used = ZONES.filter(function (z) { return sum.zones[z.id].total > 0; });
+      var used = myZones().filter(function (z) { return sum.zones[z.id].total > 0; });
       var due = used.filter(function (z) { return sum.zones[z.id].due || sum.zones[z.id].started || sum.zones[z.id].todo; });
       var later = used.filter(function (z) { return due.indexOf(z) < 0; });
       var total = 0, counted = 0, below = 0;
       due.forEach(function (z) { total += sum.zones[z.id].total; counted += sum.zones[z.id].counted; below += sum.zones[z.id].below; });
       var pct = total ? Math.round(counted / total * 100) : 0;
-      var sub = S.draft.submitted;
-      var h = top({ th: tr('todayCount').th, mm: L.thaiDate(b.date), me: true }) + '<div class="wrap screen">';
+      var sub = mySub(), lbl = myLabel();
+      var h = top({ th: tr('todayCount').th + (lbl ? ' · ' + lbl : ''), mm: L.thaiDate(b.date), me: true }) + '<div class="wrap screen">';
+      if (!myZones().length) h += '<div class="note warn" style="margin-bottom:12px">' + bi1('noPlacesYet') + '</div>';
       if (sub) {
         h += '<div class="note ok" style="margin-bottom:12px">✅ ' + bi1('sent') + ' ' + esc(L.bkkTime(sub.at)) + ' (' + esc(sub.by) + ')<br><small>' + bi1('resendHint') + '</small></div>';
       }
@@ -1784,6 +1887,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         (below ? '<div class="meta" style="margin-top:6px"><span class="tag bad">▼ ' + below + ' ' + bi1('belowMin') + '</span></div>' : '') +
         '</div></div>';
       h += recvCard();
+      h += prepCard(sum);
       h += '<div class="search-box"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.homeQ || '') + '">' +
         '<div id="home-found">' + homeFound() + '</div></div>';
       h += '<div class="zones" style="margin-top:14px">' + due.map(function (z) { return zoneCard(z, sum, false); }).join('') + '</div>';
@@ -1793,7 +1897,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }
       h += bossLink() + '</div><div class="bottom"><div class="wrap">';
       if (isLead()) {
-        h += '<button class="btn btn-primary stack" data-act="toReview">' + biIcon(sub ? '🔁' : '📤', 'reviewSend') + '</button>';
+        h += '<button class="btn btn-primary stack" data-act="toReview"' + (myZones().length ? '' : ' disabled') + '>' + biIcon(sub ? '🔁' : '📤', 'reviewSend') + '</button>';
       } else {
         h += '<div class="note info center">👨‍🍳 ' + bi1('leadSends') + '</div>';
       }
@@ -1817,7 +1921,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     review: function () {
       var sum = summary();
-      var h = top({ th: tr('reviewSend').th, mm: tr('reviewSend').mm, back: 'toHome' }) + '<div class="wrap screen">';
+      var lbl = myLabel();
+      var h = top({ th: tr('reviewSend').th + (lbl ? ' · ' + lbl : ''), mm: tr('reviewSend').mm, back: 'toHome' }) + '<div class="wrap screen">';
       h += '<div class="section-h">🛒 ' + bi1('toBuy') + ' <span class="n">(' + sum.buy.length + ')</span></div>';
       h += sum.buy.length ? '<div class="card sum-list">' + groupRows(sum.buy, 'toBuy') + '</div>'
         : '<div class="note ok">✅ ' + bi1('nothingToBuy') + '</div>';
@@ -1843,6 +1948,37 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<textarea id="note" data-input="note" maxlength="500" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(S.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
       h += '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary stack" data-act="submit" id="btn-submit">' + biIcon('📤', 'sendToBoss') + '</button></div></div>';
       return h;
+    },
+
+    // ของตัดแต่ง/ทำเอง ที่ต่ำกว่า Min → ทำให้ถึง Max · ทำครบแล้วกดปุ่ม = อัปเดตยอดนับให้เลย · ยังไม่นับ = ไปนับก่อน
+    prep: function () {
+      var sum = summary(), unPrep = sum.uncounted.filter(function (it) { return it.kind === 'prep'; });
+      var h = top({ th: '🔪 ' + tr('prepToday').th, mm: tr('prepToday').mm, back: 'toHome' }) + '<div class="wrap screen">';
+      if (unPrep.length) {
+        h += '<div class="note warn">' + bi1('prepUncounted', { n: unPrep.length }) + '<div class="picks" style="margin-top:8px">' +
+          myZones().map(function (z) {
+            var n = unPrep.filter(function (it) { return L.itemLocs(it).indexOf(z.id) >= 0; }).length;
+            return n ? '<button data-act="openZoneTodo" data-z="' + esc(z.id) + '">' + esc(z.icon + ' ' + z.th) + ' · ' + n + '</button>' : '';
+          }).join('') + '</div></div>';
+      }
+      h += '<div class="section-h">🔪 ' + bi1('toMake') + ' <span class="n">(' + sum.prep.length + ')</span></div>';
+      if (!sum.prep.length) h += unPrep ? '<p class="muted">–</p>' : '<div class="note ok">✅ ' + bi1('nothingToMake') + '</div>';
+      else {
+        h += '<div class="card sum-list">';
+        myZones().forEach(function (z) {
+          var rs = sum.prep.filter(function (r) { return r.item.zone === z.id; });
+          if (!rs.length) return;
+          h += '<div class="zone-label">' + z.icon + ' ' + esc(z.th) + '</div>' + rs.map(function (r) {
+            var it = r.item, to = L.round2(r.qty + r.need);
+            return '<div class="sum-row prep-row"><div class="nm" data-act="kp" data-id="' + esc(it.id) + '"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
+              (function () { var x = tr('prepMakeTo', { n: L.fmtNum(r.need), u: it.unit, um: unitMm(it) || it.unit, t: L.fmtNum(to) });
+                return '<small class="muted">' + esc(tr('left').th) + ' ' + L.fmtNum(r.qty) + ' ' + esc(it.unit) + '<b class="mk">' + esc(x.th) + '</b></small><small class="mm">' + esc(x.mm) + '</small>'; })() + '</div>' +
+              (isMulti(it) ? '' : '<button class="full-btn" data-act="prepDone" data-id="' + esc(it.id) + '">✓ ' + esc(tr('prepDoneBtn').th) + ' <span class="mm">' + esc(tr('prepDoneBtn').mm) + '</span></button>') + '</div>';
+          }).join('');
+        });
+        h += '</div>';
+      }
+      return h + '</div>';
     },
 
     sent: function () {
@@ -1949,11 +2085,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function homeFound() {
     var q = S.homeQ || '';
     if (!normQ(q)) return '';
-    var hits = items().filter(function (it) { return matchItem(it, q); }).slice(0, 12);
+    var hits = items().filter(function (it) { return inMyZones(it) && matchItem(it, q); }).slice(0, 12);
     if (!hits.length) return '<p class="muted" style="margin:8px 4px 0">' + bi1('notFound', { q: q.trim() }) + '</p>';
     return '<p class="muted" style="margin:8px 4px 6px;font-size:13px">' + bi1('tapPlace') + '</p><div class="list">' + hits.map(function (it) {
       return '<div class="card found"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span></div><div class="tagbox">' +
-        L.itemLocs(it).map(function (z) {
+        L.itemLocs(it).filter(function (z) { return myZones().some(function (x) { return x.id === z; }); }).map(function (z) {
           var zz = zoneOf(z), e = slotVal(it, z), has = L.hasCount(e);
           return '<button class="tagc' + (has ? ' on' : '') + '" data-act="findGo" data-id="' + esc(it.id) + '" data-z="' + esc(z) + '">' + esc(zz.icon + ' ' + zz.th) +
             ' <small>' + (has ? (L.isNum(e.v) ? L.fmtNum(e.v) : esc(tr(e.lv === 'ok' ? 'enough' : e.lv).th)) : '–') + '</small></button>';
@@ -2170,6 +2306,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<span class="cnt">' + st.counted + '/' + st.total + '<small>' + esc(tr('items').th) + '</small></span></button>';
   }
 
+  function prepCard(sum) {
+    var unPrep = sum.uncounted.filter(function (it) { return it.kind === 'prep'; }).length;
+    var hasPrep = items().some(function (it) { return it.kind === 'prep' && inMyZones(it); });
+    if (!hasPrep) return '';
+    return '<button class="card prep-card" data-act="toPrep"><span class="ic">🔪</span><span class="tx"><b>' + esc(tr('prepToday').th) + '</b><span class="mm">' + esc(tr('prepToday').mm) + '</span>' +
+      '<span class="meta">' + (sum.prep.length ? '<span class="tag bad">' + bi1('prepCard', { n: sum.prep.length }) + '</span>' : unPrep ? '' : '<span class="tag ok">✓ ' + bi1('nothingToMake') + '</span>') +
+      (unPrep ? '<span class="tag warn">' + bi1('prepUncountedShort', { n: unPrep }) + '</span>' : '') + '</span></span><span class="go">›</span></button>';
+  }
+
   function needLabel(it) { return it.kind === 'prep' ? 'toMake' : 'toBuy'; }
 
   // หน่วยพม่า: ของรายการ (ถ้าเป็นอักษรพม่าจริง) ไม่งั้นจากตารางหน่วย — น้องต้องเห็นหน่วยภาษาตัวเองทุกที่ที่ใส่ตัวเลข กันนับผิดหน่วย
@@ -2323,7 +2468,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var e = slotVal(it, S.kp.z), cfg = L.isConfigured(it), multi = isMulti(it);
     var h = '<div class="sheet-bg" data-act="kpClose"></div><div class="sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : bi1('notSetUp')) + '</div>' +
-      (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') + '</div>' +
+      (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') +
+      (L.hasCount(e) ? '<button class="kp-clear" data-act="kpClear">🗑️ ' + bi1('clearCount') + '</button>' : '') + '</div>' +
       '<button class="iconbtn" data-act="kpClose" aria-label="ปิด">✕</button></div>';
     if (!cfg) {
       return h + '<div class="kp-lv">' + ['ok', 'low', 'out'].map(function (lv) {
@@ -2430,6 +2576,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     toggleUncounted: function () { S.onlyUncounted = !S.onlyUncounted; S.kp = null; render(); },
     toReview: function () { flush(); go('review'); },
+    toPrep: function () { flush(); go('prep'); },
+    openZoneTodo: function (el) { S.zone = el.dataset.z; S.onlyUncounted = true; S.zoneQ = ''; go('zone'); pollNow(); },
+    prepDone: function (el) {
+      var it = itemById(el.dataset.id), e = it && entry(it.id);
+      if (!it || isMulti(it) || !e || !L.isNum(e.v)) return it && openKp(it.id);
+      var need = L.needQty(it, e.v);
+      if (!(need > 0)) return;
+      var nv = L.round2(e.v + need);
+      setEntry(L.slotKey(it, it.zone), { v: nv });
+      buzz();
+      toast('✓ ' + it.name_th + ' — ' + tr('prepUpdated', { n: L.fmtNum(nv), u: it.unit, um: unitMm(it) || it.unit }).th);
+      rerenderKeepScroll();
+    },
     toUrgent: function () { S.urgent = { type: '', q: '', item: '', qty: '', note: '', photos: [], busy: false }; go('urgent'); },
 
     pinKey: function (el) {
@@ -2506,14 +2665,21 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     kpNext: function () {
       var id = S.kp.id;
-      if (S.kp.buf !== '') setEntry(kpKey(), { v: parseBuf(S.kp.buf) });
-      afterKp(id);
+      if (S.kp.buf === '') return afterKp(id);
+      kpCommit().then(function (ok) { if (ok) afterKp(id); });
+    },
+    kpClear: function () {
+      setEntry(kpKey(), null);
+      S.kp.buf = '';
+      buzz();
+      updateRow(S.kp.id); updateZoneHead();
+      rerenderKeepScroll();
     },
     kpOut: function () { setEntry(kpKey(), { v: 0 }); afterKp(S.kp.id); },
     kpLv: function (el) { setEntry(kpKey(), { lv: el.dataset.v }); afterKp(S.kp.id); },
     kpClose: function () {
-      if (S.kp && S.kp.buf !== '') setEntry(kpKey(), { v: parseBuf(S.kp.buf) });
-      S.kp = null; rerenderKeepScroll();
+      if (!S.kp || S.kp.buf === '') { S.kp = null; return rerenderKeepScroll(); }
+      kpCommit().then(function (ok) { if (ok) { S.kp = null; rerenderKeepScroll(); } });
     },
 
     submit: function () {
@@ -2653,6 +2819,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
   };
 
   function kpKey() { return L.slotKey(itemById(S.kp.id), S.kp.z); }
+
+  var BIG_X = 3; // เกิน Max กี่เท่าถึงถาม
+  function kpCheck(it, v) {
+    if (!it || !L.isConfigured(it) || !(it.max > 0) || !(v > it.max * BIG_X)) return Promise.resolve(true);
+    return confirmBox(bi1('bigNumber', { n: L.fmtNum(v), u: it.unit, um: unitMm(it) || it.unit, max: L.fmtNum(it.max) }), '',
+      [{ key: 'fix', html: bi('fixIt') }, { key: 'ok', html: bi('yesCorrect'), cls: 'btn-primary' }]).then(function (k) { return k === 'ok'; });
+  }
+  // บันทึกตัวเลขในแป้น (ผ่านการเช็คแล้ว) → then(true) · ถ้าให้แก้ใหม่ = ล้างแป้นรอพิมพ์ใหม่ → then(false)
+  function kpCommit() {
+    var kp = S.kp, it = itemById(kp.id), v = parseBuf(kp.buf), key = kpKey();
+    return kpCheck(it, v).then(function (ok) {
+      if (ok) { setEntry(key, { v: v }); return true; }
+      if (S.kp === kp) { kp.buf = ''; rerenderKeepScroll(); }
+      return false;
+    });
+  }
 
   function afterKp(id) {
     updateRow(id); updateZoneHead();
@@ -3283,12 +3465,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += poTab();
     } else if (A.tab === 'staff') {
       var st = A.staffDraft || (A.staffDraft = JSON.parse(JSON.stringify(d.staff)));
-      h += '<p class="sub">หัวหน้าครัว = คนกดส่งให้บอส (มีได้หลายคน) · ปิดชื่อคนที่ออกแล้ว ไม่ต้องลบ</p><div class="list">' +
+      var secs = staffSecChoices(st), noLead = secs.filter(function (x) {
+        return !st.some(function (s) { var m = L.staffSections(s); return s.active !== false && s.role === 'lead' && (!m.length || m.indexOf(x) >= 0); });
+      });
+      h += '<p class="sub">ตำแหน่ง: <b>หัวหน้า</b> = นับ + กดส่งรายงานให้บอส (มีได้หลายคน) · <b>ผู้ช่วย</b> = นับอย่างเดียว · ' +
+        '<b>แผนก</b> = เห็นและนับเฉพาะที่เก็บของแผนกนั้น ส่งรายงานแยกกัน (ไม่เลือก = ทุกแผนก) · ปิดชื่อคนที่ออกแล้ว ไม่ต้องลบ</p>' +
+        (noLead.length ? '<div class="note warn" style="margin-bottom:10px">แผนก ' + esc(noLead.join(', ')) + ' ยังไม่มีหัวหน้า — ไม่มีใครกดส่งรายงานได้</div>' : '') + '<div class="list">' +
         st.map(function (s, i) {
-          return '<div class="card staff-row"><input type="text" class="inp" style="height:46px" data-input="aStaffName" data-i="' + i + '" value="' + esc(s.name) + '">' +
-            '<select class="inp" style="height:46px" data-input="aStaffRole" data-i="' + i + '"><option value="lead"' + (s.role === 'lead' ? ' selected' : '') + '>หัวหน้าครัว</option><option value="helper"' + (s.role !== 'lead' ? ' selected' : '') + '>ผู้ช่วย</option></select>' +
-            '<label class="check" title="ใช้งาน"><input type="checkbox" data-input="aStaffActive" data-i="' + i + '"' + (s.active !== false ? ' checked' : '') + '></label></div>';
-        }).join('') + '</div><div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aStaffAdd">＋ เพิ่มคน</button><button class="btn btn-primary" data-act="aStaffSave">บันทึกทีม</button></div>';
+          var mine = L.staffSections(s);
+          return '<div class="card staff-row"><input type="text" class="inp" style="height:46px" data-input="aStaffName" data-i="' + i + '" value="' + esc(s.name) + '" placeholder="ชื่อ">' +
+            '<select class="inp" style="height:46px" data-input="aStaffRole" data-i="' + i + '"><option value="lead"' + (s.role === 'lead' ? ' selected' : '') + '>หัวหน้า (ส่งรายงาน)</option><option value="helper"' + (s.role !== 'lead' ? ' selected' : '') + '>ผู้ช่วยนับ</option></select>' +
+            '<label class="check" title="ใช้งาน"><input type="checkbox" data-input="aStaffActive" data-i="' + i + '"' + (s.active !== false ? ' checked' : '') + '></label>' +
+            '<div class="sec-pick"><span class="muted">แผนก:</span><button class="' + (mine.length ? '' : 'on') + '" data-act="aStaffSec" data-i="' + i + '" data-v="">ทุกแผนก</button>' +
+            secs.map(function (x) { return '<button class="' + (mine.indexOf(x) >= 0 ? 'on' : '') + '" data-act="aStaffSec" data-i="' + i + '" data-v="' + esc(x) + '">' + esc(x) + (L.sectionList(ZONES).indexOf(x) < 0 ? ' <small>(ยังไม่มีที่เก็บ)</small>' : '') + '</button>'; }).join('') +
+            '<button data-act="aStaffSecNew" data-i="' + i + '">＋ แผนกใหม่</button></div></div>';
+        }).join('') + '</div><div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aStaffAdd">＋ เพิ่มคน</button><button class="btn btn-primary" data-act="aStaffSave">บันทึกทีม</button></div>' +
+        '<p class="muted" style="font-size:13px;margin-top:10px">แผนกใหม่ (เช่น หน้าร้าน) → เพิ่มที่เก็บของแผนกนั้นที่ 📋 รายการของ → 🗂️ จัดการที่เก็บ แล้วใส่ชื่อแผนกให้ตรงกัน</p>';
     } else if (A.tab === 'history') {
       h += reportsSection();
       h += '<div class="section-h">📦 รับของ (30 ครั้งล่าสุด)</div>' + ((d.receipts || []).length ? '<div class="list">' + d.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
@@ -3393,6 +3585,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function zonesScreen() {
     var Z = S.admin.zoneDraft, counts = {};
+    var manySec = Z.map(function (z) { return z.section || L.DEFAULT_SECTION; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).length > 1;
     S.admin.data.items.forEach(function (it) {
       L.itemLocs(it).forEach(function (z) {
         var c = counts[z] = counts[z] || { buy: 0, prep: 0 };
@@ -3403,7 +3596,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<p class="sub">ที่เก็บ = ตู้/ชั้นจริง (เช่น ตู้เย็น 1, ตู้ฟรีซ 2) ทีมนับทีละที่ · ลำดับ = ลำดับที่ทีมเดินนับ · ติดแท็กที่เก็บให้รายการได้ที่หน้าแก้รายการ</p><div class="list">' +
       Z.map(function (z, i) {
         return '<div class="card zrow"><button class="zmain" data-act="zoneEdit" data-i="' + i + '"><span class="zic">' + esc(z.icon) + '</span><span class="nm"><b>' + esc(z.th || '(ยังไม่มีชื่อ)') + '</b>' +
-          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.weekly ? 'นับสัปดาห์ละครั้ง · ' : '') + '🛒 ยังไม่ตัดแต่ง ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ตัดแต่งแล้ว ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
+          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (manySec ? '👥 ' + esc(z.section || L.DEFAULT_SECTION) + ' · ' : '') + (z.weekly ? 'นับสัปดาห์ละครั้ง · ' : '') + '🛒 ยังไม่ตัดแต่ง ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ตัดแต่งแล้ว ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
           '<span class="zmv"><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="-1" aria-label="ขึ้น">↑</button><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="1" aria-label="ลง">↓</button></span></div>';
       }).join('') + '</div>' +
       '<button class="btn btn-ghost" style="margin-top:12px" data-act="zoneAdd">＋ เพิ่มที่เก็บใหม่</button>' +
@@ -3420,6 +3613,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div><label>ชื่อที่เก็บ (ไทย)</label><input type="text" id="z-th" value="' + esc(z.th) + '" placeholder="เช่น ตู้เย็น 1 (ซ้ายมือ)" maxlength="40"></div>' +
       '<div><label>ชื่อที่เก็บ (พม่า)</label><input type="text" id="z-mm" class="mm" value="' + esc(z.mm) + '" placeholder="ว่าง = แปลให้อัตโนมัติตอนบันทึก" maxlength="60">' +
       (z.th !== z.th0 && z.mm && z.mm === z.mm0 ? '<small class="muted">เปลี่ยนชื่อไทยแล้ว — ลบชื่อพม่าออกถ้าอยากให้แปลใหม่</small>' : '') + '</div>' +
+      '<div><label>แผนก (ใครนับ/ส่งรายงานที่นี่)</label><input type="text" id="z-sec" list="z-sec-list" value="' + esc(z.section || L.DEFAULT_SECTION) + '" maxlength="30" placeholder="ครัว">' +
+      '<datalist id="z-sec-list">' + staffSecChoices(A.data.staff).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
+      '<small class="muted">พิมพ์ชื่อใหม่ = สร้างแผนกใหม่ (เช่น หน้าร้าน) · พนักงานที่ตั้งแผนกนี้จะเห็นที่เก็บนี้</small></div>' +
       '<button class="btn btn-primary" data-act="zoneDone">ตกลง</button>' +
       (A.zoneDraft.length > 1 ? (n ? '<p class="muted center" style="margin:0;font-size:13.5px">ลบที่เก็บนี้ไม่ได้ ยังมี ' + n + ' รายการที่อยู่ที่นี่ที่เดียว — ย้ายไปที่อื่นก่อน (รายการของ → 🏷️ ติดแท็กหลายรายการ)</p>'
         : '<button class="btn btn-danger" data-act="zoneDel">🗑️ ลบที่เก็บนี้</button>') : '') +
@@ -3427,10 +3623,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
+  // แผนกทั้งหมด = จากที่เก็บ + ที่ตั้งให้พนักงานไว้ก่อน (ยังไม่มีที่เก็บ)
+  function staffSecChoices(st) {
+    var out = L.sectionList(ZONES);
+    (st || []).forEach(function (s) { L.staffSections(s).forEach(function (x) { if (out.indexOf(x) < 0) out.push(x); }); });
+    return out;
+  }
+
   function zoneForm() {
-    var z = S.admin.zoneDraft[S.admin.zoneIdx], th = document.getElementById('z-th'), mm = document.getElementById('z-mm');
+    var z = S.admin.zoneDraft[S.admin.zoneIdx], th = document.getElementById('z-th'), mm = document.getElementById('z-mm'), sec = document.getElementById('z-sec');
     if (th) z.th = th.value.trim();
     if (mm) z.mm = mm.value.trim();
+    if (sec) z.section = L.cleanSection(sec.value) || L.DEFAULT_SECTION;
   }
 
   function itemTags(it) {
@@ -3462,6 +3666,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (m !== month) { month = m; head = '<div class="rep-month">' + esc(m) + '</div>'; }
       return head + '<button class="card rep-card" data-act="repOpen" data-v="' + esc(r.date) + '">' +
         '<div class="dr-top"><b>' + esc(L.thaiDate(r.date)) + '</b><span class="muted" style="font-size:13px">' + esc(L.bkkTime(r.at)) + ' · ' + esc(r.by) + (r.sends > 1 ? ' · ส่ง ' + r.sends + ' ครั้ง' : '') + '</span></div>' +
+        ((r.sections || []).length ? '<small class="muted" style="display:block">👥 ' + esc(r.sections.join(', ')) + '</small>' : '') +
         '<div class="tagline">' + '<i class="tg">✏️ นับ ' + r.counted + '</i>' +
         (r.buy ? '<i class="tg k" style="background:var(--bad-soft);color:var(--bad)">🛒 ซื้อ ' + r.buy + '</i>' : '<i class="tg k">🛒 ไม่ต้องซื้อ</i>') +
         (r.prep ? '<i class="tg k prep">🔪 ทำเพิ่ม ' + r.prep + '</i>' : '') +
@@ -3493,7 +3698,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div id="rep-body">' + reportDayBody() + '</div>';
     if (D.sends.length) {
       h += '<div class="section-h">💬 ข้อความที่ส่ง LINE</div><div class="list">' + D.sends.map(function (x, i) {
-        return '<details class="card hist"' + (i === 0 ? ' open' : '') + '><summary><span>' + esc(L.bkkTime(x.at)) + ' · ' + esc(x.by) + (i === 0 ? ' (ล่าสุด)' : '') + '</span>' + statusLabel(x.status) + '</summary><pre>' + esc(x.message) + '</pre>' +
+        return '<details class="card hist"' + (i === 0 ? ' open' : '') + '><summary><span>' + esc(L.bkkTime(x.at)) + ' · ' + esc(x.by) + (x.section ? ' · 👥 ' + esc(x.section) : '') + (i === 0 ? ' (ล่าสุด)' : '') + '</span>' + statusLabel(x.status) + '</summary><pre>' + esc(x.message) + '</pre>' +
           '<button class="mini-link" data-act="repCopy" data-i="' + i + '">📋 คัดลอกข้อความ</button></details>';
       }).join('') + '</div>';
     }
@@ -4099,7 +4304,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }, function (e) { el.disabled = false; el.textContent = '＋ ที่ใหม่'; toast(errMsg(e)); });
     },
     zonesOpen: function () {
-      S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, th0: z.th, mm0: z.mm }; });
+      S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, section: L.sectionOf(z), th0: z.th, mm0: z.mm }; });
       S.admin.zoneDirty = false; S.admin.zoneSaving = false;
       go('azones');
     },
@@ -4116,7 +4321,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
     },
     zoneAdd: function () {
-      S.admin.zoneDraft.push({ id: '', icon: '📦', th: '', mm: '', kind: 'buy', weekly: false, isNew: true, th0: '', mm0: '' });
+      var lastSec = S.admin.zoneDraft.length ? S.admin.zoneDraft[S.admin.zoneDraft.length - 1].section : L.DEFAULT_SECTION;
+      S.admin.zoneDraft.push({ id: '', icon: '📦', th: '', mm: '', kind: 'buy', weekly: false, section: lastSec || L.DEFAULT_SECTION, isNew: true, th0: '', mm0: '' });
       S.admin.zoneIdx = S.admin.zoneDraft.length - 1;
       go('azedit');
     },
@@ -4147,7 +4353,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     zonesSave: function () {
       var A = S.admin;
       A.zoneSaving = true; rerenderKeepScroll();
-      api('apiAdminSaveZones', A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })).then(function (r) {
+      api('apiAdminSaveZones', A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly, section: z.section || '' }; })).then(function (r) {
         useZones(r.zones);
         A.data.items = r.items;
         if (S.boot) { S.boot.zones = r.zones; S.boot.items = r.items.filter(function (i) { return i.active !== false; }); }
@@ -4418,7 +4624,23 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aForget: function () { store.del('apin'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
-    aStaffAdd: function () { S.admin.staffDraft.push({ name: '', role: 'helper', active: true }); rerenderKeepScroll(); },
+    aStaffAdd: function () { S.admin.staffDraft.push({ name: '', role: 'helper', active: true, sections: '' }); rerenderKeepScroll(); },
+    aStaffSec: function (el) {
+      var s = S.admin.staffDraft[+el.dataset.i], v = el.dataset.v, mine = L.staffSections(s);
+      if (!v) mine = [];
+      else if (mine.indexOf(v) >= 0) mine.splice(mine.indexOf(v), 1);
+      else mine.push(v);
+      s.sections = mine.join(',');
+      rerenderKeepScroll();
+    },
+    aStaffSecNew: function (el) {
+      var name = L.cleanSection(window.prompt('ชื่อแผนกใหม่ (เช่น หน้าร้าน, บาร์)') || '');
+      if (!name) return;
+      var s = S.admin.staffDraft[+el.dataset.i], mine = L.staffSections(s);
+      if (mine.indexOf(name) < 0) mine.push(name);
+      s.sections = mine.join(',');
+      rerenderKeepScroll();
+    },
     aStaffSave: function (el) {
       el.disabled = true;
       api('apiAdminSaveStaff', S.admin.pin, S.admin.staffDraft).then(function (rows) {
