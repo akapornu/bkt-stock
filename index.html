@@ -580,6 +580,9 @@ var ZONES = [
   { id: 'dry',          icon: '📦', th: 'ของแห้ง',              mm: 'အခြောက်ပစ္စည်း',               kind: 'buy',  weekly: true }
 ];
 
+// ค่าตั้งต้นที่หลังบ้านใช้สร้างชีตหมวด — หน้าแอพเปลี่ยน ZONES เป็นของจริงจากหลังบ้าน (ตัวนี้ไม่เปลี่ยน)
+var DEFAULT_ZONES = ZONES;
+
 // หน่วยไทย → พม่า (หน้าตั้งค่าของบอสเติมให้อัตโนมัติ) — ပက်/ခိတ်/ဖရီဇာ รอ MON ยืนยันว่าในครัวเรียกแบบนี้
 // กล่อง = ဗူး (ဗ) ไม่ใช่ ဘူး (ဘ = "ไม่") — บรรณาธิการพม่าแก้ 9 ต.ค. 69 · หน่วยแถวท้าย (ลิตร…โหล) เพิ่ม 9 ต.ค. 69: ให้ MON ยืนยัน แผง/มล./ลัง
 var UNITS = {
@@ -2923,13 +2926,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h + '</div>';
   }
 
-  // ที่เก็บจริงของร้าน (บอสกำหนด 9 ต.ค. 69) — เรียงตามทางเดินนับ · ชื่อพม่า: ရေခဲသေတ္တာ = ตู้เย็น, ဖရီဇာ = ตู้ฟรีซ (รอ MON ยืนยัน)
+  // ที่เก็บจริงของร้าน (บอสกำหนด 9 ต.ค. 69) — เรียงตามทางเดินนับ · ทุกตู้นับทุกวัน (บอสตัดรอบนับรายสัปดาห์ออก) · ชื่อพม่า: ရေခဲသေတ္တာ = ตู้เย็น, ဖရီဇာ = ตู้ฟรีซ (รอ MON ยืนยัน)
   var SHOP_PLACES = [
     { th: 'CHILL-1', mm: 'ရေခဲသေတ္တာ 1', icon: '🧊', weekly: false },
     { th: 'FREEZER-1', mm: 'ဖရီဇာ 1', icon: '❄️', weekly: false },
     { th: 'CHILL-2', mm: 'ရေခဲသေတ္တာ 2', icon: '🧊', weekly: false },
     { th: 'FREEZER-2', mm: 'ဖရီဇာ 2', icon: '❄️', weekly: false },
-    { th: 'ของแห้ง', mm: 'အခြောက်ပစ္စည်း', icon: '📦', weekly: true }
+    { th: 'ของแห้ง', mm: 'အခြောက်ပစ္စည်း', icon: '📦', weekly: false }
   ];
   function shopZoneIds() {
     return SHOP_PLACES.map(function (p) { var z = ZONES.filter(function (x) { return x.th === p.th; })[0]; return z ? z.id : null; }).filter(Boolean);
@@ -2940,15 +2943,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function shopPlacesCard() {
     var A = S.admin, missing = SHOP_PLACES.filter(function (p) { return !ZONES.some(function (z) { return z.th === p.th; }); });
     if (missing.length) {
-      var W = A.placeWeekly || (A.placeWeekly = {});
       return '<div class="card form" style="padding:16px;margin-bottom:12px"><b>📍 ตั้งที่เก็บของร้าน (นับตามตู้จริง)</b>' +
-        '<p class="muted" style="margin:0;font-size:14px">จะสร้าง ' + missing.map(function (p) { return esc(p.th); }).join(', ') + ' เรียงตามลำดับเดินนับ แล้วพาไปหน้าจัดของเข้าแต่ละตู้ · ระหว่างจัด น้องยังนับแบบเดิมได้</p>' +
-        missing.map(function (p) {
-          var wk = W[p.th] !== undefined ? W[p.th] : p.weekly;
-          return '<div class="pl-row"><span>' + esc(p.icon + ' ' + p.th) + ' <small class="mm muted">' + esc(p.mm) + '</small></span>' +
-            '<button class="tagc' + (wk ? '' : ' on') + '" data-act="plWeekly" data-th="' + esc(p.th) + '" data-v="0">นับทุกวัน</button>' +
-            '<button class="tagc' + (wk ? ' on' : '') + '" data-act="plWeekly" data-th="' + esc(p.th) + '" data-v="1">สัปดาห์ละครั้ง</button></div>';
-        }).join('') +
+        '<p class="muted" style="margin:0;font-size:14px">จะสร้าง ' + missing.map(function (p) { return esc(p.icon + ' ' + p.th); }).join(' · ') + ' เรียงตามลำดับเดินนับ (ทุกตู้นับทุกวัน) แล้วพาไปหน้าจัดของเข้าแต่ละตู้ · ระหว่างจัด น้องยังนับแบบเดิมได้</p>' +
         '<button class="btn btn-primary" data-act="plCreate">สร้างที่เก็บ ' + missing.length + ' ที่</button></div>';
     }
     var left = A.data.items.filter(function (it) { return it.active !== false && !inShop(it); }).length;
@@ -3017,7 +3013,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<p class="sub">ที่เก็บ = ตู้/ชั้นจริง (เช่น ตู้เย็น 1, ตู้ฟรีซ 2) ทีมนับทีละที่ · ลำดับ = ลำดับที่ทีมเดินนับ · ติดแท็กที่เก็บให้รายการได้ที่หน้าแก้รายการ</p><div class="list">' +
       Z.map(function (z, i) {
         return '<div class="card zrow"><button class="zmain" data-act="zoneEdit" data-i="' + i + '"><span class="zic">' + esc(z.icon) + '</span><span class="nm"><b>' + esc(z.th || '(ยังไม่มีชื่อ)') + '</b>' +
-          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.weekly ? 'นับสัปดาห์ละครั้ง' : 'นับทุกวัน') + ' · 🛒 ยังไม่ตัดแต่ง ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ตัดแต่งแล้ว ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
+          '<small class="mm">' + esc(z.mm || '') + '</small><small class="muted">' + (z.weekly ? 'นับสัปดาห์ละครั้ง · ' : '') + '🛒 ยังไม่ตัดแต่ง ' + ((counts[z.id] || {}).buy || 0) + ' · 🔪 ตัดแต่งแล้ว ' + ((counts[z.id] || {}).prep || 0) + '</small></span></button>' +
           '<span class="zmv"><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="-1" aria-label="ขึ้น">↑</button><button class="mv" data-act="zoneMove" data-i="' + i + '" data-v="1" aria-label="ลง">↓</button></span></div>';
       }).join('') + '</div>' +
       '<button class="btn btn-ghost" style="margin-top:12px" data-act="zoneAdd">＋ เพิ่มที่เก็บใหม่</button>' +
@@ -3026,7 +3022,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function zoneEditScreen() {
-    var A = S.admin, z = A.zoneDraft[A.zoneIdx], n = A.data.items.filter(function (it) { return it.zone === z.id; }).length;
+    var A = S.admin, z = A.zoneDraft[A.zoneIdx], n = A.data.items.filter(function (it) { var l = L.itemLocs(it); return l.length === 1 && l[0] === z.id; }).length;
     var h = top({ th: z.isNew ? 'เพิ่มที่เก็บใหม่' : 'แก้ที่เก็บ', back: 'zoneEditBack', net: false }) + '<div class="wrap screen"><div class="card form" style="padding:16px">' +
       '<div><label>ไอคอน</label><div class="icon-pick">' + ZONE_ICONS.map(function (ic) {
         return '<button class="' + (z.icon === ic ? 'on' : '') + '" data-act="zoneIcon" data-v="' + ic + '">' + ic + '</button>';
@@ -3034,12 +3030,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div><label>ชื่อที่เก็บ (ไทย)</label><input type="text" id="z-th" value="' + esc(z.th) + '" placeholder="เช่น ตู้เย็น 1 (ซ้ายมือ)" maxlength="40"></div>' +
       '<div><label>ชื่อที่เก็บ (พม่า)</label><input type="text" id="z-mm" class="mm" value="' + esc(z.mm) + '" placeholder="ว่าง = แปลให้อัตโนมัติตอนบันทึก" maxlength="60">' +
       (z.th !== z.th0 && z.mm && z.mm === z.mm0 ? '<small class="muted">เปลี่ยนชื่อไทยแล้ว — ลบชื่อพม่าออกถ้าอยากให้แปลใหม่</small>' : '') + '</div>' +
-      '<div><label>รอบนับ</label><div class="seg">' +
-      '<button class="' + (z.weekly ? '' : 'on') + '" data-act="zoneWeekly" data-v="0">นับทุกวัน</button>' +
-      '<button class="' + (z.weekly ? 'on' : '') + '" data-act="zoneWeekly" data-v="1">สัปดาห์ละครั้ง<br><small>วันนับเต็มรอบ</small></button></div></div>' +
       '<button class="btn btn-primary" data-act="zoneDone">ตกลง</button>' +
-      (A.zoneDraft.length > 1 ? (n ? '<p class="muted center" style="margin:0;font-size:13.5px">ลบหมวดนี้ไม่ได้ ยังมี ' + n + ' รายการ — ย้ายไปหมวดอื่นก่อน (รายการของ → ☑️ ย้ายหลายรายการ)</p>'
-        : '<button class="btn btn-danger" data-act="zoneDel">🗑️ ลบหมวดนี้</button>') : '') +
+      (A.zoneDraft.length > 1 ? (n ? '<p class="muted center" style="margin:0;font-size:13.5px">ลบที่เก็บนี้ไม่ได้ ยังมี ' + n + ' รายการที่อยู่ที่นี่ที่เดียว — ย้ายไปที่อื่นก่อน (รายการของ → 🏷️ ติดแท็กหลายรายการ)</p>'
+        : '<button class="btn btn-danger" data-act="zoneDel">🗑️ ลบที่เก็บนี้</button>') : '') +
       '<p class="muted" style="margin:0;font-size:13px">กด "ตกลง" แล้วอย่าลืมกด "💾 บันทึกหมวด" ในหน้าก่อนหน้า</p></div></div>';
     return h;
   }
@@ -3091,8 +3084,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="two"><div><label>รหัสร้านใหม่ (4)</label><input type="tel" id="s-spin" maxlength="4" inputmode="numeric"></div>' +
       '<div><label>รหัสบอสใหม่ (6)</label><input type="tel" id="s-apin" maxlength="6" inputmode="numeric"></div></div>' +
       '<p class="muted" style="margin:0;font-size:14px">ว่างไว้ = ไม่เปลี่ยน · เปลี่ยนรหัสร้านแล้ว ทุกเครื่องต้องใส่รหัสใหม่</p>' +
-      '<div><label>วันนับเต็มรอบ (ตู้ฟรีซของดิบ + ของแห้ง)</label><select id="s-day">' +
-      days.map(function (n, i) { return '<option value="' + i + '"' + (s.fullCountDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' +
+      (ZONES.some(function (z) { return z.weekly; }) ? '<div><label>วันนับเต็มรอบ (ที่เก็บที่นับสัปดาห์ละครั้ง: ' + esc(ZONES.filter(function (z) { return z.weekly; }).map(function (z) { return z.th; }).join(', ')) + ')</label><select id="s-day">' +
+      days.map(function (n, i) { return '<option value="' + i + '"' + (s.fullCountDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' : '') +
       '<button class="btn btn-primary" data-act="aSaveCodes">บันทึก</button>' +
       (store.get('apin') ? '<button class="btn btn-ghost" data-act="aForget">ลืมรหัสบอสในเครื่องนี้</button>' : '') + '</div>' +
       clearSettings() +
@@ -3456,17 +3449,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aZone: function (el) { leaveReorder(function () { S.admin.zone = el.dataset.v; S.admin.move = null; rerenderKeepScroll(); }); },
-    plWeekly: function (el) {
-      S.admin.placeWeekly = S.admin.placeWeekly || {};
-      S.admin.placeWeekly[el.dataset.th] = el.dataset.v === '1';
-      rerenderKeepScroll();
-    },
     plCreate: function (el) {
-      var A = S.admin, W = A.placeWeekly || {};
+      var A = S.admin;
       var cur = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; });
       var shop = SHOP_PLACES.map(function (p) {
         var ex = cur.filter(function (z) { return z.th === p.th; })[0];
-        return ex || { icon: p.icon, th: p.th, mm: p.mm, kind: 'buy', weekly: W[p.th] !== undefined ? W[p.th] : p.weekly };
+        if (ex) { ex.weekly = false; return ex; }
+        return { icon: p.icon, th: p.th, mm: p.mm, kind: 'buy', weekly: false };
       });
       var rest = cur.filter(function (z) { return !SHOP_PLACES.some(function (p) { return p.th === z.th; }); });
       el.disabled = true; el.textContent = 'กำลังสร้าง…';
@@ -3561,7 +3550,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         if (nz) S.admin.edit._places.push(nz.id);
         var box = document.getElementById('e-places');
         if (box) box.innerHTML = placeTags(S.admin.edit);
-        toast('เพิ่ม "' + name + '" แล้ว — แก้ไอคอน/รอบนับได้ที่ 🗂️ จัดการที่เก็บ');
+        toast('เพิ่ม "' + name + '" แล้ว — แก้ชื่อ/ไอคอนได้ที่ 🗂️ จัดการที่เก็บ');
       }, function (e) { el.disabled = false; el.textContent = '＋ ที่ใหม่'; toast(errMsg(e)); });
     },
     zonesOpen: function () {
@@ -3588,7 +3577,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     zoneEdit: function (el) { S.admin.zoneIdx = +el.dataset.i; go('azedit'); },
     zoneIcon: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].icon = el.dataset.v; rerenderKeepScroll(); },
-    zoneWeekly: function (el) { zoneForm(); S.admin.zoneDraft[S.admin.zoneIdx].weekly = el.dataset.v === '1'; rerenderKeepScroll(); },
     zoneEditBack: function () {
       var z = S.admin.zoneDraft[S.admin.zoneIdx];
       if (z.isNew && !z.th) S.admin.zoneDraft.splice(S.admin.zoneIdx, 1);
@@ -3895,7 +3883,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var g = function (id) { return document.getElementById(id).value.trim(); };
       var newAdmin = g('s-apin');
       el.disabled = true;
-      api('apiAdminSaveSettings', S.admin.pin, { STAFF_PIN: g('s-spin'), ADMIN_PIN: newAdmin, FULL_COUNT_DAY: g('s-day') }).then(function (st) {
+      var day = document.getElementById('s-day');
+      api('apiAdminSaveSettings', S.admin.pin, { STAFF_PIN: g('s-spin'), ADMIN_PIN: newAdmin, FULL_COUNT_DAY: day ? day.value : '' }).then(function (st) {
         if (newAdmin) S.admin.pin = newAdmin;
         if (S.boot) S.boot.fullCountDay = st.fullCountDay;
         S.admin.data.settings = st; toast('บันทึกแล้ว ✓'); rerenderKeepScroll();
