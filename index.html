@@ -1512,6 +1512,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
         refreshLive();
       };
       my.ref.on('value', my.onValue);
+      // รายการของ/ทีม/ใบสั่ง/ใบรับล่าสุด — อ่านจาก Firebase ตรง (บอสแก้ปุ๊บ เครื่องน้องเห็นปั๊บ ไม่ต้องรอ Apps Script)
+      my.pubRef = my.db.ref('bkt/' + b.fb.secret + '/pub');
+      my.onPub = {};
+      ['boot', 'pos', 'recv'].forEach(function (k) {
+        my.onPub[k] = function (snap) { if (S.fb === my) pubApply(k, snap.val()); };
+        my.pubRef.child(k).on('value', my.onPub[k]);
+      });
       my.connRef = my.db.ref('.info/connected');
       my.onConn = function (snap) {
         my.connected = !!snap.val();
@@ -1526,10 +1533,56 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var f = S.fb;
     if (!f) return;
     if (f.ref) f.ref.off('value', f.onValue);
+    if (f.pubRef) Object.keys(f.onPub || {}).forEach(function (k) { f.pubRef.child(k).off('value', f.onPub[k]); });
     if (f.connRef) f.connRef.off('value', f.onConn);
     S.fb = null;
   }
   function fbOn() { return !!(S.fb && S.fb.ref); }
+
+  // สำเนาบน Firebase ใหม่กว่าที่เครื่องมี → ใช้เลย (เทียบเวลาที่หลังบ้านเขียน กับเวลาของ apiBootstrap ล่าสุด)
+  function pubApply(k, v) {
+    if (!S.boot) return;
+    if (!v || !v.json) {
+      if (k === 'boot' && !S.pubAsked) { S.pubAsked = true; api('apiPubInit', S.pin).then(null, function () { /* ไว้รอบหน้า */ }); }
+      return;
+    }
+    // เวอร์ชันแยกแต่ละส่วน: ใช้เมื่อใหม่กว่าทั้งที่เคยใช้ และใหม่กว่าเวลาที่ apiBootstrap ตอบ
+    var ver = S.boot.pubV || (S.boot.pubV = {});
+    if ((ver[k] && v.v <= ver[k]) || (k !== 'recv' && S.boot.bootV && v.v <= S.boot.bootV)) { S.pubLive = true; return; }
+    var d;
+    try { d = JSON.parse(v.json); } catch (e) { return; }
+    ver[k] = v.v;
+    if (k === 'boot') {
+      BOOT_FIELDS.forEach(function (f) { if (d[f] !== undefined) S.boot[f] = d[f]; });
+      useZones(d.zones);
+    } else if (k === 'pos') {
+      S.boot.pos = d; S.recvList = d;
+    } else {
+      var days = [L.businessDate(), L.businessDate(new Date(Date.now() - 864e5))];
+      S.recvRecent = d.filter(function (rc) { return days.indexOf(L.businessDate(new Date(rc.at))) >= 0; });
+    }
+    S.pubLive = true;
+    store.set('boot', { at: Date.now(), b: S.boot });
+    pubRerender();
+  }
+  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai'];
+  // apiBootstrap ตอบช้ากว่าสำเนาบน Firebase ที่เพิ่งเปลี่ยน → เก็บส่วนที่ใหม่กว่าไว้
+  function keepNewerPub(b) {
+    var o = S.boot, pv = o && o.pubV;
+    if (!pv || !b.bootV) return;
+    if (pv.boot && pv.boot > b.bootV) BOOT_FIELDS.forEach(function (f) { b[f] = o[f]; });
+    if (pv.pos && pv.pos > b.bootV) b.pos = o.pos;
+    b.pubV = pv;
+  }
+  // วาดใหม่เฉพาะหน้าที่เป็นรายการ และไม่ขัดตอนน้องกำลังพิมพ์/กดแป้น
+  function pubRerender() {
+    var a = document.activeElement;
+    if (S.kp || (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) return;
+    if (['home', 'who', 'recv', 'zone', 'review', 'prep'].indexOf(S.screen) >= 0) {
+      if (S.screen === 'recv') S.recvLoading = false;
+      rerenderKeepScroll();
+    }
+  }
   // ผลนับในเครื่อง = Firebase + ที่ยังส่งไม่ขึ้น (pending) ทับ
   function fbCompose() {
     var f = S.fb, ent = {};
@@ -1714,6 +1767,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function boot(pin, keepScreen) {
     return api('apiBootstrap', pin).then(function (b) {
+      keepNewerPub(b);
       if (S.boot && S.boot.date !== b.date) { S.note = ''; S.result = null; }
       S.boot = b; S.bootAt = Date.now(); S.pin = pin; S.publicUrl = b.publicUrl || '';
       useZones(b.zones);
@@ -2351,6 +2405,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function refreshRecvList() {
+    if (S.pubLive && S.boot) { S.recvList = S.boot.pos || []; S.recvLoading = false; if (S.screen === 'recv') rerenderKeepScroll(); return; }
     S.recvLoading = true;
     if (S.screen === 'recv') rerenderKeepScroll();
     var recent = api('apiRecvRecent', S.pin).then(function (list) { S.recvRecent = list; }, function () { /* รุ่นหลังบ้านเก่า/เน็ตหลุด: ไม่แสดง */ });
@@ -3075,13 +3130,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminCacheSave() {
     var A = S.admin;
     if (!A || !store.get('apin')) return;
-    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings }, dash: A.dash || null });
+    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings }, dash: A.dash || null,
+      po: A.po || null, rep: A.rep && A.rep.list && A.rep.list.length ? { list: A.rep.list.slice(0, 40), more: A.rep.more } : null });
   }
   function adminFromCache(ap) {
     var c = store.get('adminCache');
     if (!c || !c.d || !c.d.items || Date.now() - (c.at || 0) > 3 * 86400000) return false;
     useZones(c.d.zones);
-    S.admin = { pin: ap, data: c.d, tab: 'dash', zone: ZONES[0].id, edit: null, staffDraft: null, lineMsg: '', dash: c.dash || null, stale: true };
+    S.admin = { pin: ap, data: c.d, tab: 'dash', zone: ZONES[0].id, edit: null, staffDraft: null, lineMsg: '', dash: c.dash || null, stale: true,
+      po: c.po || null, rep: c.rep ? { list: c.rep.list, more: c.rep.more } : undefined };
     go('admin');
     var A = S.admin;
     api('apiAdminLoad', ap, true).then(function (d) {
@@ -3107,6 +3164,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function loadPoData() {
     return api('apiAdminPoData', S.admin.pin).then(function (d) {
       S.admin.po = d;
+      adminCacheSave();
       if (S.screen === 'admin') rerenderKeepScroll();
     }, function (e) { toast(errMsg(e)); });
   }
@@ -3820,6 +3878,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var before = more && R.list.length ? R.list[R.list.length - 1].date : '';
     return api('apiAdminReports', A.pin, before, 40).then(function (r) {
       R.list = more ? R.list.concat(r.list) : r.list; R.more = r.more; R.loading = false; R.err = '';
+      if (!more) adminCacheSave();
       if (S.screen === 'admin') rerenderKeepScroll();
     }, function (e) { R.loading = false; R.err = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
   }
