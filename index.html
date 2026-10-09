@@ -2002,6 +2002,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
         ? '<div class="note warn">รายการเหล่านี้ยังคำนวณสั่งซื้อไม่ได้ ตอนนี้ทีมนับได้แค่ "พอ / ใกล้หมด / หมด" — ใส่ Min, Max, หน่วย แล้วกดบันทึก</div><div class="list" style="margin-top:12px">' +
           need.map(function (it) { return adminItemBtn(it, true); }).join('') + '</div>'
         : '<div class="note ok">✅ ทุกรายการตั้งค่าครบแล้ว</div>';
+      var auto = d.items.filter(function (it) { return it.active !== false && it.mm_auto; });
+      if (auto.length) {
+        h += '<div class="section-h">🌐 ชื่อพม่าที่แปลอัตโนมัติ (' + auto.length + ')</div><p class="sub" style="margin-top:-6px">ให้ MON ช่วยดูว่าอ่านแล้วเข้าใจไหม ถ้าถูกแล้วกดแก้ → บันทึก (ป้ายจะหายเมื่อแก้ชื่อพม่าเอง)</p><div class="list">' +
+          auto.map(function (it) {
+            return '<button class="card a-item" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b><small class="mm">' + esc(it.name_mm) + '</small></span><span class="muted">แก้ ›</span></button>';
+          }).join('') + '</div>';
+      }
     } else if (A.tab === 'items') {
       h += '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
         return '<button class="' + (A.zone === z.id ? 'on' : '') + '" data-act="aZone" data-v="' + z.id + '">' + z.icon + ' ' + esc(z.th) + '</button>';
@@ -2058,6 +2065,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var cfg = L.isConfigured(it);
     return '<button class="card a-item' + (it.active === false ? ' off' : '') + '" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b>' +
       '<small>' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) : '⚠️ ' + esc(it.setup_note || 'ยังไม่ครบ')) +
+      (it.mm_auto ? ' · 🌐 พม่าแปลอัตโนมัติ' : '') +
       (it.buy_unit && it.buy_factor ? ' · ซื้อเป็น ' + esc(it.buy_unit) + ' (1 ≈ ' + L.fmtNum(it.buy_factor) + ' ' + esc(it.unit) + ')' : '') +
       (showNote ? ' · ' + esc(zoneOf(it.zone).th) : '') + (it.active === false ? ' · ปิดใช้งาน' : '') + '</small></span><span class="muted">แก้ ›</span></button>';
   }
@@ -2148,8 +2156,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (it.info ? '<div class="note info" style="margin-bottom:12px">ℹ️ ' + esc(it.info) + '</div>' : '') +
       '<div class="card form" style="padding:16px">' +
       '<div><label>โซน</label><select id="e-zone">' + zoneOpts + '</select></div>' +
-      '<div><label>ชื่อไทย</label><input type="text" id="e-th" value="' + esc(it.name_th) + '"></div>' +
-      '<div><label>ชื่อพม่า</label><input type="text" id="e-mm" class="mm" value="' + esc(it.name_mm) + '"></div>' +
+      '<div><label>ชื่อไทย</label><input type="text" id="e-th" data-input="aNameTh" value="' + esc(it.name_th) + '"></div>' +
+      '<div><label>ชื่อพม่า ' + (it.mm_auto ? '<span class="tag warn" id="e-mm-tag">🌐 แปลอัตโนมัติ — ให้ MON ช่วยดู</span>' : '<span class="tag hidden" id="e-mm-tag"></span>') + '</label>' +
+      '<div style="display:flex;gap:8px"><input type="text" id="e-mm" class="mm" data-input="aNameMm" value="' + esc(it.name_mm) + '" style="flex:1">' +
+      '<button class="btn btn-ghost" style="width:auto;min-height:48px;padding:0 12px;font-size:14px" data-act="aTranslate">🌐 แปล</button></div>' +
+      '<div id="e-mm-note" class="muted" style="font-size:13px;margin-top:4px"></div></div>' +
       '<div class="two"><div><label>Min (ต่ำกว่านี้ = สั่ง)</label><input type="number" id="e-min" inputmode="decimal" step="any" min="0" value="' + num(it.min) + '"></div>' +
       '<div><label>Max (เติมให้ถึง)</label><input type="number" id="e-max" inputmode="decimal" step="any" min="0" value="' + num(it.max) + '"></div></div>' +
       '<div class="two"><div><label>หน่วย</label><input type="text" id="e-unit" list="unit-list" data-input="aUnit" value="' + esc(it.unit) + '"><datalist id="unit-list">' + units + '</datalist></div>' +
@@ -2172,6 +2183,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var n = function (id) { var v = g(id).value.trim(); return v === '' ? null : Number(v); };
     var it = JSON.parse(JSON.stringify(S.admin.edit));
     it.zone = g('e-zone').value; it.name_th = g('e-th').value.trim(); it.name_mm = g('e-mm').value.trim();
+    it.mm_auto = S.admin.edit.mm_auto === true;
     it.min = n('e-min'); it.max = n('e-max'); it.unit = g('e-unit').value.trim(); it.unit_mm = g('e-umm').value.trim();
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
     it.buy_unit = g('e-bunit').value.trim(); it.buy_factor = it.buy_unit ? n('e-bfactor') : null; it.buy_step = n('e-bstep');
@@ -2186,6 +2198,28 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // เปลี่ยนหน่วยไทย → เติมหน่วยพม่าให้ตาม (ยกเว้นบอสพิมพ์หน่วยพม่าเองแล้ว)
+  var mmTimer = null;
+  function mmNote(text) { var n = document.getElementById('e-mm-note'); if (n) n.textContent = text || ''; }
+  function mmTag(auto) {
+    var t = document.getElementById('e-mm-tag');
+    if (!t) return;
+    t.className = 'tag warn' + (auto ? '' : ' hidden');
+    t.textContent = auto ? '🌐 แปลอัตโนมัติ — ให้ MON ช่วยดู' : '';
+  }
+  function translateName(force) {
+    var th = (document.getElementById('e-th') || {}).value || '', mmEl = document.getElementById('e-mm');
+    if (!th.trim() || !mmEl) return;
+    var E = S.admin.edit;
+    // ชื่อพม่าที่คนพิมพ์/ตรวจแล้ว ไม่ทับเอง — เตือนให้กดแปลใหม่แทน
+    if (!force && mmEl.value.trim() && !E.mm_auto) { mmNote('⚠️ เปลี่ยนชื่อไทยแล้ว — ชื่อพม่ายังเป็นของเดิม กด 🌐 แปล ถ้าต้องการแปลใหม่'); return; }
+    mmNote('กำลังแปล…');
+    api('apiAdminTranslate', S.admin.pin, th.trim()).then(function (r) {
+      if (!r.mm) { mmNote('แปลไม่ได้ — พิมพ์ชื่อพม่าเองได้'); return; }
+      mmEl.value = r.mm; E.mm_auto = true; mmTag(true); mmNote('');
+    }, function (e) { mmNote(errMsg(e)); });
+  }
+  INPUT.aNameTh = function () { clearTimeout(mmTimer); mmTimer = setTimeout(function () { translateName(false); }, 800); };
+  INPUT.aNameMm = function () { S.admin.edit.mm_auto = false; mmTag(false); mmNote(''); };
   INPUT.aUnit = function (el) {
     var mm = document.getElementById('e-umm');
     if (UNITS[el.value.trim()] && mm.dataset.manual !== '1') mm.value = UNITS[el.value.trim()];
@@ -2433,6 +2467,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         toast('บันทึกร้านค้าแล้ว ✓'); rerenderKeepScroll();
       }, function (e) { el.disabled = false; toast(errMsg(e)); });
     },
+    aTranslate: function () { translateName(true); },
     aCopyWebhook: function () {
       copyText(S.admin.data.settings.webhookUrl).then(function () { toast('คัดลอกแล้ว — ไปวางใน LINE Developers'); }, function () { toast('คัดลอกไม่ได้ — กดค้างที่ลิงก์แล้วเลือกคัดลอก'); });
     },
