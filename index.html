@@ -512,6 +512,11 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .mmrev .row .mm { font-size: 16px; }
 .mmrev .row .mm.new { color: var(--brand); font-weight: 700; }
 
+/* แป้นนับ: จำนวนครั้งก่อน */
+.kp-head .last-count { margin-top: 4px; color: var(--ink); }
+.kp-head .last-count .lc-v { font-weight: 800; font-size: 15px; }
+.kp-head .last-count .lc-mm { display: block; font-size: 12px; color: var(--muted); }
+
 </style>
 </head>
 <body>
@@ -629,6 +634,11 @@ var I18N = {
   noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
+  // จำนวนครั้งก่อนในแป้นนับ (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน လွန်ခဲ့တဲ့ {n} ရက်က, ခါ/ခေါက်)
+  lastCount: ['ครั้งก่อน', 'အရင်တစ်ခါ'],
+  yesterday: ['เมื่อวาน', 'မနေ့က'],
+  daysAgo: ['{n} วันก่อน', 'လွန်ခဲ့တဲ့ {n} ရက်က'],
+  bigVsLast: ['{n} {u} เยอะกว่าครั้งก่อนมาก (ครั้งก่อน {last} {u}) — ตัวเลขถูกไหม?', '{n} {um} က အရင်တစ်ခါထက် အများကြီး ပိုနေတယ် (အရင်တစ်ခါ {last} {um}) — ဂဏန်း မှန်ရဲ့လား?'],
   // ส่งตามหลัง (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ထပ်ပို့ကြည့်မယ်, ပို့ဖို့ စောင့်နေတာ, ဖျက်ပစ်မယ်, poSending)
   savedSending: ['บันทึกแล้ว · กำลังส่งให้บอส', 'သိမ်းပြီးပြီ · ဘော့စ်ဆီ ပို့နေတယ်'],
   outboxWaiting: ['รอส่ง {n} รายการ — แอพส่งให้เองเมื่อเน็ตกลับมา', 'ပို့ဖို့ စောင့်နေတာ {n} ခု — အင်တာနက် ပြန်ရရင် အက်ပ်က အလိုလို ပို့ပေးမယ်'],
@@ -796,6 +806,28 @@ var Logic = (function () {
     return mine.join(' + ');
   }
   function scopeKey(label) { return label ? 'S_' + label : 'ALL'; }
+
+  // ---------- จำนวนที่นับครั้งก่อน (แป้นนับโชว์ + เตือนตัวเลขกระโดด) ----------
+  // rows = ผลนับรายวัน (เรียงอย่างไรก็ได้) → { itemId: { c: [จำนวน, ระดับ, วันที่] ล่าสุด, p: [...] วันก่อนหน้านั้น } }
+  function lastCountsFrom(rows) {
+    var map = {};
+    (rows || []).forEach(function (r) {
+      var id = String(r.item_id || ''), d = String(r.date || '');
+      if (!id || !d) return;
+      var q = r.qty === '' || r.qty === null || r.qty === undefined || isNaN(Number(r.qty)) ? null : Number(r.qty);
+      var rec = [q, String(r.level || ''), d], m = map[id] || (map[id] = {});
+      if (!m.c || d > m.c[2]) { if (m.c) m.p = m.c; m.c = rec; }
+      else if (d < m.c[2] && (!m.p || d > m.p[2])) m.p = rec;
+    });
+    return map;
+  }
+  // ครั้งก่อนของวันนี้ = รอบที่วันที่ก่อนวันนี้ (วันนี้ส่งไปแล้วก็ยังโชว์ของเมื่อวาน)
+  function prevCount(map, id, today) {
+    var m = map && map[id];
+    if (!m) return null;
+    var r = m.c && m.c[2] < today ? m.c : (m.p && m.p[2] < today ? m.p : null);
+    return r ? { v: r[0], lv: r[1], date: r[2] } : null;
+  }
 
   // ---------- ของชิ้นเดียวเก็บหลายที่ ----------
   // ที่เก็บของรายการ: ที่หลัก (zone) + ที่เพิ่ม (more_zones) — นับแยกแต่ละที่แล้วรวม (เฉพาะรายการที่นับเป็นตัวเลข)
@@ -1343,7 +1375,7 @@ var Logic = (function () {
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
-    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey,
+    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
@@ -1532,7 +1564,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       // รายการของ/ทีม/ใบสั่ง/ใบรับล่าสุด — อ่านจาก Firebase ตรง (บอสแก้ปุ๊บ เครื่องน้องเห็นปั๊บ ไม่ต้องรอ Apps Script)
       my.pubRef = my.db.ref('bkt/' + b.fb.secret + '/pub');
       my.onPub = {};
-      ['boot', 'pos', 'recv'].forEach(function (k) {
+      ['boot', 'pos', 'recv', 'last'].forEach(function (k) {
         my.onPub[k] = function (snap) { if (S.fb === my) pubApply(k, snap.val()); };
         my.pubRef.child(k).on('value', my.onPub[k]);
       });
@@ -1565,7 +1597,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     // เวอร์ชันแยกแต่ละส่วน: ใช้เมื่อใหม่กว่าทั้งที่เคยใช้ และใหม่กว่าเวลาที่ apiBootstrap ตอบ
     var ver = S.boot.pubV || (S.boot.pubV = {});
-    if ((ver[k] && v.v <= ver[k]) || (k !== 'recv' && S.boot.bootV && v.v <= S.boot.bootV)) { S.pubLive = true; return; }
+    if ((ver[k] && v.v <= ver[k]) || (k !== 'recv' && k !== 'last' && S.boot.bootV && v.v <= S.boot.bootV)) { S.pubLive = true; return; }
     var d;
     try { d = JSON.parse(v.json); } catch (e) { return; }
     ver[k] = v.v;
@@ -1574,6 +1606,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       useZones(d.zones);
     } else if (k === 'pos') {
       S.boot.pos = d; S.recvList = d;
+    } else if (k === 'last') {
+      S.boot.lastCounts = d;
+      if (S.kp) return store.set('boot', { at: Date.now(), b: S.boot }); // แป้นเปิดอยู่ ไม่ต้องวาดใหม่
     } else {
       var days = [L.businessDate(), L.businessDate(new Date(Date.now() - 864e5))];
       S.recvRecent = d.filter(function (rc) { return days.indexOf(L.businessDate(new Date(rc.at))) >= 0; });
@@ -1589,6 +1624,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (!pv || !b.bootV) return;
     if (pv.boot && pv.boot > b.bootV) BOOT_FIELDS.forEach(function (f) { b[f] = o[f]; });
     if (pv.pos && pv.pos > b.bootV) b.pos = o.pos;
+    if (o.lastCounts) b.lastCounts = o.lastCounts; // มาจาก Firebase อย่างเดียว
     b.pubV = pv;
   }
   // วาดใหม่เฉพาะหน้าที่เป็นรายการ และไม่ขัดตอนน้องกำลังพิมพ์/กดแป้น
@@ -2633,6 +2669,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var h = '<div class="sheet-bg" data-act="kpClose"></div><div class="sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : bi1('notSetUp')) + '</div>' +
       (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') +
+      lastCountHtml(it) +
       (L.hasCount(e) ? '<button class="kp-clear" data-act="kpClear">🗑️ ' + bi1('clearCount') + '</button>' : '') + '</div>' +
       '<button class="iconbtn" data-act="kpClose" aria-label="ปิด">✕</button></div>';
     if (!cfg) {
@@ -2652,6 +2689,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="kp-grid">' + keys + '</div><div class="kp-actions">' +
       '<button class="btn btn-danger stack" data-act="kpOut">' + bi('out') + '</button>' +
       '<button class="btn btn-primary stack" data-act="kpNext">' + bi('next') + '</button></div></div>';
+  }
+
+  // จำนวนที่นับครั้งก่อน (รอบที่ส่งรายงานแล้ว ก่อนวันนี้) — มาพร้อมข้อมูลบน Firebase ไม่ต้องเรียกหลังบ้าน
+  function lastCountOf(it) { return S.boot && S.boot.lastCounts ? L.prevCount(S.boot.lastCounts, it.id, S.boot.date) : null; }
+  function lastCountHtml(it) {
+    var p = lastCountOf(it);
+    if (!p) return '';
+    var n = L.dayDiff(p.date, S.boot.date), when = n <= 1 ? tr('yesterday') : tr('daysAgo', { n: n });
+    var lv = tr(p.lv === 'low' || p.lv === 'out' ? p.lv : 'enough'), all = isMulti(it) ? tr('totalAll', { total: '' }) : null;
+    if (all) { all.th = all.th.trim(); all.mm = all.mm.trim(); }
+    var th = L.isNum(p.v) ? L.fmtNum(p.v) + ' ' + it.unit : lv.th, mm = L.isNum(p.v) ? L.fmtNum(p.v) + ' ' + (unitMm(it) || it.unit) : lv.mm;
+    return '<div class="hint last-count">🕘 ' + esc(tr('lastCount').th) + (all ? ' (' + esc(all.th) + ')' : '') + ': <span class="lc-v">' + esc(th) + '</span> · ' + esc(when.th) +
+      '<span class="mm lc-mm">' + esc(tr('lastCount').mm) + (all ? ' (' + esc(all.mm) + ')' : '') + ': ' + esc(mm) + ' · ' + esc(when.mm) + '</span></div>';
   }
 
   // ยอดรวมถ้าที่นี่นับได้ val (ของหลายที่: บวกที่อื่นที่นับแล้ว — ถ้าที่อื่นยังไม่ครบ ไม่เตือนสีแดง)
@@ -3085,8 +3135,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   var BIG_X = 3; // เกิน Max กี่เท่าถึงถาม
   function kpCheck(it, v) {
-    if (!it || !L.isConfigured(it) || !(it.max > 0) || !(v > it.max * BIG_X)) return Promise.resolve(true);
-    return confirmBox(bi1('bigNumber', { n: L.fmtNum(v), u: it.unit, um: unitMm(it) || it.unit, max: L.fmtNum(it.max) }), '',
+    if (!it) return Promise.resolve(true);
+    var p = lastCountOf(it), last = p && L.isNum(p.v) && !isMulti(it) ? p.v : 0;
+    var max = L.isConfigured(it) && it.max > 0 ? it.max : 0, base = Math.max(max, last);
+    if (!base || !(v > base * BIG_X)) return Promise.resolve(true);
+    var msg = last > max ? bi1('bigVsLast', { n: L.fmtNum(v), u: it.unit, um: unitMm(it) || it.unit, last: L.fmtNum(last) })
+      : bi1('bigNumber', { n: L.fmtNum(v), u: it.unit, um: unitMm(it) || it.unit, max: L.fmtNum(max) });
+    return confirmBox(msg, '',
       [{ key: 'fix', html: bi('fixIt') }, { key: 'ok', html: bi('yesCorrect'), cls: 'btn-primary' }]).then(function (k) { return k === 'ok'; });
   }
   // บันทึกตัวเลขในแป้น (ผ่านการเช็คแล้ว) → then(true) · ถ้าให้แก้ใหม่ = ล้างแป้นรอพิมพ์ใหม่ → then(false)
@@ -4127,7 +4182,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       [['group', 'กลุ่ม (แนะนำ — บอสอยู่ในกลุ่มด้วย)'], ['both', 'กลุ่ม + แชทส่วนตัวบอส'], ['boss', 'บอสคนเดียว']].map(function (o) {
         return '<option value="' + o[0] + '"' + (s.reportTo === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join('') + '</select></div>' +
-      '<p class="muted" style="margin:0;font-size:13.5px">รับของ และแจ้งด่วน ส่งหาบอสคนเดียวเหมือนเดิม · ข้อความเข้ากลุ่มนับโควตาตามจำนวนคนในกลุ่ม (กลุ่ม 3 คน = 3 ข้อความ จากโควตาฟรี 300 ข้อความ/เดือน)</p>' +
+      '<div><label>รับของ (+ แก้/ยกเลิกใบรับ) ส่งไปที่</label><select data-input="aRecvTo">' +
+      [['boss', 'บอสคนเดียว'], ['group', 'กลุ่ม (บอสอยู่ในกลุ่มด้วย)'], ['both', 'กลุ่ม + แชทส่วนตัวบอส']].map(function (o) {
+        return '<option value="' + o[0] + '"' + ((s.recvTo || 'boss') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select></div>' +
+      '<p class="muted" style="margin:0;font-size:13.5px">แจ้งด่วนส่งหาบอสคนเดียวเสมอ · ⚠️ ข้อความเข้ากลุ่มนับโควตาตามจำนวนคนในกลุ่ม (กลุ่ม 3 คน = 3 ข้อความ จากโควตาฟรี 300 ข้อความ/เดือน) — รับของวันละ 2 ครั้งเข้ากลุ่ม 3 คน ≈ 180 ข้อความ/เดือน รวมกับรายงานนับ ≈ 90 อาจเกินโควตาได้</p>' +
       (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
   }
 
@@ -4336,10 +4395,23 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (lb) lb.textContent = '1 หน่วยซื้อ ≈ กี่ ' + (el.value.trim() || 'หน่วยนับ');
   };
   INPUT.aUmm = function (el) { el.dataset.manual = '1'; };
+  // หลังบ้านคืนค่าตั้งค่าแบบเบา (ไม่มียอดใช้ Claude) → เก็บยอดเดิมไว้
+  function setSettings(st) {
+    var old = S.admin.data.settings || {};
+    if (old.claudeUsage && !st.claudeUsage) st.claudeUsage = old.claudeUsage;
+    S.admin.data.settings = st;
+    adminCacheSave();
+  }
+  INPUT.aRecvTo = function (el) {
+    if (el.value === (S.admin.data.settings.recvTo || 'boss')) return;
+    api('apiAdminSaveSettings', S.admin.pin, { RECV_TO: el.value }).then(function (st) {
+      setSettings(st); toast('บันทึกแล้ว ✓');
+    }, function (e) { toast(errMsg(e)); });
+  };
   INPUT.aReportTo = function (el) {
     if (el.value === S.admin.data.settings.reportTo) return;
     api('apiAdminSaveSettings', S.admin.pin, { REPORT_TO: el.value }).then(function (st) {
-      S.admin.data.settings = st; toast('บันทึกแล้ว ✓');
+      setSettings(st); toast('บันทึกแล้ว ✓');
     }, function (e) { toast(errMsg(e)); });
   };
   // เบราว์เซอร์เก่าที่ไม่รองรับ :has() — สลับไฮไลต์เอง
@@ -5011,7 +5083,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var clr = document.getElementById('s-cleartok');
       el.disabled = true;
       api('apiAdminSaveSettings', S.admin.pin, { LINE_CHANNEL_ID: g('s-cid'), LINE_CHANNEL_SECRET: g('s-sec'), LINE_TO: g('s-to'), clearLineToken: !!(clr && clr.checked) })
-        .then(function (st) { S.admin.data.settings = st; S.admin.lineMsg = 'บันทึกแล้ว ✓ — กด "ทดสอบส่ง" ได้เลย'; rerenderKeepScroll(); },
+        .then(function (st) { setSettings(st); S.admin.lineMsg = 'บันทึกแล้ว ✓ — กด "ทดสอบส่ง" ได้เลย'; rerenderKeepScroll(); },
           function (e) { el.disabled = false; S.admin.lineMsg = errMsg(e); rerenderKeepScroll(); });
     },
     aTestLine: function (el) {
@@ -5029,7 +5101,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!t.trim() && !(clr && clr.checked)) { S.admin.fbMsg = 'วางโค้ด firebaseConfig ก่อน'; return rerenderKeepScroll(); }
       el.disabled = true;
       api('apiAdminSaveSettings', S.admin.pin, { FIREBASE_CONFIG: t.trim(), clearFirebase: !!(clr && clr.checked) }).then(function (st) {
-        S.admin.data.settings = st;
+        setSettings(st);
         S.admin.fbMsg = st.fbReady ? 'บันทึกแล้ว ✓ — กด "ทดสอบ" แล้วให้ทุกเครื่องปิด-เปิดแอพใหม่' : 'เลิกใช้ Firebase แล้ว ✓';
         if (S.boot) S.bootAt = 0; // ให้หน้าน้องดึงค่าใหม่ตอนกลับไป
         rerenderKeepScroll();
@@ -5049,7 +5121,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       el.disabled = true;
       api('apiAdminSaveSettings', S.admin.pin, { ANTHROPIC_API_KEY: k, clearClaudeKey: !!(clr && clr.checked) })
         .then(function (st) {
-          S.admin.data.settings = st;
+          setSettings(st);
           S.admin.claudeMsg = st.claudeKey ? 'บันทึกแล้ว ✓ — กด "ทดสอบแปล" ได้เลย' : 'เลิกใช้ Claude แล้ว ✓ — กลับไปใช้ Google แปล';
           rerenderKeepScroll();
         }, function (e) { el.disabled = false; S.admin.claudeMsg = errMsg(e); rerenderKeepScroll(); });
@@ -5115,7 +5187,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       api('apiAdminSaveSettings', S.admin.pin, { STAFF_PIN: g('s-spin'), ADMIN_PIN: newAdmin, FULL_COUNT_DAY: day ? day.value : '' }).then(function (st) {
         if (newAdmin) S.admin.pin = newAdmin;
         if (S.boot) S.boot.fullCountDay = st.fullCountDay;
-        S.admin.data.settings = st; toast('บันทึกแล้ว ✓'); rerenderKeepScroll();
+        setSettings(st); toast('บันทึกแล้ว ✓'); rerenderKeepScroll();
       }, function (e) { el.disabled = false; toast(errMsg(e)); });
     }
   };
