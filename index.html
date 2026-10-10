@@ -517,6 +517,13 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .kp-head .last-count .lc-v { font-weight: 800; font-size: 15px; }
 .kp-head .last-count .lc-mm { display: block; font-size: 12px; color: var(--muted); }
 
+/* หัวหน้าตรวจชื่อพม่า */
+.mmfix-row { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.mmfix-row b { font-size: 17px; }
+.mmfix-row .mm.big { font-size: 18px; line-height: 1.5; }
+.mmfix-row .inp.mm { font-size: 18px; }
+.mmfix-row .btn-row { margin: 0; }
+
 </style>
 </head>
 <body>
@@ -634,6 +641,17 @@ var I18N = {
   noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
+  // หัวหน้าตรวจชื่อพม่าเอง (ร่าง 10 ต.ค. 69 — รอบรรณาธิการพม่าตรวจ)
+  mmCheckTitle: ['ตรวจชื่อพม่า', 'မြန်မာနာမည် စစ်မယ်'],
+  mmHint: ['ชื่อไหนถูกกด ✓ · ชื่อไหนผิดกด แก้ แล้วพิมพ์ชื่อที่ทีมเรียกจริง', 'နာမည်မှန်ရင် ✓ နှိပ်ပါ · မှားရင် ပြင်မယ် ကိုနှိပ်ပြီး အဖွဲ့က တကယ်ခေါ်တဲ့ နာမည်ကို ရိုက်ပါ'],
+  mmUnchecked: ['ยังไม่ได้ตรวจ ({n})', 'မစစ်ရသေး ({n})'],
+  mmAll: ['ทั้งหมด', 'အားလုံး'],
+  mmEdit: ['แก้', 'ပြင်မယ်'],
+  mmSave: ['บันทึก', 'သိမ်းမယ်'],
+  mmChecked: ['ตรวจแล้ว', 'စစ်ပြီး'],
+  mmDoneAll: ['ตรวจครบทุกรายการแล้ว', 'အကုန် စစ်ပြီးပြီ'],
+  zawgyiWarn: ['แป้นพิมพ์นี้เป็น Zawgyi — เปลี่ยนเป็นแป้น Unicode ก่อน', 'ဒီကီးဘုတ်က ဇော်ဂျီ ဖြစ်နေတယ် — ယူနီကုဒ် ကီးဘုတ်ကို အရင်ပြောင်းပါ'],
+  mmNeedBurmese: ['พิมพ์ชื่อภาษาพม่าก่อน', 'မြန်မာလို နာမည် အရင်ရိုက်ပါ'],
   // จำนวนครั้งก่อนในแป้นนับ (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน လွန်ခဲ့တဲ့ {n} ရက်က, ခါ/ခေါက်)
   lastCount: ['ครั้งก่อน', 'အရင်တစ်ခါ'],
   yesterday: ['เมื่อวาน', 'မနေ့က'],
@@ -806,6 +824,11 @@ var Logic = (function () {
     return mine.join(' + ');
   }
   function scopeKey(label) { return label ? 'S_' + label : 'ALL'; }
+
+  // แป้นพิมพ์ Zawgyi: สระ ေ ขึ้นหน้าคำ หรือใช้รหัสตัวซ้อน U+1060–1097 (Unicode พม่าไม่ใช้) → เครื่องอื่นอ่านไม่ออก
+  function looksZawgyi(s) { return /[\u1060-\u1097]/.test(String(s || '')) || /(^|[\s(])\u1031/.test(String(s || '')); }
+  // ชื่อพม่าที่เครื่องแปล (ยังไม่มีคนยืนยัน) — 'mon' = หัวหน้าทีมยืนยันแล้ว
+  function mmMachine(it) { return it && (it.mm_auto === 'google' || it.mm_auto === 'claude'); }
 
   // ---------- ค้นหาแบบทนวิธีพิมพ์ต่างกัน ----------
   // พม่า: คนพิมพ์คำเดียวกันได้หลายแบบ (ซ้อนตัว/ไม่ซ้อน เช่น သင်္ဘော / သင်ဘော / သဘော) และคีย์บอร์ด Zawgyi เก็บสระ/ตัวซ้อนคนละรหัส
@@ -1399,7 +1422,7 @@ var Logic = (function () {
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
-    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, searchScore: searchScore, mmSkeleton: mmSkeleton,
+    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
@@ -1627,6 +1650,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (k === 'boot') {
       BOOT_FIELDS.forEach(function (f) { if (d[f] !== undefined) S.boot[f] = d[f]; });
       useZones(d.zones);
+      mmReapply();
     } else if (k === 'pos') {
       S.boot.pos = d; S.recvList = d;
     } else if (k === 'last') {
@@ -1848,6 +1872,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       keepNewerPub(b);
       if (S.boot && S.boot.date !== b.date) { S.note = ''; S.result = null; }
       S.boot = b; S.bootAt = Date.now(); S.pin = pin; S.publicUrl = b.publicUrl || '';
+      mmReapply();
       useZones(b.zones);
       fbStart(b);
       store.set('pin', pin);
@@ -2051,6 +2076,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
         h += '<div class="section-h">📅 ' + bi1('weeklyZone') + '</div><p class="sub" style="margin-top:-6px">' + bi1('optionalToday') + '</p>' +
           '<div class="zones">' + later.map(function (z) { return zoneCard(z, sum, true); }).join('') + '</div>';
       }
+      if (isLead()) {
+        var mmLeft = items().filter(function (it) { return inMyZones(it) && it.mm_auto !== 'mon'; }).length;
+        h += '<p class="center" style="margin:22px 0 0"><button class="muted" data-act="toMmFix" style="text-decoration:underline;font-size:14px">✏️ ' + bi1('mmCheckTitle') +
+          (mmLeft ? ' (' + mmLeft + ')' : ' ✓') + '</button></p>';
+      }
       h += bossLink() + '</div><div class="bottom"><div class="wrap">';
       if (isLead()) {
         h += '<button class="btn btn-primary stack" data-act="toReview"' + (myZones().length ? '' : ' disabled') + '>' + biIcon(sub ? '🔁' : '📤', 'reviewSend') + '</button>';
@@ -2104,6 +2134,30 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<textarea id="note" data-input="note" maxlength="500" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(S.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
       h += '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary stack" data-act="submit" id="btn-submit">' + biIcon('📤', 'sendToBoss') + '</button></div></div>';
       return h;
+    },
+
+    // หัวหน้าตรวจ/แก้ชื่อพม่าเอง — กดแล้วเห็นทันที ส่งตามหลังเป็นชุด
+    mmfix: function () {
+      var F = S.mmfix || (S.mmfix = { tab: 'todo', q: '', edit: null });
+      var all = items().filter(inMyZones), todo = all.filter(function (it) { return it.mm_auto !== 'mon'; });
+      var list = (F.tab === 'todo' ? todo : all).filter(function (it) { return matchItem(it, F.q); });
+      var h = top({ th: '✏️ ' + tr('mmCheckTitle').th, mm: tr('mmCheckTitle').mm, back: 'mmBack' }) + '<div class="wrap screen">' +
+        '<p class="sub">' + bi1('mmHint') + '</p>' +
+        '<div class="seg" style="margin-bottom:10px"><button class="' + (F.tab === 'todo' ? 'on' : '') + '" data-act="mmTab" data-v="todo">' + bi1('mmUnchecked', { n: todo.length }) + '</button>' +
+        '<button class="' + (F.tab === 'all' ? 'on' : '') + '" data-act="mmTab" data-v="all">' + bi1('mmAll') + ' (' + all.length + ')</button></div>' +
+        '<input class="inp" style="margin:0 0 10px" data-input="mmQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(F.q) + '">';
+      if (!list.length) h += '<div class="note ok center">✅ ' + bi1(F.tab === 'todo' && !F.q ? 'mmDoneAll' : 'notFound', { q: F.q }) + '</div>';
+      h += '<div class="list">' + list.slice(0, 80).map(function (it) {
+        var ed = F.edit === it.id;
+        return '<div class="card mmfix-row" id="mf-' + esc(it.id) + '"><b>' + esc(it.name_th) + '</b>' +
+          (ed ? '<input class="inp mm" id="mf-in" type="text" maxlength="120" value="' + esc(it.name_mm || '') + '" autocomplete="off">' +
+            '<div class="btn-row"><button class="btn btn-ghost stack" data-act="mmCancel">' + bi('cancel') + '</button><button class="btn btn-primary stack" data-act="mmSave" data-id="' + esc(it.id) + '">' + biIcon('💾', 'mmSave') + '</button></div>'
+            : '<div class="mm big">' + esc(it.name_mm || '–') + (it.mm_auto === 'mon' ? ' <span class="tag ok">✓ ' + bi1('mmChecked') + '</span>' : '') + '</div>' +
+              '<div class="btn-row"><button class="btn btn-ghost stack" data-act="mmEdit" data-id="' + esc(it.id) + '">' + biIcon('✏️', 'mmEdit') + '</button>' +
+              (it.mm_auto === 'mon' ? '' : '<button class="btn btn-primary stack" data-act="mmOk" data-id="' + esc(it.id) + '">' + biIcon('✓', 'yesCorrect') + '</button>') + '</div>') +
+          '</div>';
+      }).join('') + '</div>';
+      return h + '</div>';
     },
 
     // ของตัดแต่ง/ทำเอง ที่ต่ำกว่า Min → ทำให้ถึง Max · ทำครบแล้วกดปุ่ม = อัปเดตยอดนับให้เลย · ยังไม่นับ = ไปนับก่อน
@@ -2819,6 +2873,30 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
+  // ชื่อพม่าที่หัวหน้ายืนยัน/แก้: เปลี่ยนในเครื่องทันที แล้วรวมส่งเป็นชุด (กดหลายรายการติดกัน = ส่งครั้งเดียว)
+  function mmSet(it, mm) {
+    it.name_mm = mm; it.mm_auto = 'mon';
+    (S.mmQ || (S.mmQ = {}))[it.id] = mm;
+    clearTimeout(S.mmT); S.mmT = setTimeout(mmFlush, 4000);
+    store.set('boot', { at: Date.now(), b: S.boot });
+  }
+  // ชื่อที่แก้แล้วแต่ยังส่งไม่ถึงหลังบ้าน → ทับข้อมูลที่เพิ่งมา (ไม่ให้เด้งกลับเป็นชื่อเก่า)
+  function mmReapply() {
+    var pend = {};
+    outbox().forEach(function (j) { if (j.fn === 'apiStaffSetMm' && !j.failed) (j.args[2] || []).forEach(function (c) { pend[c.id] = c.mm; }); });
+    Object.keys(S.mmQ || {}).forEach(function (id) { pend[id] = S.mmQ[id]; });
+    if (!Object.keys(pend).length || !S.boot) return;
+    (S.boot.items || []).forEach(function (it) { if (pend[it.id]) { it.name_mm = pend[it.id]; it.mm_auto = 'mon'; } });
+  }
+  function mmFlush() {
+    clearTimeout(S.mmT);
+    var q = S.mmQ || {}, ids = Object.keys(q);
+    if (!ids.length) return;
+    S.mmQ = {};
+    outboxAdd('apiStaffSetMm', [S.pin, S.me, ids.map(function (id) { return { id: id, mm: q[id] }; })],
+      '✏️ ' + tr('mmCheckTitle').th + ' · ' + tr('mmCheckTitle').mm + ' (' + ids.length + ')');
+  }
+
   // ---------- ส่งตามหลัง (outbox): กดยืนยันแล้วไปต่อได้เลย แอพส่งเองจนสำเร็จ — เก็บในเครื่อง เน็ตหลุด/ปิดแอพก็ไม่หาย (กฎ: ห้ามทำให้แอพช้าลง) ----------
   function outbox() { return S.outbox || (S.outbox = store.get('outbox') || []); }
   function outboxSave() { store.set('outbox', outbox()); }
@@ -2914,6 +2992,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
     toggleUncounted: function () { S.onlyUncounted = !S.onlyUncounted; S.kp = null; render(); },
     toReview: function () { flush(); go('review'); },
     toPrep: function () { flush(); go('prep'); },
+    toMmFix: function () { S.mmfix = S.mmfix || { tab: 'todo', q: '', edit: null }; go('mmfix'); },
+    mmBack: function () { mmFlush(); go('home'); },
+    mmTab: function (el) { S.mmfix.tab = el.dataset.v; S.mmfix.edit = null; rerenderKeepScroll(); },
+    mmOk: function (el) { var it = itemById(el.dataset.id); if (!it) return; mmSet(it, it.name_mm); buzz(); rerenderKeepScroll(); },
+    mmEdit: function (el) {
+      S.mmfix.edit = el.dataset.id; rerenderKeepScroll();
+      setTimeout(function () { var i = document.getElementById('mf-in'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 50);
+    },
+    mmCancel: function () { S.mmfix.edit = null; rerenderKeepScroll(); },
+    mmSave: function (el) {
+      var it = itemById(el.dataset.id), v = ((document.getElementById('mf-in') || {}).value || '').trim();
+      if (!it) return;
+      if (!L.hasBurmese(v) || /[\u0E00-\u0E7F]/.test(v)) return toast('⚠️ ' + tr('mmNeedBurmese').th + ' · ' + tr('mmNeedBurmese').mm);
+      if (L.looksZawgyi(v)) return toast('⚠️ ' + tr('zawgyiWarn').th + ' · ' + tr('zawgyiWarn').mm);
+      mmSet(it, v); S.mmfix.edit = null; buzz(); rerenderKeepScroll();
+    },
     toSent: function () { go('sent'); },
     openZoneTodo: function (el) { S.zone = el.dataset.z; S.onlyUncounted = true; S.zoneQ = ''; go('zone'); pollNow(); },
     prepDone: function (el) {
@@ -3197,6 +3291,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   var INPUT = {
+    mmQ: function (el) { S.mmfix.q = el.value; clearTimeout(S.mmQT); S.mmQT = setTimeout(function () { rerenderKeepScroll(); var i = document.querySelector('[data-input=mmQ]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); },
     homeQ: function (el) {
       S.homeQ = el.value;
       var f = document.getElementById('home-found');
@@ -3802,7 +3897,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         ? '<div class="note warn">รายการเหล่านี้ยังคำนวณสั่งซื้อไม่ได้ ตอนนี้ทีมนับได้แค่ "พอ / ใกล้หมด / หมด" — ใส่ Min, Max, หน่วย แล้วกดบันทึก</div><div class="list" style="margin-top:12px">' +
           need.map(function (it) { return adminItemBtn(it, true); }).join('') + '</div>'
         : '<div class="note ok">✅ ทุกรายการตั้งค่าครบแล้ว</div>';
-      var auto = d.items.filter(function (it) { return it.active !== false && it.mm_auto; });
+      var auto = d.items.filter(function (it) { return it.active !== false && L.mmMachine(it); });
       if (auto.length) {
         var byGoogle = auto.filter(function (it) { return it.mm_auto !== 'claude'; }).length;
         h += '<div class="section-h">🌐 ชื่อพม่าที่เครื่องแปล (' + auto.length + ')</div><p class="sub" style="margin-top:-6px">ให้ MON ช่วยดูว่าอ่านแล้วเข้าใจไหม ถ้าถูกแล้วกดแก้ → บันทึก (ป้ายจะหายเมื่อแก้ชื่อพม่าเอง)</p>' +
@@ -4142,7 +4237,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var cfg = L.isConfigured(it);
     return '<button class="card a-item' + (it.active === false ? ' off' : '') + '" data-act="aEdit" data-id="' + esc(it.id) + '"><span class="nm"><b>' + esc(it.name_th) + '</b>' +
       '<small>' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + esc(L.unitText(it)) : '⚠️ ' + esc(it.setup_note || 'ยังไม่ครบ')) +
-      (it.mm_auto ? (it.mm_auto === 'claude' ? ' · ✨ พม่า Claude แปล' : ' · 🌐 พม่า Google แปล') : '') +
+      (it.mm_auto === 'mon' ? ' · ✓ พม่า MON ตรวจแล้ว' : it.mm_auto ? (it.mm_auto === 'claude' ? ' · ✨ พม่า Claude แปล' : ' · 🌐 พม่า Google แปล') : '') +
       (it.buy_unit && it.buy_factor ? ' · ซื้อเป็น ' + esc(it.buy_unit) + ' (1 ≈ ' + L.fmtNum(it.buy_factor) + ' ' + esc(it.unit) + ')' : '') +
 
       (it.active === false ? ' · ปิดใช้งาน' : '') + '</small>' + itemTags(it) + '</span><span class="muted">แก้ ›</span></button>';
@@ -4340,7 +4435,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<button class="tagc kind' + (it.kind !== 'prep' ? ' on' : '') + '" data-act="tagKind" data-v="buy">🛒 ยังไม่ตัดแต่ง <small>(ซื้อมา · ขาด = สั่งซื้อ)</small></button>' +
       '<button class="tagc kind' + (it.kind === 'prep' ? ' on' : '') + '" data-act="tagKind" data-v="prep">🔪 ตัดแต่งแล้ว/ทำเอง <small>(ขาด = ครัวทำเพิ่ม)</small></button></div></div>' +
       '<div><label>ชื่อไทย</label><input type="text" id="e-th" data-input="aNameTh" value="' + esc(it.name_th) + '"></div>' +
-      '<div><label>ชื่อพม่า <span class="tag ' + (it.mm_auto === 'claude' ? 'brand' : 'warn') + (it.mm_auto ? '' : ' hidden') + '" id="e-mm-tag">' + mmTagText(it.mm_auto) + '</span></label>' +
+      '<div><label>ชื่อพม่า <span class="tag ' + (it.mm_auto === 'mon' ? 'ok' : it.mm_auto === 'claude' ? 'brand' : 'warn') + (it.mm_auto ? '' : ' hidden') + '" id="e-mm-tag">' + mmTagText(it.mm_auto) + '</span></label>' +
       '<div style="display:flex;gap:8px"><input type="text" id="e-mm" class="mm" data-input="aNameMm" value="' + esc(it.name_mm) + '" style="flex:1">' +
       '<button class="btn btn-ghost" style="width:auto;min-height:48px;padding:0 12px;font-size:14px" data-act="aTranslate">🌐 แปล</button></div>' +
       '<div id="e-mm-note" class="muted" style="font-size:13px;margin-top:4px"></div></div>' +
@@ -4388,13 +4483,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
   // เปลี่ยนหน่วยไทย → เติมหน่วยพม่าให้ตาม (ยกเว้นบอสพิมพ์หน่วยพม่าเองแล้ว)
   var mmTimer = null;
   function mmTagText(engine) {
-    return engine === 'claude' ? '✨ Claude แปล — ให้ MON ดูอีกที' : engine ? '🌐 Google แปล — ควรให้ MON ช่วยดู' : '';
+    return engine === 'mon' ? '✓ MON ตรวจแล้ว' : engine === 'claude' ? '✨ Claude แปล — ให้ MON ดูอีกที' : engine ? '🌐 Google แปล — ควรให้ MON ช่วยดู' : '';
   }
   function mmNote(text) { var n = document.getElementById('e-mm-note'); if (n) n.textContent = text || ''; }
   function mmTag(engine) {
     var t = document.getElementById('e-mm-tag');
     if (!t) return;
-    t.className = 'tag ' + (engine === 'claude' ? 'brand' : 'warn') + (engine ? '' : ' hidden');
+    t.className = 'tag ' + (engine === 'mon' ? 'ok' : engine === 'claude' ? 'brand' : 'warn') + (engine ? '' : ' hidden');
     t.textContent = mmTagText(engine);
   }
   function translateName(force) {
