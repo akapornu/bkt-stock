@@ -3832,15 +3832,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
       : '<p class="muted">ไม่พบ "' + esc(q.trim()) + '" — ลองพิมพ์สั้นลง หรือกด ＋ เพิ่มรายการ</p>';
   }
 
+  // ตู้ชุดร้านจับคู่ด้วยชื่อก่อนวงเล็บ/ช่องว่าง — บอสต่อท้ายชื่อได้ เช่น CHILL-2(Checker) ยังเป็น CHILL-2
+  function shopBase(th) { return String(th || '').split(/[\s(（]/)[0]; }
+  function shopZoneOf(p) { return ZONES.filter(function (x) { return shopBase(x.th) === p.th; })[0] || null; }
   function shopZoneIds() {
-    return SHOP_PLACES.map(function (p) { var z = ZONES.filter(function (x) { return x.th === p.th; })[0]; return z ? z.id : null; }).filter(Boolean);
+    return SHOP_PLACES.map(function (p) { var z = shopZoneOf(p); return z ? z.id : null; }).filter(Boolean);
   }
   function inShop(it) { var ids = shopZoneIds(); return L.itemLocs(it).some(function (z) { return ids.indexOf(z) >= 0; }); }
 
   // การ์ดในแท็บรายการของ: ยังไม่มีที่เก็บชุดใหม่ → สร้าง · มีแล้วแต่ยังจัดไม่ครบ → ไปจัด
   function shopPlacesCard() {
-    var A = S.admin, missing = SHOP_PLACES.filter(function (p) { return !ZONES.some(function (z) { return z.th === p.th; }); });
-    if (missing.length) {
+    // ปุ่มสร้างตู้ขึ้นเฉพาะร้านที่ยังไม่เคยสร้างเลย — สร้างแล้ว (แม้เปลี่ยนชื่อ/ลบบางตู้) ไม่บังคับให้สร้างอีก
+    var A = S.admin, missing = SHOP_PLACES.filter(function (p) { return !shopZoneOf(p); });
+    if (SHOP_PLACES.length - missing.length <= 1) { // "ของแห้ง" มีมาตั้งแต่แรก — มีไม่เกิน 1 ที่ = ยังไม่เริ่มตั้ง
       return '<div class="card form" style="padding:16px;margin-bottom:12px"><b>📍 ตั้งที่เก็บของร้าน (นับตามตู้จริง)</b>' +
         '<p class="muted" style="margin:0;font-size:14px">จะสร้าง ' + missing.map(function (p) { return esc(p.icon + ' ' + p.th); }).join(' · ') + ' เรียงตามลำดับเดินนับ (ทุกตู้นับทุกวัน) แล้วพาไปหน้าจัดของเข้าแต่ละตู้ · ระหว่างจัด น้องยังนับแบบเดิมได้</p>' +
         '<button class="btn btn-primary" data-act="plCreate">สร้างที่เก็บ ' + missing.length + ' ที่</button></div>';
@@ -4567,11 +4571,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var A = S.admin;
       var cur = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; });
       var shop = SHOP_PLACES.map(function (p) {
-        var ex = cur.filter(function (z) { return z.th === p.th; })[0];
+        var ex = cur.filter(function (z) { return shopBase(z.th) === p.th; })[0];
         if (ex) { ex.weekly = false; return ex; }
         return { icon: p.icon, th: p.th, mm: p.mm, kind: 'buy', weekly: false };
       });
-      var rest = cur.filter(function (z) { return !SHOP_PLACES.some(function (p) { return p.th === z.th; }); });
+      var rest = cur.filter(function (z) { return !SHOP_PLACES.some(function (p) { return p.th === shopBase(z.th); }); });
       el.disabled = true; el.textContent = 'กำลังสร้าง…';
       api('apiAdminSaveZones', A.pin, shop.concat(rest)).then(function (r) {
         useZones(r.zones); if (S.boot) S.boot.zones = r.zones;
