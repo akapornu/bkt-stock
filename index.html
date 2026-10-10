@@ -641,17 +641,19 @@ var I18N = {
   noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
-  // หัวหน้าตรวจชื่อพม่าเอง (ร่าง 10 ต.ค. 69 — รอบรรณาธิการพม่าตรวจ)
+  // หัวหน้าตรวจชื่อพม่าเอง (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ခေါ်နေကျ (mmHint), zawgyiWarn)
   mmCheckTitle: ['ตรวจชื่อพม่า', 'မြန်မာနာမည် စစ်မယ်'],
-  mmHint: ['ชื่อไหนถูกกด ✓ · ชื่อไหนผิดกด แก้ แล้วพิมพ์ชื่อที่ทีมเรียกจริง', 'နာမည်မှန်ရင် ✓ နှိပ်ပါ · မှားရင် ပြင်မယ် ကိုနှိပ်ပြီး အဖွဲ့က တကယ်ခေါ်တဲ့ နာမည်ကို ရိုက်ပါ'],
+  mmHint: ['ชื่อไหนถูกกด ✓ · ชื่อไหนผิดกด "แก้" แล้วพิมพ์ชื่อที่ทีมเรียกจริง', 'နာမည် မှန်ရင် ✓ နှိပ်ပါ · မှားရင် "ပြင်မယ်" ကို နှိပ်ပြီး ဆိုင်မှာ ခေါ်နေကျ နာမည် ရိုက်ပါ'],
   mmUnchecked: ['ยังไม่ได้ตรวจ ({n})', 'မစစ်ရသေး ({n})'],
   mmAll: ['ทั้งหมด', 'အားလုံး'],
   mmEdit: ['แก้', 'ပြင်မယ်'],
   mmSave: ['บันทึก', 'သိမ်းမယ်'],
   mmChecked: ['ตรวจแล้ว', 'စစ်ပြီး'],
   mmDoneAll: ['ตรวจครบทุกรายการแล้ว', 'အကုန် စစ်ပြီးပြီ'],
-  zawgyiWarn: ['แป้นพิมพ์นี้เป็น Zawgyi — เปลี่ยนเป็นแป้น Unicode ก่อน', 'ဒီကီးဘုတ်က ဇော်ဂျီ ဖြစ်နေတယ် — ယူနီကုဒ် ကီးဘုတ်ကို အရင်ပြောင်းပါ'],
+  zawgyiWarn: ['แป้นพิมพ์นี้เป็น Zawgyi — เปลี่ยนไปใช้แป้น Unicode ก่อน', 'ဒီကီးဘုတ်က ဇော်ဂျီ ဖြစ်နေတယ် — ယူနီကုဒ် ကီးဘုတ်ကို အရင် ပြောင်းသုံးပါ'],
   mmNeedBurmese: ['พิมพ์ชื่อภาษาพม่าก่อน', 'မြန်မာလို နာမည် အရင်ရိုက်ပါ'],
+  mmNoThai: ['ห้ามมีตัวอักษรไทย — พิมพ์ภาษาพม่าอย่างเดียว', 'ထိုင်းစာလုံး မထည့်ပါနဲ့ — မြန်မာလိုပဲ ရိုက်ပါ'],
+  mmSavedN: ['ชื่อพม่าที่ตรวจ {n} รายการ', 'စစ်ထားတဲ့ မြန်မာနာမည် {n} ခု'],
   // จำนวนครั้งก่อนในแป้นนับ (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน လွန်ခဲ့တဲ့ {n} ရက်က, ခါ/ခေါက်)
   lastCount: ['ครั้งก่อน', 'အရင်တစ်ခါ'],
   yesterday: ['เมื่อวาน', 'မနေ့က'],
@@ -826,7 +828,15 @@ var Logic = (function () {
   function scopeKey(label) { return label ? 'S_' + label : 'ALL'; }
 
   // แป้นพิมพ์ Zawgyi: สระ ေ ขึ้นหน้าคำ หรือใช้รหัสตัวซ้อน U+1060–1097 (Unicode พม่าไม่ใช้) → เครื่องอื่นอ่านไม่ออก
-  function looksZawgyi(s) { return /[\u1060-\u1097]/.test(String(s || '')) || /(^|[\s(])\u1031/.test(String(s || '')); }
+  // กฎตามลำดับรหัส Unicode: ေ/medial ต้องตามหลังพยัญชนะ · ္ ต้องตามด้วยพยัญชนะ · ် ห้ามตามด้วยสระ/medial · รหัส Zawgyi เฉพาะ
+  function looksZawgyi(s) {
+    s = String(s || '');
+    return /[\u1033\u1034\u1060-\u1097]/.test(s) ||
+      /(^|[^\u1000-\u1021\u103B-\u103E])\u1031/.test(s) ||
+      /(^|[^\u1000-\u1021\u1039\u103B-\u103E])[\u103B-\u103E]/.test(s) ||
+      /\u1039(?![\u1000-\u1021])/.test(s) ||
+      /\u103A[\u102B-\u1032\u1036\u103B-\u103E]/.test(s);
+  }
   // ชื่อพม่าที่เครื่องแปล (ยังไม่มีคนยืนยัน) — 'mon' = หัวหน้าทีมยืนยันแล้ว
   function mmMachine(it) { return it && (it.mm_auto === 'google' || it.mm_auto === 'claude'); }
 
@@ -2894,7 +2904,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (!ids.length) return;
     S.mmQ = {};
     outboxAdd('apiStaffSetMm', [S.pin, S.me, ids.map(function (id) { return { id: id, mm: q[id] }; })],
-      '✏️ ' + tr('mmCheckTitle').th + ' · ' + tr('mmCheckTitle').mm + ' (' + ids.length + ')');
+      '✏️ ' + tr('mmSavedN', { n: ids.length }).th + ' · ' + tr('mmSavedN', { n: ids.length }).mm);
   }
 
   // ---------- ส่งตามหลัง (outbox): กดยืนยันแล้วไปต่อได้เลย แอพส่งเองจนสำเร็จ — เก็บในเครื่อง เน็ตหลุด/ปิดแอพก็ไม่หาย (กฎ: ห้ามทำให้แอพช้าลง) ----------
@@ -3004,7 +3014,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     mmSave: function (el) {
       var it = itemById(el.dataset.id), v = ((document.getElementById('mf-in') || {}).value || '').trim();
       if (!it) return;
-      if (!L.hasBurmese(v) || /[\u0E00-\u0E7F]/.test(v)) return toast('⚠️ ' + tr('mmNeedBurmese').th + ' · ' + tr('mmNeedBurmese').mm);
+      if (!L.hasBurmese(v)) return toast('⚠️ ' + tr('mmNeedBurmese').th + ' · ' + tr('mmNeedBurmese').mm);
+      if (/[\u0E00-\u0E7F]/.test(v)) return toast('⚠️ ' + tr('mmNoThai').th + ' · ' + tr('mmNoThai').mm);
       if (L.looksZawgyi(v)) return toast('⚠️ ' + tr('zawgyiWarn').th + ' · ' + tr('zawgyiWarn').mm);
       mmSet(it, v); S.mmfix.edit = null; buzz(); rerenderKeepScroll();
     },
