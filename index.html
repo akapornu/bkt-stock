@@ -807,6 +807,30 @@ var Logic = (function () {
   }
   function scopeKey(label) { return label ? 'S_' + label : 'ALL'; }
 
+  // ---------- ค้นหาแบบทนวิธีพิมพ์ต่างกัน ----------
+  // พม่า: คนพิมพ์คำเดียวกันได้หลายแบบ (ซ้อนตัว/ไม่ซ้อน เช่น သင်္ဘော / သင်ဘော / သဘော) และคีย์บอร์ด Zawgyi เก็บสระ/ตัวซ้อนคนละรหัส
+  //   → เทียบเฉพาะ "โครง" = พยัญชนะหลัก+สระลอย (ใช้รหัสเดียวกันทั้ง Unicode และ Zawgyi) · ไทย: ไม่สนวรรณยุกต์/การันต์/วงเล็บ
+  function mmSkeleton(s) { return String(s || '').replace(/[^\u1000-\u102A\u103F\u104C-\u104F]/g, ''); }
+  function thFold(s) { return String(s || '').toLowerCase().replace(/[\s\u0E48-\u0E4C()（）.\-·]/g, ''); }
+  function isSubseq(q, s) { var i = 0; for (var j = 0; j < s.length && i < q.length; j++) if (s.charAt(j) === q.charAt(i)) i++; return i === q.length; }
+  // 3 = ตรงตามที่พิมพ์ · 2 = ตรงเมื่อไม่สนวรรณยุกต์/วิธีพิมพ์พม่า · 1 = พยัญชนะพม่าเรียงตรงกัน (พิมพ์ตกบางตัว) · 0 = ไม่ใช่
+  function searchScore(it, q) {
+    var raw = String(q || '').trim();
+    if (!raw) return 1;
+    var n = raw.toLowerCase().replace(/\s+/g, '');
+    var th = String(it.name_th || '').toLowerCase().replace(/\s+/g, ''), mm = String(it.name_mm || '').replace(/\s+/g, '');
+    if (th.indexOf(n) >= 0 || mm.indexOf(n) >= 0) return 3;
+    var tf = thFold(raw);
+    if (tf && /[\u0E00-\u0E7Fa-z0-9]/.test(tf) && thFold(it.name_th).indexOf(tf) >= 0) return 2;
+    var qs = mmSkeleton(raw);
+    if (qs.length >= 2) {
+      var ns = mmSkeleton(it.name_mm);
+      if (ns.indexOf(qs) >= 0) return 2;
+      if (qs.length >= 3 && isSubseq(qs, ns)) return 1;
+    }
+    return 0;
+  }
+
   // ---------- จำนวนที่นับครั้งก่อน (แป้นนับโชว์ + เตือนตัวเลขกระโดด) ----------
   // rows = ผลนับรายวัน (เรียงอย่างไรก็ได้) → { itemId: { c: [จำนวน, ระดับ, วันที่] ล่าสุด, p: [...] วันก่อนหน้านั้น } }
   function lastCountsFrom(rows) {
@@ -1375,7 +1399,7 @@ var Logic = (function () {
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
-    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount,
+    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, searchScore: searchScore, mmSkeleton: mmSkeleton,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
@@ -1496,10 +1520,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return items().filter(function (i) { return L.itemLocs(i).indexOf(zid) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
   }
   function normQ(t) { return String(t || '').toLowerCase().replace(/\s+/g, ''); }
-  function matchItem(it, q) {
-    q = normQ(q);
-    return !q || normQ(it.name_th).indexOf(q) >= 0 || normQ(it.name_mm).indexOf(q) >= 0;
-  }
+  // ค้นหา: ทนวิธีพิมพ์พม่าต่างกัน/คีย์บอร์ด Zawgyi และวรรณยุกต์ไทย (Logic.searchScore) · ผลที่ตรงกว่าขึ้นก่อน
+  function matchItem(it, q) { return !normQ(q) || L.searchScore(it, q) > 0; }
+  function bySearch(q) { return function (a, b) { return L.searchScore(b, q) - L.searchScore(a, q); }; }
   function itemById(id) { return ((S.boot && S.boot.items) || []).filter(function (i) { return i.id === id; })[0]; }
   // ผลนับรวมของรายการ (ของหลายที่ = รวมทุกที่ เมื่อนับครบ)
   function entry(id) { var it = itemById(id); return it ? L.itemEntry(it, S.draft.entries) : S.draft.entries[id]; }
@@ -2226,7 +2249,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function homeFound() {
     var q = S.homeQ || '';
     if (!normQ(q)) return '';
-    var hits = items().filter(function (it) { return inMyZones(it) && matchItem(it, q); }).slice(0, 12);
+    var hits = items().filter(function (it) { return inMyZones(it) && matchItem(it, q); }).sort(bySearch(q)).slice(0, 12);
     if (!hits.length) return '<p class="muted" style="margin:8px 4px 0">' + bi1('notFound', { q: q.trim() }) + '</p>';
     return '<p class="muted" style="margin:8px 4px 6px;font-size:13px">' + bi1('tapPlace') + '</p><div class="list">' + hits.map(function (it) {
       return '<div class="card found"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span></div><div class="tagbox">' +
@@ -2457,8 +2480,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function recvPicks() {
     var q = (S.recv.q || '').trim().toLowerCase();
     if (!q) return '';
-    var hits = items().filter(function (it) { return it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0; })
-      .sort(function (a, b) { return (a.kind === 'buy' ? 0 : 1) - (b.kind === 'buy' ? 0 : 1); }).slice(0, 8);
+    var hits = items().filter(function (it) { return matchItem(it, q); })
+      .sort(function (a, b) { return L.searchScore(b, q) - L.searchScore(a, q) || (a.kind === 'buy' ? 0 : 1) - (b.kind === 'buy' ? 0 : 1); }).slice(0, 8);
     return hits.map(function (it) {
       return '<button data-act="recvPick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>';
     }).join('') + '<button data-act="recvPickText">✍️ ใช้คำว่า "' + esc(S.recv.q) + '"</button>';
@@ -2613,7 +2636,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function urgPicks() {
     var q = (S.urgent.q || '').trim().toLowerCase();
     if (!q) return '';
-    var hits = items().filter(function (it) { return it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0; }).slice(0, 8);
+    var hits = items().filter(function (it) { return matchItem(it, q); }).sort(bySearch(q)).slice(0, 8);
     return hits.map(function (it) {
       return '<button data-act="urgPick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>';
     }).join('') + '<button data-act="urgPickText">✍️ ใช้คำว่า "' + esc(S.urgent.q) + '"</button>';
@@ -3441,7 +3464,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function pePicks() {
     var q = (S.admin.poEdit.q || '').trim().toLowerCase();
     if (!q) return '';
-    var list = S.admin.data.items.filter(function (it) { return it.active !== false && (it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0); })
+    var list = S.admin.data.items.filter(function (it) { return it.active !== false && (matchItem(it, q)); })
       .sort(function (a, b) { return (a.kind === 'buy' ? 0 : 1) - (b.kind === 'buy' ? 0 : 1); }).slice(0, 8);
     return list.map(function (it) { return '<button data-act="pePick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '</button>'; }).join('') +
       '<button data-act="pePickText">✍️ ของนอกรายการ: "' + esc(S.admin.poEdit.q) + '"</button>';
@@ -3916,7 +3939,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var A = S.admin, P = A.plAssign, ids = shopZoneIds(), tgt = P.target;
     var q = (P.q || '').trim().toLowerCase();
     var list = A.data.items.filter(function (it) { return it.active !== false; })
-      .filter(function (it) { return !q || it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0; })
+      .filter(function (it) { return !q || matchItem(it, q); })
       .filter(function (it) { return !P.onlyLeft || !plPlaces(it).some(function (z) { return ids.indexOf(z) >= 0; }) || plPlaces(it).indexOf(tgt) >= 0; })
       .sort(function (a, b) { return a.name_th.localeCompare(b.name_th, 'th'); });
     var left = A.data.items.filter(function (it) { return it.active !== false && !plPlaces(it).some(function (z) { return ids.indexOf(z) >= 0; }); }).length;
@@ -4436,7 +4459,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (!box) return;
     var q = el.value.trim().toLowerCase(), ids = shopZoneIds();
     box.innerHTML = S.admin.data.items.filter(function (it) { return it.active !== false; })
-      .filter(function (it) { return !q || it.name_th.toLowerCase().indexOf(q) >= 0 || (it.name_mm || '').indexOf(q) >= 0; })
+      .filter(function (it) { return !q || matchItem(it, q); })
       .filter(function (it) { return !P.onlyLeft || !plPlaces(it).some(function (z) { return ids.indexOf(z) >= 0; }) || plPlaces(it).indexOf(P.target) >= 0; })
       .sort(function (a, b) { return a.name_th.localeCompare(b.name_th, 'th'); })
       .map(function (it) { return plRow(it, P.target); }).join('');
