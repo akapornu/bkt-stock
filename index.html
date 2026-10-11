@@ -959,7 +959,7 @@ var Logic = (function () {
   }
   // ช่องเก็บผลนับในร่าง: ที่หลักใช้ id รายการ (เหมือนเดิม) · ที่เพิ่มใช้ id@หมวด
   function slotKey(it, zid) { return !zid || zid === it.zone ? it.id : it.id + '@' + zid; }
-  // ผลนับรวมของรายการ: ครบทุกที่ = {v: ผลรวม, parts} · นับไม่ครบ = {partial, parts, missing} (ยังไม่ถือว่านับแล้ว)
+  // ผลนับรวมของรายการ: ครบทุกที่ = {v: ผลรวม, parts} · นับไม่ครบ = {partial, parts, missing} (ยังไม่ถือว่านับแล้ว — ตอนสรุปรายงาน summarize คิดที่ที่ข้ามเป็น 0)
   function itemEntry(it, entries) {
     var ls = itemLocs(it);
     if (ls.length === 1) return entries[it.id];
@@ -1000,6 +1000,13 @@ var Logic = (function () {
       .forEach(function (it) {
         var home = out.zones[it.zone], e = entries[it.id], locs = locsOf[it.id];
         var due = locs.some(function (z) { return out.zones[z].due || started[z]; });
+        // ของหลายที่ นับแล้วบางที่: ที่ที่ข้ามไป (ถึงรอบนับวันนี้) = ไม่มีของ — น้องเปิดดูไม่เจอก็มักกดข้าม
+        // ที่เก็บรายสัปดาห์ที่ยังไม่ถึงรอบ = ไม่รู้จริง → ยังนับว่า "ยังไม่นับ" แบบเดิม
+        if (e && e.partial && e.missing.every(function (z) { return !out.zones[z] || out.zones[z].due || started[z]; })) {
+          var tot = 0;
+          Object.keys(e.parts).forEach(function (z) { tot += e.parts[z]; });
+          e = entries[it.id] = { v: round2(tot), lv: null, parts: e.parts, assumed: e.missing.slice(), by: e.by, at: e.at };
+        }
         locs.forEach(function (z) {
           var zs = out.zones[z], se = raw[slotKey(it, z)];
           zs.total++;
@@ -1021,7 +1028,7 @@ var Logic = (function () {
         var need = needQty(it, e.v);
         if (need > 0) {
           home.below++;
-          (it.kind === 'prep' ? out.prep : out.buy).push({ item: it, qty: e.v, need: need, parts: locs.length > 1 ? e.parts : null });
+          (it.kind === 'prep' ? out.prep : out.buy).push({ item: it, qty: e.v, need: need, parts: locs.length > 1 ? e.parts : null, assumed: e.assumed || null });
         }
       });
     out.counters = Object.keys(counters).filter(Boolean);
@@ -1038,53 +1045,72 @@ var Logic = (function () {
 
   function unitText(item) { return item.unit + (item.size ? ' (' + item.size + ')' : ''); }
 
-  // ข้อความ LINE ถึงบอส (ภาษาไทย) — สั้น อ่านจบในจอเดียวถ้าของไม่เยอะ
+  // ร้านที่สั่งของแต่ละรายการครั้งล่าสุด (จากใบสั่ง) — ไว้จัดกลุ่มรายงานตามร้าน · ใบที่ไม่ระบุร้านไม่นับ
+  function lastSuppliers(pos) {
+    var out = {}, at = {};
+    (pos || []).forEach(function (po) {
+      var name = String(po.supplier_name || '').trim(), t = String(po.created_at || '');
+      if (!name) return;
+      (po.lines || []).forEach(function (l) {
+        if (!l.item_id || !(l.qty > 0)) return;
+        if (!at[l.item_id] || t > at[l.item_id]) { at[l.item_id] = t; out[l.item_id] = name; }
+      });
+    });
+    return out;
+  }
+
+  // ข้อความ LINE ถึงบอส (ภาษาไทย) — 1 รายการ = 1 บรรทัด · ของซื้อจัดตามร้านที่สั่งครั้งล่าสุด · หมดขึ้นก่อน
+  // meta: { date, by, at, note, note_th, appUrl, resend, section, recipeNeeds, supplierOf:{item_id: ร้าน} }
   function buildBossMessage(sum, zones, meta) {
-    var L = [];
+    var L = [], zoneById = {};
+    zones.forEach(function (z) { zoneById[z.id] = z; });
+    var zName = function (id) { return zoneById[id] ? zoneById[id].th : id; };
+    var left = function (r) { return r.qty > 0 ? 'เหลือ ' + fmtNum(r.qty) + ' ' + r.item.unit : 'หมด'; };
+    var skipped = function (r) { return r.assumed && r.assumed.length ? ' (ไม่ได้นับ ' + r.assumed.map(zName).join(', ') + ' — คิดว่าไม่มี)' : ''; };
+    var outFirst = function (rows) { return rows.slice().sort(function (a, b) { return (a.qty > 0) - (b.qty > 0); }); };
     L.push('🛒 ของที่ต้องซื้อ — บ้านขาวต้ม' + (meta.section ? ' · ' + meta.section : '') + (meta.resend ? ' (ฉบับแก้ไข)' : ''));
     L.push(thaiDate(meta.date) + ' · ' + meta.by + ' ส่ง ' + bkkTime(meta.at));
     var helpers = sum.counters.filter(function (n) { return n !== meta.by; });
     if (helpers.length) L.push('ช่วยนับ: ' + helpers.join(', '));
+    L.push('ต้องซื้อ ' + sum.buy.length + ' · ต้องทำเพิ่ม ' + sum.prep.length + ' · ' + (sum.uncounted.length ? 'ยังไม่นับ ' + sum.uncounted.length : 'นับครบ ✓'));
+    if (meta.note) {
+      L.push('📝 ' + meta.by + ': ' + (meta.note_th || meta.note));
+      if (meta.note_th) L.push('   ↳ ต้นฉบับพม่า (แปลอัตโนมัติ): ' + meta.note);
+    }
     L.push('');
     if (!sum.buy.length) {
       L.push('✅ รอบนี้ไม่มีของต้องซื้อ');
     } else {
-      L.push('(จำนวนสั่ง = เติมให้ถึง Max · ปรับเพิ่ม/ลดได้ตามยอดขายช่วงนั้น)');
-      L.push('');
-      zones.forEach(function (z) {
-        var rows = sum.buy.filter(function (r) { return r.item.zone === z.id; });
-        if (!rows.length) return;
-        L.push(z.icon + ' ' + z.th + ' (' + rows.length + ')');
-        rows.forEach(function (r) {
+      var sup = meta.supplierOf || {}, groups = {}, order = [];
+      sum.buy.forEach(function (r) {
+        var g = sup[r.item.id] || '';
+        if (!groups[g]) { groups[g] = []; order.push(g); }
+        groups[g].push(r);
+      });
+      order.sort(function (a, b) { return (a === '') - (b === '') || groups[b].length - groups[a].length; });
+      var named = order.some(Boolean);
+      order.forEach(function (g, gi) {
+        if (gi) L.push('');
+        L.push(named ? '🏪 ' + (g || 'ร้านอื่น / ยังไม่เคยสั่ง') + ' (' + groups[g].length + ')' : '🛒 ต้องซื้อ (' + groups[g].length + ')');
+        outFirst(groups[g]).forEach(function (r) {
           var b = buyQty(r.item, r.need);
-          L.push('• ' + r.item.name_th + ' → สั่ง ' + orderQtyText(b.qty, b) +
-            (b.approxCount !== null ? ' (≈' + fmtNum(b.approxCount) + ' ' + r.item.unit + ')' : ''));
-          L.push('   เหลือ ' + fmtNum(r.qty) + ' | Min ' + fmtNum(r.item.min) + ' | Max ' + fmtNum(r.item.max) + (b.approxCount !== null ? ' (' + r.item.unit + ')' : ''));
-          if (r.parts) L.push('   แยกที่: ' + Object.keys(r.parts).map(function (zid) {
-            var zz = zones.filter(function (x) { return x.id === zid; })[0];
-            return (zz ? zz.th : zid) + ' ' + fmtNum(r.parts[zid]);
-          }).join(' + '));
+          L.push('• ' + r.item.name_th + ' ' + orderQtyText(b.qty, b) + (b.approxCount !== null ? ' (≈' + fmtNum(b.approxCount) + ' ' + r.item.unit + ')' : '') +
+            ' — ' + left(r) + skipped(r));
         });
       });
+      L.push('(จำนวนสั่ง = เติมให้ถึง Max' + (named ? ' · จัดตามร้านที่สั่งครั้งล่าสุด' : '') + ')');
     }
     if (sum.prep.length) {
       L.push('');
       L.push('🔪 ครัวต้องทำเพิ่ม ' + sum.prep.length + ' รายการ (ทำให้ถึง Max)');
-      zones.forEach(function (z) {
-        var rows = sum.prep.filter(function (r) { return r.item.zone === z.id; });
-        if (!rows.length) return;
-        L.push(z.icon + ' ' + z.th);
-        rows.forEach(function (r) {
-          L.push('• ' + r.item.name_th + ' → ทำ ' + fmtNum(r.need) + ' ' + r.item.unit + ' (เหลือ ' + fmtNum(r.qty) + ' | Min ' + fmtNum(r.item.min) + ' | Max ' + fmtNum(r.item.max) + ')');
-        });
-      });
+      outFirst(sum.prep).forEach(function (r) { L.push('• ' + r.item.name_th + ' ' + fmtNum(r.need) + ' ' + r.item.unit + ' — ' + left(r) + skipped(r)); });
     }
     if (meta.recipeNeeds && meta.recipeNeeds.length) {
       L.push('');
       L.push('🧾 วัตถุดิบสำหรับของที่ต้องทำ (ซื้อตามสูตร)');
       meta.recipeNeeds.forEach(function (nd) {
         L.push('• ' + nd.item.name_th + ' — ' + nd.rounds + ' รอบ' + (nd.yield ? ' (ได้ ~' + fmtNum(nd.yield * nd.rounds) + ' ' + nd.item.unit + ')' : ''));
-        nd.lines.forEach(function (l) { L.push('   - ' + l.name + ' ' + fmtNum(l.qty) + ' ' + l.unit + (l.have ? ' (มี ' + l.have + ')' : '')); });
+        nd.lines.forEach(function (l) { L.push('   - ' + l.name + ' ' + (spokenWeight(l.qty, l.unit) || fmtNum(l.qty) + ' ' + l.unit) + (l.have ? ' (มี ' + l.have + ')' : '')); });
       });
     }
     if (sum.attention.length) {
@@ -1092,20 +1118,16 @@ var Logic = (function () {
       L.push('⚠️ ยังไม่ตั้ง Min/Max แต่ใกล้หมด/หมด');
       sum.attention.forEach(function (r) { L.push('• ' + r.item.name_th + ' — ' + LEVEL_TH[r.level]); });
     }
-    L.push('');
     if (sum.uncounted.length) {
-      var unPrep = sum.uncounted.filter(function (it) { return it.kind === 'prep'; }).length;
-      L.push('⏳ ยังไม่ได้นับ ' + sum.uncounted.length + ' รายการ' + (unPrep ? ' (ของตัดแต่ง/ทำเอง ' + unPrep + ' — รายการทำเพิ่มอาจไม่ครบ)' : ''));
-      zones.forEach(function (z) {
-        var names = sum.uncounted.filter(function (it) { return it.zone === z.id; }).map(function (it) { return it.name_th; });
-        if (names.length) L.push('   ' + z.icon + ' ' + z.th + ': ' + names.slice(0, 15).join(', ') + (names.length > 15 ? ' +อีก ' + (names.length - 15) : ''));
-      });
+      var byZone = {}, zs = [];
+      sum.uncounted.forEach(function (it) { if (!byZone[it.zone]) { byZone[it.zone] = 0; zs.push(it.zone); } byZone[it.zone]++; });
+      var unBuy = sum.uncounted.filter(function (it) { return it.kind !== 'prep'; }), unPrep = sum.uncounted.length - unBuy.length;
+      L.push('');
+      L.push('⏳ ยังไม่ได้นับ ' + sum.uncounted.length + ' รายการ (' + zs.map(function (z) { return zName(z) + ' ' + byZone[z]; }).join(' · ') + ')');
+      if (unBuy.length) L.push('   ของซื้อ: ' + unBuy.slice(0, 12).map(function (it) { return it.name_th; }).join(', ') + (unBuy.length > 12 ? ' +อีก ' + (unBuy.length - 12) : ''));
+      if (unPrep) L.push('   ของตัดแต่ง/ทำเอง ' + unPrep + ' รายการ — รายการทำเพิ่มอาจไม่ครบ');
     }
-    if (meta.note) {
-      L.push('📝 ' + meta.by + ': ' + (meta.note_th || meta.note));
-      if (meta.note_th) L.push('   ↳ ต้นฉบับพม่า (แปลอัตโนมัติ): ' + meta.note);
-    }
-    if (meta.appUrl) L.push(sum.buy.length ? '🛒 สร้างใบสั่งซื้อจากรอบนี้: ' + meta.appUrl + '#po' : 'ดูละเอียดในแอพ: ' + meta.appUrl);
+    if (meta.appUrl) { L.push(''); L.push(sum.buy.length ? '🛒 สร้างใบสั่งซื้อจากรอบนี้: ' + meta.appUrl + '#po' : 'ดูละเอียดในแอพ: ' + meta.appUrl); }
     while (L[L.length - 1] === '') L.pop();
     var text = L.join('\n');
     return text.length > 4900 ? text.slice(0, 4880) + '\n…(ตัดท้าย ดูต่อในแอพ)' : text;
@@ -1586,7 +1608,7 @@ var Logic = (function () {
     buildBossMessage: buildBossMessage, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
-    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
+    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
@@ -2869,7 +2891,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += rs.map(function (r) {
         return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>' + (unitMm(r.item) ? '<span class="mm u">' + esc(unitMm(r.item)) + '</span>' : ''), esc(tr('left').th) + ' ' + L.fmtNum(r.qty) +
           ' · Min ' + L.fmtNum(r.item.min) + ' · Max ' + L.fmtNum(r.item.max) + (r.item.size ? ' · ' + esc(r.item.size) : '') +
-          (r.parts ? ' · ' + esc(Object.keys(r.parts).map(function (z) { return zoneOf(z).icon + ' ' + L.fmtNum(r.parts[z]); }).join(' + ')) : ''));
+          (r.parts ? ' · ' + esc(Object.keys(r.parts).map(function (z) { return zoneOf(z).icon + ' ' + L.fmtNum(r.parts[z]); })
+            .concat((r.assumed || []).map(function (z) { return zoneOf(z).icon + ' ' + tr('notCounted').th + ' = 0'; })).join(' + ')) : ''));
       }).join('');
     });
     return h;
