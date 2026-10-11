@@ -1533,7 +1533,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return attempt(0);
   }
-  var SLOW_API = { apiReadBill: 120000, apiReceive: 90000, apiAlert: 60000 }; // อ่านบิล/อัปรูป+แปล+LINE ใช้เวลานานกว่าปกติ
+  var SLOW_API = { apiReadBill: 120000, apiReceive: 90000, apiAlert: 60000, apiAdminUpgradeMm: 120000, apiAdminTranslate: 60000, apiAdminSaveItems: 60000, apiAdminReviewMm: 120000 }; // อ่านบิล/อัปรูป+แปล+LINE ใช้เวลานานกว่าปกติ
   function postOnce(fn, args, rid) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctl) ctl.abort(); }, SLOW_API[fn] || 30000);
@@ -4609,10 +4609,25 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function adminSaveItems(list) {
-    return api('apiAdminSaveItems', S.admin.pin, list).then(function (all) {
+    return api('apiAdminSaveItems', S.admin.pin, list, { fast: true }).then(function (all) {
       S.admin.data.items = all;
       if (S.boot) S.boot.items = all.filter(function (i) { return i.active !== false; });
+      // ชื่อพม่าที่เพิ่งได้จาก Google (บันทึกเร็ว) → ให้ Claude แปลให้ดีขึ้นตามหลัง
+      var ids = list.map(function (x) { return x.id; });
+      var weak = all.filter(function (i) { return ids.indexOf(i.id) >= 0 && i.mm_auto === 'google'; }).map(function (i) { return i.id; });
+      if (weak.length && S.admin.data.settings && S.admin.data.settings.claudeKey) upgradeMm(weak);
     });
+  }
+  function upgradeMm(ids) {
+    var A = S.admin;
+    api('apiAdminUpgradeMm', A.pin, ids).then(function (r) {
+      if (!r || !r.done || S.admin !== A) return;
+      A.data.items = r.items;
+      if (S.boot) S.boot.items = r.items.filter(function (i) { return i.active !== false; });
+      adminCacheSave();
+      toast('✨ Claude แปลชื่อพม่าให้แล้ว ' + r.done + ' รายการ');
+      if (S.screen === 'admin') rerenderKeepScroll();
+    }, function () { /* ไม่เป็นไร ชื่อจาก Google ยังใช้ได้ กดแปลใหม่ทีหลังได้ */ });
   }
 
   // เปลี่ยนหน่วยไทย → เติมหน่วยพม่าให้ตาม (ยกเว้นบอสพิมพ์หน่วยพม่าเองแล้ว)
