@@ -634,8 +634,9 @@ var I18N = {
   prepToday: ['ต้องทำเพิ่มวันนี้', 'ဒီနေ့ ထပ်လုပ်ရန်'],
   prepCard: ['ต้องทำเพิ่ม {n} รายการ', 'ထပ်လုပ်စရာ {n} ခု ရှိတယ်'],
   prepMakeTo: ['ทำเพิ่ม {n} {u} → ให้ถึง {t}', '{n} {um} ထပ်လုပ်ပါ → {t} ပြည့်အောင်'],
-  prepDoneBtn: ['ทำครบแล้ว', 'ပြည့်အောင် လုပ်ပြီးပြီ'],
-  prepUpdated: ['อัปเดตเป็น {n} {u} แล้ว', '{n} {um} ဖြစ်သွားပြီ'],
+  prepMadeBtn: ['ทำเสร็จ · ใส่จำนวน', 'လုပ်ပြီးပြီ · အရေအတွက် ထည့်မယ်'],
+  prepMadeQ: ['ทำได้กี่ {u}?', '{um} ဘယ်လောက် ရလဲ?'],
+  prepMadeSaved: ['เพิ่ม {n} {u} เข้าสต็อคแล้ว', '{n} {um} စတော့ထဲ ထည့်ပြီးပြီ'],
   prepUncounted: ['ยังไม่ได้นับของตัดแต่ง/ทำเอง {n} รายการ — นับก่อน รายการนี้ถึงจะครบ', 'လှီးပြီးသား/ချက်ပြီးသား {n} ခု မရေတွက်ရသေးဘူး — အရင် ရေတွက်မှ ဒီစာရင်း စုံမယ်'],
   prepUncountedShort: ['ยังไม่นับ {n}', 'မရေတွက်ရသေး {n} ခု'],
   bigNumber: ['{n} {u} เยอะผิดปกติ (Max {max}) — ตัวเลขถูกไหม?', '{n} {um} က ပုံမှန်ထက် အရမ်းများနေတယ် (Max {max}) — ဂဏန်း မှန်ရဲ့လား?'],
@@ -1352,8 +1353,8 @@ var Logic = (function () {
       var rv = {};
       mv.forEach(function (m) { if (m.date >= from) rv[m.date] = round2((rv[m.date] || 0) + (m.qty_count || 0)); });
       r.recv = Object.keys(rv).sort().map(function (d) { return { d: d, q: rv[d] }; });
-      // ใช้ไปแต่ละช่วง (เฉพาะของซื้อ — ของเตรียม/ทำเองไม่มีบันทึกว่าทำเพิ่มเท่าไหร่ จึงคำนวณใช้ไปไม่ได้)
-      if (it.kind !== 'prep') {
+      // ใช้ไปแต่ละช่วง — ของซื้อ: รับเข้า · ของทำเอง: ต้องมีบันทึกการผลิต (ปุ่ม "ทำเสร็จ") ไม่งั้นรู้ไม่ได้ว่าทำเพิ่มเท่าไหร่
+      if (it.kind !== 'prep' || mv.some(function (m) { return m.type === 'produce'; })) {
         for (var i = 1; i < nums.length; i++) {
           var a = nums[i - 1], b = nums[i];
           if (b.date < from) continue;
@@ -2244,7 +2245,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
               (function () { var x = tr('prepMakeTo', { n: L.fmtNum(r.need), u: it.unit, um: unitMm(it) || it.unit, t: L.fmtNum(to) });
                 return '<small class="muted">' + esc(tr('left').th) + ' ' + L.fmtNum(r.qty) + ' ' + esc(it.unit) + '<b class="mk">' + esc(x.th) + '</b></small><small class="mm">' + esc(x.mm) + '</small>'; })() +
               recipeUseHtml(it, r.need) + '</div>' +
-              (isMulti(it) ? '' : '<button class="full-btn" data-act="prepDone" data-id="' + esc(it.id) + '">✓ ' + esc(tr('prepDoneBtn').th) + ' <span class="mm">' + esc(tr('prepDoneBtn').mm) + '</span></button>') + '</div>';
+              '<button class="full-btn" data-act="prepDone" data-id="' + esc(it.id) + '" data-n="' + r.need + '">✓ ' + esc(tr('prepMadeBtn').th) + ' <span class="mm">' + esc(tr('prepMadeBtn').mm) + '</span></button>' + '</div>';
           }).join('');
         });
         h += '</div>';
@@ -3045,6 +3046,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
+  // กล่องใส่ตัวเลขของแอพเอง (สองภาษา) — คืนตัวเลข หรือ null ถ้ายกเลิก
+  function numBox(titleHtml, def, unitHtml) {
+    return new Promise(function (res) {
+      var el = document.createElement('div');
+      el.className = 'modal';
+      el.innerHTML = '<div class="card"><h3>' + titleHtml + '</h3><div class="rqty" style="justify-content:center;margin-top:10px">' +
+        '<input class="inp sm wide" type="number" inputmode="decimal" step="any" min="0" value="' + esc(def) + '"><span>' + (unitHtml || '') + '</span></div>' +
+        '<div class="btn-row" style="margin-top:14px"><button class="btn btn-ghost stack" data-k="no">' + bi('cancel') + '</button><button class="btn btn-primary stack" data-k="ok">' + biIcon('✓', 'mmSave') + '</button></div></div>';
+      var inp = el.querySelector('input');
+      var done = function (v) { el.remove(); res(v); };
+      el.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-k]');
+        if (b) return done(b.dataset.k === 'ok' ? Number(inp.value) : null);
+        if (ev.target === el) done(null);
+      });
+      inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); done(Number(inp.value)); } });
+      document.body.appendChild(el);
+      setTimeout(function () { inp.focus(); inp.select(); }, 50);
+    });
+  }
+
   // ---------- การกดต่างๆ ----------
   var ACT = {
     retry: function () { go('loading'); start(); },
@@ -3086,16 +3108,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     toSent: function () { go('sent'); },
     openZoneTodo: function (el) { S.zone = el.dataset.z; S.onlyUncounted = true; S.zoneQ = ''; go('zone'); pollNow(); },
+    // ทำเสร็จ → ใส่จำนวนที่ทำได้จริง → บวกเข้ายอดนับ (ที่เก็บหลัก) + บันทึกการผลิตตามหลัง (แดชบอร์ดคิดการใช้ได้)
     prepDone: function (el) {
-      var it = itemById(el.dataset.id), e = it && entry(it.id);
-      if (!it || isMulti(it) || !e || !L.isNum(e.v)) return it && openKp(it.id);
-      var need = L.needQty(it, e.v);
-      if (!(need > 0)) return;
-      var nv = L.round2(e.v + need);
-      setEntry(L.slotKey(it, it.zone), { v: nv });
-      buzz();
-      toast('✓ ' + it.name_th + ' — ' + tr('prepUpdated', { n: L.fmtNum(nv), u: it.unit, um: unitMm(it) || it.unit }).th);
-      rerenderKeepScroll();
+      var it = itemById(el.dataset.id);
+      if (!it) return;
+      numBox(bi1('prepMadeQ', { u: it.unit, um: unitMm(it) || it.unit }), Number(el.dataset.n) || '', unitBi(it)).then(function (made) {
+        if (!(made > 0)) return;
+        var key = L.slotKey(it, it.zone), cur = S.draft.entries[key], base = cur && L.isNum(cur.v) ? cur.v : 0, nv = L.round2(base + made);
+        setEntry(key, { v: nv });
+        outboxAdd('apiProduce', [S.pin, S.me, { item_id: it.id, qty: made }], '🍲 ' + it.name_th + ' +' + L.fmtNum(made) + ' ' + it.unit);
+        buzz();
+        toast('✓ ' + it.name_th + ' — ' + tr('prepMadeSaved', { n: L.fmtNum(made), u: it.unit }).th + ' · ' + tr('prepMadeSaved', { n: L.fmtNum(made), um: unitMm(it) || it.unit }).mm);
+        rerenderKeepScroll();
+      });
     },
     toUrgent: function () { S.urgent = { type: '', q: '', item: '', qty: '', note: '', photos: [], busy: false }; go('urgent'); },
 
