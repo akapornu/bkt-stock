@@ -4555,6 +4555,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div id="e-msg" class="pin-msg"></div>' +
       '<button class="btn btn-primary" data-act="aSave">บันทึก</button>' +
       (it.isNew ? '' : '<p class="muted center" style="margin:0;font-size:14px">เปลี่ยนลำดับ: แท็บ "รายการของ" → ↕️ จัดลำดับ</p>') +
+      (it.isNew ? '' : '<button class="btn btn-danger" data-act="aDelItem">🗑️ ลบรายการนี้</button>') +
       '</div>' + (it.isNew ? '' : recipeEditCard(it)) + '</div>';
   }
 
@@ -5302,6 +5303,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aForget: function () { store.del('apin'); store.del('adminCache'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
+    aDelItem: function (el) {
+      var A = S.admin, it = A.edit;
+      confirmBox('ลบ "' + esc(it.name_th) + '" ออกจากระบบ?',
+        'น้องจะไม่เห็นรายการนี้อีก · ประวัติที่เคยนับ/รับของ/ใบสั่งเดิมยังดูย้อนหลังได้ · ถ้าแค่ไม่อยากให้นับชั่วคราว ใช้เอาติ๊ก "ใช้งาน" ออกแทน (กลับมาเปิดได้)',
+        [{ key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: '🗑️ ลบ', cls: 'btn-danger' }]).then(function (k) {
+          if (k !== 'yes') return;
+          el.disabled = true; el.textContent = 'กำลังลบ…';
+          api('apiAdminDeleteItem', A.pin, it.id).then(function (r) {
+            A.data.items = r.items; A.data.recipes = r.recipes; A.edit = null;
+            if (S.boot) { S.boot.items = r.items.filter(function (i) { return i.active !== false; }); S.boot.recipes = r.recipes; }
+            adminCacheSave();
+            toast('ลบ "' + it.name_th + '" แล้ว');
+            go('admin');
+          }, function (e) { el.disabled = false; el.textContent = '🗑️ ลบรายการนี้'; toast(errMsg(e)); });
+        });
+    },
     aSaveRecipe: function (el) {
       var A = S.admin, it = A.edit, ls = recipeParse((document.getElementById('e-rc') || {}).value || '');
       var bad = ls.filter(function (l) { return !(l.qty > 0); });
