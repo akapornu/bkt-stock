@@ -1472,6 +1472,29 @@ var Logic = (function () {
     return errs;
   }
 
+  // ลำดับรายการในที่เก็บหนึ่ง — แยกต่อที่ (ของที่อยู่หลายที่ จัดที่หนึ่งแล้วไม่กระโดดในอีกที่)
+  // orders = { zoneId: { at: เวลาที่จัด, ids: [...] } } · ที่ยังไม่เคยจัด (ของใหม่/ย้ายเข้ามา) ต่อท้ายตาม sort
+  function placeSort(list, zid, orders) {
+    var o = orders && orders[zid], pos = {};
+    ((o && o.ids) || []).forEach(function (id, i) { if (pos[id] === undefined) pos[id] = i; });
+    return list.slice().sort(function (a, b) {
+      var pa = pos[a.id], pb = pos[b.id];
+      if (pa !== undefined || pb !== undefined) return pa === undefined ? 1 : pb === undefined ? -1 : pa - pb;
+      return (a.sort || 0) - (b.sort || 0);
+    });
+  }
+  // รวมลำดับสองชุด: แต่ละที่ใช้ชุดที่จัดล่าสุด (กันข้อมูลเก่าที่ตอบช้ามาทับที่เพิ่งจัด)
+  function mergeOrders(a, b) {
+    var out = {};
+    [a, b].forEach(function (src) {
+      Object.keys(src || {}).forEach(function (z) {
+        var o = src[z];
+        if (o && o.ids && (!out[z] || (o.at || 0) > (out[z].at || 0))) out[z] = o;
+      });
+    });
+    return out;
+  }
+
   return {
     businessDate: businessDate, bkkTime: bkkTime, dayOfWeek: dayOfWeek, thaiDate: thaiDate,
     isNum: isNum, isConfigured: isConfigured, needQty: needQty, zoneDue: zoneDue, hasCount: hasCount,
@@ -1483,7 +1506,7 @@ var Logic = (function () {
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
-    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, recipeRounds: recipeRounds, recipeNeeds: recipeNeeds, poLinesFromRecipes: poLinesFromRecipes, recipeText: recipeText, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine,
+    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, recipeRounds: recipeRounds, recipeNeeds: recipeNeeds, poLinesFromRecipes: poLinesFromRecipes, recipeText: recipeText, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine, placeSort: placeSort, mergeOrders: mergeOrders,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
@@ -1533,7 +1556,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return attempt(0);
   }
-  var SLOW_API = { apiReadBill: 120000, apiReceive: 90000, apiAlert: 60000, apiAdminUpgradeMm: 120000, apiAdminTranslate: 60000, apiAdminSaveItems: 60000, apiAdminReviewMm: 120000 }; // อ่านบิล/อัปรูป+แปล+LINE ใช้เวลานานกว่าปกติ
+  var SLOW_API = { apiAdminUpgradeZoneMm: 120000, apiAdminSaveZones: 60000, apiReadBill: 120000, apiReceive: 90000, apiAlert: 60000, apiAdminUpgradeMm: 120000, apiAdminTranslate: 60000, apiAdminSaveItems: 60000, apiAdminReviewMm: 120000 }; // อ่านบิล/อัปรูป+แปล+LINE ใช้เวลานานกว่าปกติ
   function postOnce(fn, args, rid) {
     var ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctl) ctl.abort(); }, SLOW_API[fn] || 30000);
@@ -1601,8 +1624,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   // รายการในหมวด: ที่หลักอยู่หมวดนี้ก่อน ตามด้วยของที่เก็บหลายที่ซึ่งมีบางส่วนอยู่ที่นี่
   function zoneItems(zid) {
-    return items().filter(function (i) { return L.itemLocs(i).indexOf(zid) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
+    return L.placeSort(items().filter(function (i) { return L.itemLocs(i).indexOf(zid) >= 0; }), zid, placeOrders());
   }
+  // ลำดับที่บอสจัดไว้แต่ละที่ — รวมของหน้าบอส+ของทีม เลือกชุดที่จัดล่าสุด
+  function placeOrders() { return L.mergeOrders(S.boot && S.boot.orders, S.admin && S.admin.data && S.admin.data.orders); }
   function normQ(t) { return String(t || '').toLowerCase().replace(/\s+/g, ''); }
   // ค้นหา: ทนวิธีพิมพ์พม่าต่างกัน/คีย์บอร์ด Zawgyi และวรรณยุกต์ไทย (Logic.searchScore) · ผลที่ตรงกว่าขึ้นก่อน
   function matchItem(it, q) { return !normQ(q) || L.searchScore(it, q) > 0; }
@@ -1709,7 +1734,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     try { d = JSON.parse(v.json); } catch (e) { return; }
     ver[k] = v.v;
     if (k === 'boot') {
+      var oldOrders = S.boot.orders;
       BOOT_FIELDS.forEach(function (f) { if (d[f] !== undefined) S.boot[f] = d[f]; });
+      S.boot.orders = L.mergeOrders(oldOrders, d.orders);
       useZones(d.zones);
       mmReapply();
     } else if (k === 'pos') {
@@ -1725,7 +1752,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     store.set('boot', { at: Date.now(), b: S.boot });
     pubRerender();
   }
-  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai'];
+  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai', 'recipes', 'orders'];
   // apiBootstrap ตอบช้ากว่าสำเนาบน Firebase ที่เพิ่งเปลี่ยน → เก็บส่วนที่ใหม่กว่าไว้
   function keepNewerPub(b) {
     var o = S.boot, pv = o && o.pubV;
@@ -1733,6 +1760,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (pv.boot && pv.boot > b.bootV) BOOT_FIELDS.forEach(function (f) { b[f] = o[f]; });
     if (pv.pos && pv.pos > b.bootV) b.pos = o.pos;
     if (o.lastCounts) b.lastCounts = o.lastCounts; // มาจาก Firebase อย่างเดียว
+    b.orders = L.mergeOrders(o.orders, b.orders);
     b.pubV = pv;
   }
   // วาดใหม่เฉพาะหน้าที่เป็นรายการ และไม่ขัดตอนน้องกำลังพิมพ์/กดแป้น
@@ -1931,6 +1959,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function boot(pin, keepScreen) {
     return api('apiBootstrap', pin).then(function (b) {
       keepNewerPub(b);
+      if (S.boot && S.boot.orders) b.orders = L.mergeOrders(S.boot.orders, b.orders);
       if (S.boot && S.boot.date !== b.date) { S.note = ''; S.result = null; }
       S.boot = b; S.bootAt = Date.now(); S.pin = pin; S.publicUrl = b.publicUrl || '';
       mmReapply();
@@ -3466,6 +3495,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return api('apiAdminLoad', pin, true).then(function (d) {
       useZones(d.zones);
       var prev = S.admin || {};
+      d.orders = L.mergeOrders(prev.data && prev.data.orders, d.orders);
       S.admin = { pin: pin, data: d, tab: tab || prev.tab || 'dash', zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '',
         dash: prev.dash || null, dashF: prev.dashF, dashQ: prev.dashQ };
       go('admin');
@@ -3492,7 +3522,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminCacheSave() {
     var A = S.admin;
     if (!A || !store.get('apin')) return;
-    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings }, dash: A.dash || null,
+    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings, recipes: A.data.recipes, orders: A.data.orders }, dash: A.dash || null,
       po: A.po || null, rep: A.rep && A.rep.list && A.rep.list.length ? { list: A.rep.list.slice(0, 40), more: A.rep.more } : null });
   }
   function adminFromCache(ap) {
@@ -3508,6 +3538,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       useZones(d.zones);
       d.receipts = A.data.receipts; d.alerts = A.data.alerts;
       if (A.data.settings && A.data.settings.claudeUsage) d.settings.claudeUsage = A.data.settings.claudeUsage;
+      d.orders = L.mergeOrders(A.data.orders, d.orders);
       A.data = d; A.stale = false;
       if (S.screen === 'admin' && !A.staffDraft && !A.move) rerenderKeepScroll();
       adminTabLoad();
@@ -4016,7 +4047,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<div class="tabs" style="padding-top:0">' + ZONES.map(function (z) {
         return '<button class="' + (A.zone === z.id ? 'on' : '') + '" data-act="aZone" data-v="' + z.id + '">' + z.icon + ' ' + esc(z.th) + '</button>';
       }).join('') + '</div>';
-      var list = d.items.filter(function (it) { return L.itemLocs(it).indexOf(A.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
+      var list = L.placeSort(d.items.filter(function (it) { return L.itemLocs(it).indexOf(A.zone) >= 0; }), A.zone, placeOrders());
       if (A.reorder && A.reorder.zone === A.zone) {
         var byId = {};
         list.forEach(function (it) { byId[it.id] = it; });
@@ -4618,6 +4649,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (weak.length && S.admin.data.settings && S.admin.data.settings.claudeKey) upgradeMm(weak);
     });
   }
+  // บันทึกที่เก็บ: เร็ว (ชื่อพม่าว่าง = Google ก่อน) แล้วให้ Claude แปลตามหลัง
+  function saveZones(pin, list) {
+    var blank = list.filter(function (z) { return !L.hasBurmese(z.mm); }).map(function (z) { return z.th; });
+    return api('apiAdminSaveZones', pin, list, { fast: true }).then(function (r) {
+      var pairs = (r.zones || []).filter(function (z) { return blank.indexOf(z.th) >= 0; }).map(function (z) { return { id: z.id, mm: z.mm }; });
+      if (pairs.length && S.admin && S.admin.data.settings && S.admin.data.settings.claudeKey) {
+        api('apiAdminUpgradeZoneMm', pin, pairs).then(function (u) {
+          if (!u || !u.done) return;
+          useZones(u.zones); if (S.boot) S.boot.zones = u.zones; if (S.admin) { S.admin.data.zones = u.zones; adminCacheSave(); }
+          toast('✨ Claude แปลชื่อที่เก็บให้แล้ว ' + u.done + ' ที่');
+          if (S.screen === 'admin' || S.screen === 'azones') rerenderKeepScroll();
+        }, function () { /* ชื่อจาก Google ยังใช้ได้ */ });
+      }
+      return r;
+    });
+  }
   function upgradeMm(ids) {
     var A = S.admin;
     api('apiAdminUpgradeMm', A.pin, ids).then(function (r) {
@@ -4819,7 +4866,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     el.disabled = true; el.textContent = 'กำลังเพิ่ม…';
     var list = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })
       .concat([{ icon: '📦', th: name, mm: '', kind: S.admin.edit.kind || 'buy', weekly: false }]);
-    api('apiAdminSaveZones', S.admin.pin, list).then(function (r) {
+    saveZones(S.admin.pin, list).then(function (r) {
       useZones(r.zones);
       if (S.boot) S.boot.zones = r.zones;
       var nz = r.zones.filter(function (z) { return z.th === name; })[0];
@@ -4917,7 +4964,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
       var rest = cur.filter(function (z) { return !SHOP_PLACES.some(function (p) { return p.th === shopBase(z.th); }); });
       el.disabled = true; el.textContent = 'กำลังสร้าง…';
-      api('apiAdminSaveZones', A.pin, shop.concat(rest)).then(function (r) {
+      saveZones(A.pin, shop.concat(rest)).then(function (r) {
         useZones(r.zones); if (S.boot) S.boot.zones = r.zones;
         toast('สร้างที่เก็บแล้ว ✓ — ต่อไปจัดของเข้าแต่ละตู้');
         ADMIN_ACT.plOpen();
@@ -4977,7 +5024,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       ]).then(function (k) {
         if (k !== 'yes') return;
         el.disabled = true;
-        api('apiAdminSaveZones', A.pin, ids.map(function (id) { var z = zoneOf(id); return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })).then(function (r) {
+        saveZones(A.pin, ids.map(function (id) { var z = zoneOf(id); return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly }; })).then(function (r) {
           useZones(r.zones); if (S.boot) S.boot.zones = r.zones;
           A.data.items = r.items; A.zone = ZONES[0].id;
           toast('ลบหมวดเดิมแล้ว — ตอนนี้นับตามที่เก็บ ' + r.zones.length + ' ที่ ✓');
@@ -5047,7 +5094,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     zonesSave: function () {
       var A = S.admin;
       A.zoneSaving = true; rerenderKeepScroll();
-      api('apiAdminSaveZones', A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly, section: z.section || '' }; })).then(function (r) {
+      saveZones(A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly, section: z.section || '' }; })).then(function (r) {
         useZones(r.zones);
         A.data.items = r.items;
         if (S.boot) { S.boot.zones = r.zones; S.boot.items = r.items.filter(function (i) { return i.active !== false; }); }
@@ -5089,7 +5136,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     roStart: function () {
       S.admin.itemQ = '';
-      var list = S.admin.data.items.filter(function (i) { return L.itemLocs(i).indexOf(S.admin.zone) >= 0; }).sort(function (a, b) { return a.sort - b.sort; });
+      var list = L.placeSort(S.admin.data.items.filter(function (i) { return L.itemLocs(i).indexOf(S.admin.zone) >= 0; }), S.admin.zone, placeOrders());
       S.admin.reorder = { zone: S.admin.zone, order: list.map(function (i) { return i.id; }), dirty: false };
       rerenderKeepScroll();
     },
@@ -5103,14 +5150,20 @@ if (typeof module !== 'undefined') module.exports = Logic;
       window.scrollTo(0, y + (j - i) * rowH);
     },
     roCancel: function () { S.admin.reorder = null; rerenderKeepScroll(); },
-    roSave: function (el) {
-      var R = S.admin.reorder, zi = ZONES.map(function (z) { return z.id; }).indexOf(R.zone);
-      var byId = {};
-      S.admin.data.items.forEach(function (i) { byId[i.id] = i; });
-      var list = R.order.map(function (id, k) { var it = JSON.parse(JSON.stringify(byId[id])); it.sort = (zi + 1) * 1000 + k + 1; return it; });
-      el.disabled = true; el.textContent = 'กำลังบันทึก…';
-      adminSaveItems(list).then(function () { S.admin.reorder = null; toast('บันทึกลำดับแล้ว ✓'); rerenderKeepScroll(); },
-        function (e) { el.disabled = false; el.textContent = 'บันทึกลำดับ'; toast(errMsg(e)); });
+    roSave: function () {
+      var A = S.admin, R = A.reorder, z = R.zone, o = { at: Date.now(), ids: R.order.slice() };
+      var prevA = (A.data.orders || {})[z], prevB = S.boot && S.boot.orders && S.boot.orders[z];
+      var put = function (a, b) {
+        A.data.orders = A.data.orders || {}; if (a) A.data.orders[z] = a; else delete A.data.orders[z];
+        if (S.boot) { S.boot.orders = S.boot.orders || {}; if (b) S.boot.orders[z] = b; else delete S.boot.orders[z]; store.set('boot', { at: Date.now(), b: S.boot }); }
+        adminCacheSave();
+      };
+      put(o, o);
+      A.reorder = null; toast('บันทึกลำดับแล้ว ✓'); rerenderKeepScroll();
+      api('apiAdminSaveOrder', A.pin, z, o.ids, o.at).then(null, function (e) {
+        if ((A.data.orders || {})[z] === o) { put(prevA, prevB); if (S.screen === 'admin') rerenderKeepScroll(); }
+        toast('⚠️ บันทึกลำดับไม่สำเร็จ — จัดใหม่อีกครั้ง (' + errMsg(e) + ')');
+      });
     },
     aEdit: function (el) {
       var it = S.admin.data.items.filter(function (i) { return i.id === el.dataset.id; })[0];
@@ -5140,12 +5193,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!it.active && !it.name_th) { msg.textContent = 'ต้องมีชื่อไทย'; return; }
       if (L.validateItem(it).length === 0) it.setup_note = '';
       delete it.isNew;
-      el.disabled = true; el.textContent = 'กำลังบันทึก…';
-      adminSaveItems([it]).then(function () {
-        toast('บันทึกแล้ว ✓');
-        if (S.admin.tab === 'items') S.admin.zone = it.zone;
-        go('admin'); window.scrollTo(0, S.admin.scrollY || 0);
-      }, function (e) { el.disabled = false; el.textContent = 'บันทึก'; msg.textContent = errMsg(e); });
+      // ใส่ในเครื่องทันทีแล้วกลับหน้ารายการ — ส่งหลังบ้านตามหลัง (กฎ: ห้ามทำให้แอพช้าลง)
+      var A = S.admin, list = A.data.items, i = list.map(function (x) { return x.id; }).indexOf(it.id);
+      var local = JSON.parse(JSON.stringify(it));
+      if (!L.hasBurmese(local.name_mm)) local.mm_auto = local.mm_auto || 'google';
+      if (i >= 0) list[i] = Object.assign({}, list[i], local); else list.push(local);
+      if (S.boot) S.boot.items = list.filter(function (x) { return x.active !== false; });
+      if (A.tab === 'items') A.zone = it.zone;
+      toast('บันทึกแล้ว ✓');
+      go('admin'); window.scrollTo(0, A.scrollY || 0);
+      adminSaveItems([it]).then(function () { adminCacheSave(); if (S.screen === 'admin') rerenderKeepScroll(); }, function (e) {
+        toast('⚠️ บันทึก "' + it.name_th + '" ไม่สำเร็จ: ' + errMsg(e));
+        api('apiAdminLoad', A.pin, true).then(function (d) { if (S.admin !== A) return; A.data.items = d.items; if (S.boot) S.boot.items = d.items.filter(function (x) { return x.active !== false; }); rerenderKeepScroll(); }, function () {});
+      });
     },
     poFromRound: function () {
       var rnd = S.admin.po.round;
