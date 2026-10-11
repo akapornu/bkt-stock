@@ -524,6 +524,10 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .mmfix-row .inp.mm { font-size: 18px; }
 .mmfix-row .btn-row { margin: 0; }
 
+/* ต้องทำเพิ่ม: วัตถุดิบตามสูตร */
+.prep-row .nm small.rc-use { display: block; margin-top: 4px; font-size: 13px; color: var(--ink); }
+.prep-row .nm small.mm.rc-use { margin-top: 1px; color: var(--muted); }
+
 </style>
 </head>
 <body>
@@ -641,6 +645,8 @@ var I18N = {
   noPlacesYet: ['แผนกของคุณยังไม่มีที่เก็บ — ให้บอสเพิ่มก่อน', 'သင့်ဌာနမှာ ပစ္စည်းထားတဲ့နေရာ မရှိသေးဘူး — ဘော့စ်ကို ထည့်ပေးဖို့ ပြောပါ'],
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
+  // สูตรของที่ต้องผลิต (บรรณาธิการพม่าตรวจแล้ว 11 ต.ค. 69 — ให้ MON ยืนยัน သုတ်)
+  recipeUse: ['วัตถุดิบที่ใช้ ({n} รอบ)', 'ပါဝင်ပစ္စည်း ({n} သုတ်)'],
   // หัวหน้าตรวจชื่อพม่าเอง (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ခေါ်နေကျ (mmHint), zawgyiWarn)
   mmCheckTitle: ['ตรวจชื่อพม่า', 'မြန်မာနာမည် စစ်မယ်'],
   mmHint: ['ชื่อไหนถูกกด ✓ · ชื่อไหนผิดกด "แก้" แล้วพิมพ์ชื่อที่ทีมเรียกจริง', 'နာမည် မှန်ရင် ✓ နှိပ်ပါ · မှားရင် "ပြင်မယ်" ကို နှိပ်ပြီး ဆိုင်မှာ ခေါ်နေကျ နာမည် ရိုက်ပါ'],
@@ -864,6 +870,42 @@ var Logic = (function () {
     return 0;
   }
 
+  // ---------- สูตรของที่ต้องผลิต (วัตถุดิบต่อ 1 รอบ) ----------
+  // recipe = { yield: 1 รอบได้กี่หน่วยนับ (ไม่ใส่ = ต่ำกว่า Min ทำ 1 รอบ), lines: [{ item_id, name, qty, unit }] }
+  function recipeRounds(recipe, need) {
+    if (!recipe || !recipe.lines || !recipe.lines.length || !(need > 0)) return 0;
+    return isNum(recipe.yield) && recipe.yield > 0 ? Math.max(1, Math.ceil(need / recipe.yield - 1e-9)) : 1;
+  }
+  // ของที่ต้องทำเพิ่ม → วัตถุดิบตามจำนวนรอบ + ที่นับได้ตอนนี้ (ไว้ดูประกอบ ไม่หักให้)
+  function recipeNeeds(prepRows, recipes, entries, itemsById) {
+    var out = [];
+    (prepRows || []).forEach(function (r) {
+      var rc = recipes && recipes[r.item.id], n = recipeRounds(rc, r.need);
+      if (!n) return;
+      out.push({ item: r.item, rounds: n, yield: isNum(rc.yield) ? rc.yield : null, lines: rc.lines.map(function (l) {
+        var it = l.item_id && itemsById ? itemsById[l.item_id] : null, e = it && entries ? entries[l.item_id] : null;
+        return { item_id: it ? it.id : '', name: it ? it.name_th : l.name, name_mm: it ? it.name_mm || '' : '', qty: round2(l.qty * n), unit: l.unit,
+          have: e && hasCount(e) ? (isNum(e.v) ? fmtNum(e.v) + ' ' + it.unit : LEVEL_TH[e.lv] || '') : '' };
+      }) });
+    });
+    return out;
+  }
+  // วัตถุดิบในสูตร → บรรทัดใบสั่ง (key แยกต่อของที่ทำ ไม่ปนกับบรรทัดซื้อเติมของรายการเดียวกัน)
+  function poLinesFromRecipes(needs, itemsById, unitsMm) {
+    var out = [];
+    (needs || []).forEach(function (nd) {
+      nd.lines.forEach(function (l) {
+        var it = l.item_id && itemsById ? itemsById[l.item_id] : null;
+        var pl = poLineFromOrder({ name: l.name, qty: l.qty, unit: l.unit }, it, unitsMm);
+        pl.key = 'r:' + nd.item.id + ':' + (l.item_id || l.name);
+        pl.received = 0; pl.order_name = ''; pl.for_item = nd.item.name_th;
+        out.push(pl);
+      });
+    });
+    return out;
+  }
+  function recipeText(nd) { return nd.lines.map(function (l) { return l.name + ' ' + fmtNum(l.qty) + ' ' + l.unit + (l.have ? ' (มี ' + l.have + ')' : ''); }).join(' · '); }
+
   // ---------- จำนวนที่นับครั้งก่อน (แป้นนับโชว์ + เตือนตัวเลขกระโดด) ----------
   // rows = ผลนับรายวัน (เรียงอย่างไรก็ได้) → { itemId: { c: [จำนวน, ระดับ, วันที่] ล่าสุด, p: [...] วันก่อนหน้านั้น } }
   function lastCountsFrom(rows) {
@@ -1015,6 +1057,14 @@ var Logic = (function () {
         });
       });
     }
+    if (meta.recipeNeeds && meta.recipeNeeds.length) {
+      L.push('');
+      L.push('🧾 วัตถุดิบสำหรับของที่ต้องทำ (ซื้อตามสูตร)');
+      meta.recipeNeeds.forEach(function (nd) {
+        L.push('• ' + nd.item.name_th + ' — ' + nd.rounds + ' รอบ' + (nd.yield ? ' (ได้ ~' + fmtNum(nd.yield * nd.rounds) + ' ' + nd.item.unit + ')' : ''));
+        nd.lines.forEach(function (l) { L.push('   - ' + l.name + ' ' + fmtNum(l.qty) + ' ' + l.unit + (l.have ? ' (มี ' + l.have + ')' : '')); });
+      });
+    }
     if (sum.attention.length) {
       L.push('');
       L.push('⚠️ ยังไม่ตั้ง Min/Max แต่ใกล้หมด/หมด');
@@ -1069,7 +1119,7 @@ var Logic = (function () {
   }
 
   // หน่วยชั่ง/ตวง (กก. ขีด ลิตร …) — ของมาขาด/เกินนิดหน่อยเป็นปกติ ต่างจากหน่วยนับเป็นชิ้น
-  var MEASURED = ['กก.', 'กิโล', 'กรัม', 'ขีด', 'ลิตร', 'มล.', 'kg', 'g', 'ml'];
+  var MEASURED = ['กก.', 'กิโล', 'กิโลกรัม', 'กรัม', 'ขีด', 'ลิตร', 'มล.', 'kg', 'g', 'ml'];
   function isMeasured(unit) { return MEASURED.indexOf(String(unit || '').trim()) >= 0; }
 
   // บรรทัดใบสั่งถือว่าจบ: รับได้ ≥ ที่สั่ง หรือมีคนกด "ถือว่าครบ" / บอสกด "ไม่รอแล้ว" (done)
@@ -1140,7 +1190,7 @@ var Logic = (function () {
     return score >= 0.5 ? { item: best, score: round2(score) } : { item: null, score: round2(score) };
   }
   // แปลงหน่วย: น้ำหนัก/ปริมาตร คิดได้แน่นอน · แผง = 30 ฟอง (แผงไข่มาตรฐาน — แก้ได้ในใบสั่ง)
-  var UNIT_BASE = { 'กรัม': ['g', 1], 'g': ['g', 1], 'ขีด': ['g', 100], 'กก.': ['g', 1000], 'กิโล': ['g', 1000], 'kg': ['g', 1000],
+  var UNIT_BASE = { 'กรัม': ['g', 1], 'g': ['g', 1], 'ขีด': ['g', 100], 'กก.': ['g', 1000], 'กิโล': ['g', 1000], 'กิโลกรัม': ['g', 1000], 'kg': ['g', 1000],
     'มล.': ['ml', 1], 'ml': ['ml', 1], 'ลิตร': ['ml', 1000], 'ฟอง': ['egg', 1], 'แผง': ['egg', 30], 'โหล': ['pc12', 12] };
   function unitFactor(from, to) {
     if (!from || !to) return null;
@@ -1432,7 +1482,7 @@ var Logic = (function () {
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
-    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine,
+    scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, recipeRounds: recipeRounds, recipeNeeds: recipeNeeds, poLinesFromRecipes: poLinesFromRecipes, recipeText: recipeText, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
   };
@@ -2192,7 +2242,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
             var it = r.item, to = L.round2(r.qty + r.need);
             return '<div class="sum-row prep-row"><div class="nm" data-act="kp" data-id="' + esc(it.id) + '"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
               (function () { var x = tr('prepMakeTo', { n: L.fmtNum(r.need), u: it.unit, um: unitMm(it) || it.unit, t: L.fmtNum(to) });
-                return '<small class="muted">' + esc(tr('left').th) + ' ' + L.fmtNum(r.qty) + ' ' + esc(it.unit) + '<b class="mk">' + esc(x.th) + '</b></small><small class="mm">' + esc(x.mm) + '</small>'; })() + '</div>' +
+                return '<small class="muted">' + esc(tr('left').th) + ' ' + L.fmtNum(r.qty) + ' ' + esc(it.unit) + '<b class="mk">' + esc(x.th) + '</b></small><small class="mm">' + esc(x.mm) + '</small>'; })() +
+              recipeUseHtml(it, r.need) + '</div>' +
               (isMulti(it) ? '' : '<button class="full-btn" data-act="prepDone" data-id="' + esc(it.id) + '">✓ ' + esc(tr('prepDoneBtn').th) + ' <span class="mm">' + esc(tr('prepDoneBtn').mm) + '</span></button>') + '</div>';
           }).join('');
         });
@@ -2591,6 +2642,20 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<span class="meta">' + status + (st.below ? '<span class="tag bad">▼ ' + st.below + '</span>' : '') + (st.todo && !st.due ? '<span class="tag warn">' + bi1('todayHere', { n: st.todo }) + '</span>' : '') + '</span>' +
       '<span class="bar"><i style="width:' + pct + '%"></i></span></span>' +
       '<span class="cnt">' + st.counted + '/' + st.total + '<small>' + esc(tr('items').th) + '</small></span></button>';
+  }
+
+  // วัตถุดิบตามสูตร (จำนวนรอบที่ต้องทำ) — ชื่อพม่าถ้ามีในรายการของ
+  function recipeUseHtml(it, need) {
+    var rc = S.boot && S.boot.recipes && S.boot.recipes[it.id], n = L.recipeRounds(rc, need);
+    if (!n) return '';
+    var th = [], mm = [];
+    rc.lines.forEach(function (l) {
+      var x = l.item_id ? itemById(l.item_id) : null, q = L.fmtNum(L.round2(l.qty * n));
+      th.push(l.name + ' ' + q + ' ' + l.unit);
+      mm.push((x && x.name_mm ? x.name_mm : l.name) + ' ' + q + ' ' + (UNITS[l.unit] || l.unit));
+    });
+    var t = tr('recipeUse', { n: n });
+    return '<small class="rc-use">🧾 ' + esc(t.th) + ': ' + esc(th.join(' · ')) + '</small><small class="mm rc-use">' + esc(t.mm) + ': ' + esc(mm.join(' · ')) + '</small>';
   }
 
   function prepCard(sum) {
@@ -3302,6 +3367,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   var INPUT = {
+    rcText: function (el) { clearTimeout(S.rcT); S.rcT = setTimeout(function () { var p = document.getElementById('e-rc-pv'); if (p) p.innerHTML = recipePreview(el.value); }, 300); },
     mmQ: function (el) { S.mmfix.q = el.value; clearTimeout(S.mmQT); S.mmQT = setTimeout(function () { rerenderKeepScroll(); var i = document.querySelector('[data-input=mmQ]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); },
     homeQ: function (el) {
       S.homeQ = el.value;
@@ -3554,7 +3620,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var approx = l.factor && l.factor !== 1 ? '<small class="muted" id="pe-ap-' + i + '">≈ ' + L.fmtNum(L.round2((Number(l.qty) || 0) * l.factor)) + ' ' + esc(l.count_unit) + '</small>' : '';
       var got = l.received > 0;
       return '<div class="card pe-line' + (l.include ? '' : ' off') + '"><label class="check"><input type="checkbox" data-input="peInc" data-i="' + i + '"' + (l.include ? ' checked' : '') + (got ? ' disabled' : '') + '></label>' +
-        '<div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.left !== undefined && l.left !== null ? '<small class="muted">เหลือ ' + L.fmtNum(l.left) + ' · Min ' + L.fmtNum(l.min) + ' · Max ' + L.fmtNum(l.max) + (l.factor !== 1 ? ' (' + esc(l.count_unit) + ')' : '') + '</small>' : '') +
+        '<div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.for_item ? '<small class="muted">🧾 สูตร ' + esc(l.for_item) + '</small>' : '') + (l.left !== undefined && l.left !== null ? '<small class="muted">เหลือ ' + L.fmtNum(l.left) + ' · Min ' + L.fmtNum(l.min) + ' · Max ' + L.fmtNum(l.max) + (l.factor !== 1 ? ' (' + esc(l.count_unit) + ')' : '') + '</small>' : '') +
         (got ? '<small style="color:var(--ok)">รับแล้ว ' + L.fmtNum(l.received) + ' ' + esc(l.unit) + ' — เอาออกไม่ได้ (ถ้ารับผิดให้แก้ที่ใบรับ)</small>' : '') + '</div>' +
         '<div class="pe-q"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="peQty" data-i="' + i + '" value="' + esc(l.qty) + '">' +
         (l.item_id ? '<span>' + esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + '</span>' : '<input type="text" class="inp sm" style="width:64px" data-input="peUnit" data-i="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">') + approx + '</div>' +
@@ -4464,7 +4530,39 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div id="e-msg" class="pin-msg"></div>' +
       '<button class="btn btn-primary" data-act="aSave">บันทึก</button>' +
       (it.isNew ? '' : '<p class="muted center" style="margin:0;font-size:14px">เปลี่ยนลำดับ: แท็บ "รายการของ" → ↕️ จัดลำดับ</p>') +
-      '</div></div>';
+      '</div>' + (it.isNew ? '' : recipeEditCard(it)) + '</div>';
+  }
+
+  // สูตร = วัตถุดิบต่อ 1 รอบผลิต — พิมพ์แบบเดียวกับใบสั่ง (ชื่อ จำนวน หน่วย ทีละบรรทัด) แอพจับคู่กับรายการของให้
+  function recipeEditCard(it) {
+    var rc = (S.admin.data.recipes || {})[it.id] || null;
+    var text = rc ? rc.lines.map(function (l) { return l.name + ' ' + L.fmtNum(l.qty) + ' ' + l.unit; }).join('\n') : '';
+    return '<div class="card form" style="padding:16px;margin-top:12px"><b>🧾 สูตร: วัตถุดิบต่อ 1 รอบผลิต' + (rc ? ' <span class="tag ok">ตั้งแล้ว</span>' : '') + '</b>' +
+      '<p class="muted" style="margin:0;font-size:13.5px">ของนี้ต่ำกว่า Min → รายงาน LINE บอกวัตถุดิบที่ต้องซื้อ + มีในปุ่ม "สร้างใบสั่งจากรอบนี้" + หน้าน้องโชว์ว่าใช้อะไร · พิมพ์ทีละบรรทัด เช่น <b>กะหล่ำปลี 2 กก.</b></p>' +
+      '<textarea id="e-rc" data-input="rcText" rows="6" placeholder="กะหล่ำปลี 2 กก.&#10;หัวไชเท้า 2 กก.&#10;กระดูกหมู 2 กก.">' + esc(text) + '</textarea>' +
+      '<div id="e-rc-pv">' + recipePreview(text) + '</div>' +
+      '<div><label>1 รอบทำได้ประมาณ (' + esc(it.unit || 'หน่วยนับ') + ')</label><input type="number" id="e-rc-y" inputmode="decimal" step="any" min="0" value="' + (rc && rc.yield ? rc.yield : '') + '" placeholder="ไม่รู้เว้นว่าง = ต่ำกว่า Min ทำ 1 รอบ"></div>' +
+      '<button class="btn btn-primary" data-act="aSaveRecipe">💾 บันทึกสูตร</button></div>';
+  }
+  function recipeParse(text) {
+    var items = S.admin.data.items.filter(function (x) { return x.active !== false; });
+    var out = [];
+    L.parseOrderText(text).forEach(function (b) {
+      b.lines.forEach(function (l) {
+        var m = L.matchItemName(l.name, items);
+        out.push({ raw: l.raw, name: l.name, qty: l.qty, unit: l.unit, item: m.item || null });
+      });
+    });
+    return out;
+  }
+  function recipePreview(text) {
+    var ls = recipeParse(text);
+    if (!ls.length) return '';
+    return '<div class="list" style="gap:4px">' + ls.map(function (l) {
+      if (!(l.qty > 0)) return '<small class="muted">⚠️ อ่านจำนวนไม่ได้: ' + esc(l.raw) + '</small>';
+      return '<small>' + (l.item ? '✓ <b>' + esc(l.item.name_th) + '</b>' : '➕ <b>' + esc(l.name) + '</b> <span class="muted">(ของนอกรายการ — สั่งได้ แต่ไม่นับสต็อค)</span>') +
+        ' ' + L.fmtNum(l.qty) + ' ' + esc(l.unit) + '</small>';
+    }).join('') + '</div>';
   }
 
   function readEditForm() {
@@ -5179,6 +5277,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aForget: function () { store.del('apin'); store.del('adminCache'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
+    aSaveRecipe: function (el) {
+      var A = S.admin, it = A.edit, ls = recipeParse((document.getElementById('e-rc') || {}).value || '');
+      var bad = ls.filter(function (l) { return !(l.qty > 0); });
+      if (bad.length) return toast('อ่านจำนวนไม่ได้: ' + bad[0].raw);
+      var y = Number((document.getElementById('e-rc-y') || {}).value);
+      el.disabled = true; el.textContent = 'กำลังบันทึก…';
+      api('apiAdminSaveRecipe', A.pin, it.id, { yield: y > 0 ? y : null, lines: ls.map(function (l) { return { item_id: l.item ? l.item.id : '', name: l.item ? l.item.name_th : l.name, qty: l.qty, unit: l.unit }; }) })
+        .then(function (r) {
+          A.data.recipes = r; if (S.boot) S.boot.recipes = r; adminCacheSave();
+          toast(ls.length ? 'บันทึกสูตรแล้ว ✓' : 'ลบสูตรแล้ว'); rerenderKeepScroll();
+        }, function (e) { el.disabled = false; el.textContent = '💾 บันทึกสูตร'; toast(errMsg(e)); });
+    },
     aStaffAdd: function () { S.admin.staffDraft.push({ name: '', role: 'helper', active: true, sections: '' }); rerenderKeepScroll(); },
     aStaffSec: function (el) {
       var s = S.admin.staffDraft[+el.dataset.i], v = el.dataset.v, mine = L.staffSections(s);
