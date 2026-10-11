@@ -528,6 +528,16 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .prep-row .nm small.rc-use { display: block; margin-top: 4px; font-size: 13px; color: var(--ink); }
 .prep-row .nm small.mm.rc-use { margin-top: 1px; color: var(--muted); }
 
+/* ของเสีย: แต่ละรายการ = ชื่อ + ปุ่มลบ แถวบน · จำนวนที่ทิ้ง แถวล่าง */
+.waste-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 8px; padding: 12px 12px 12px 14px; margin-bottom: 10px; }
+.waste-line .nm b { display: block; font-size: 17px; line-height: 1.3; }
+.waste-line .nm .mm { display: block; font-size: 15px; color: var(--muted); }
+.waste-line .iconbtn { width: 36px; height: 36px; font-size: 18px; }
+.waste-line .rqty { grid-column: 1 / -1; margin-top: 2px; }
+.waste-line .rq-in .inp { width: 110px; }
+#waste-miss { font-size: 13.5px; color: var(--muted); margin-bottom: 8px; }
+#waste-miss:empty { display: none; }
+
 </style>
 </head>
 <body>
@@ -706,6 +716,17 @@ var I18N = {
   stillAt: ['ยังไม่นับที่: {list}', 'မရေတွက်ရသေးတဲ့နေရာ: {list}'],
   countHere: ['นับเฉพาะที่นี่', 'ဒီမှာ ရှိတာပဲ ရေတွက်ပါ'],
   todayHere: ['มีของต้องนับวันนี้ {n}', 'ဒီနေ့ ရေတွက်စရာ {n} ခု ရှိတယ်'],
+  // บันทึกของเสีย (waste) แทนแจ้งด่วน — 11 ต.ค. 69 (บรรณาธิการพม่าตรวจแล้ว 11 ต.ค. 69 — ใช้ ပစ်လိုက်တဲ့ ပစ္စည်း แทน အလေအလွင့် ซึ่งเป็นคำหนังสือ/นามธรรม · ให้ MON ยืนยัน ပစ်လိုက်တဲ့ ပစ္စည်း vs အလေအလွင့်, ပစ်လိုက်တာ (ป้ายช่องจำนวน))
+  waste: ['บันทึกของเสีย', 'ပစ်လိုက်တဲ့ ပစ္စည်း မှတ်မယ်'],
+  wasteTitle: ['บันทึกของเสีย', 'ပစ်လိုက်တဲ့ ပစ္စည်း စာရင်း'],
+  wasteHow: ['เลือกวัตถุดิบที่ทิ้ง ใส่จำนวน แล้วถ่ายรูป · ทิ้งหลายอย่างพร้อมกัน ใส่ได้หลายรายการ', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို ရွေးပြီး အရေအတွက် ထည့်ပါ၊ ပြီးရင် ဓာတ်ပုံ ရိုက်ပါ · တစ်ခါတည်း ပစ္စည်း အမျိုးမျိုး ပစ်ရရင် တစ်ခုပြီးတစ်ခု ထပ်ထည့်လို့ရတယ်'],
+  wasteQty: ['ทิ้งไป', 'ပစ်လိုက်တာ'],
+  wasteAddMore: ['เพิ่มวัตถุดิบที่ทิ้งอีก', 'ပစ်လိုက်တဲ့ ပစ္စည်း ထပ်ထည့်မယ်'],
+  wasteNeedItem: ['เลือกวัตถุดิบที่ทิ้งก่อน', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို အရင်ရွေးပါ'],
+  wasteNeedQty: ['ใส่จำนวนที่ทิ้งให้ครบทุกรายการ', 'ပစ္စည်းတိုင်းမှာ ပစ်လိုက်တဲ့ အရေအတွက် ထည့်ပါ'],
+  wasteNeedPhoto: ['ถ่ายรูปของที่ทิ้งอย่างน้อย 1 รูป', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို ဓာတ်ပုံ အနည်းဆုံး 1 ပုံ ရိုက်ပါ'],
+  wasteNote: ['สาเหตุ / รายละเอียด (ถ้ามี)', 'ဘာကြောင့် ပစ်ရလဲ / အသေးစိတ် (ရှိရင်)'],
+  wasteSentList: ['ส่งแล้ว', 'ပို့ပြီးပြီ'],
   // ค้นหา (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69)
   notFound: ['ไม่พบ "{q}"', '"{q}" ရှာမတွေ့ပါ'],
   searchHere: ['ค้นหาในที่นี้', 'ဒီနေရာမှာ ရှာရန်'],
@@ -1309,7 +1330,21 @@ var Logic = (function () {
   function tms(iso) { var t = Date.parse(iso); return isFinite(t) ? t : 0; }
   var DOW_SHORT = DAYS;
 
-  // o: { items, zones, counts:[{date,item_id,qty,level,unit,at}], moves:[{date,at,item_id,qty_count,count_unit}],
+  // ต้นทุนต่อ 1 หน่วยนับ = ยอดเงินบรรทัด ÷ จำนวน (หน่วยนับ) จากการรับของครั้งล่าสุดที่มีราคา · ไม่มี = null (ไม่เดา)
+  function lastUnitCost(moves, it) {
+    var best = null;
+    (moves || []).forEach(function (m) {
+      if (m.item_id !== it.id || m.type !== 'receive') return;
+      if (m.count_unit && m.count_unit !== it.unit) return;
+      var amt = Number(m.line_amount), q = Number(m.qty_count);
+      if (!(amt > 0) || !(q > 0)) return;
+      var t = tms(m.at);
+      if (!best || t > best.t) best = { per: round2(amt / q), t: t, date: String(m.date) };
+    });
+    return best;
+  }
+
+  // o: { items, zones, counts:[{date,item_id,qty,level,unit,at}], moves:[{date,at,item_id,qty_count,count_unit,type,amount}],
   //      openDates:[วันที่มีส่งรอบนับ], onOrder:{item_id: จำนวนหน่วยนับที่สั่งแล้วรอรับ}, today, lookback, leadDays, cycleDays, minDays }
   function stockAnalytics(o) {
     var today = o.today, look = o.lookback || 28, from = addDays(today, -look);
@@ -1335,16 +1370,27 @@ var Logic = (function () {
       var dates = Object.keys(cBy[it.id] || {}).sort();
       var cs = dates.map(function (d) { return cBy[it.id][d]; }).filter(function (c) { return !c.unit || c.unit === it.unit; });
       cs.forEach(function (c) { if (c.date >= from) cover[c.date] = (cover[c.date] || 0) + 1; });
-      var mv = (mBy[it.id] || []).filter(function (m) { return !m.count_unit || m.count_unit === it.unit; });
+      var allMv = (mBy[it.id] || []).filter(function (m) { return !m.count_unit || m.count_unit === it.unit; });
+      // ของเสีย (waste) ไม่ใช่ของเข้า: ไม่บวกเป็นรับเข้า → "ใช้ไป" รวมของเสียเหมือนเดิม · ทิ้งหลังนับล่าสุด = ตัดออกจากของที่มีตอนนี้
+      var mv = allMv.filter(function (m) { return m.type !== 'waste'; }), wv = allMv.filter(function (m) { return m.type === 'waste'; });
       var nums = cs.filter(function (c) { return isNum(c.qty); });
       var last = cs.length ? cs[cs.length - 1] : null;
       var lastNum = nums.length ? nums[nums.length - 1] : null;
-      var recvSince = 0;
+      var recvSince = 0, wasteSince = 0;
       if (lastNum) mv.forEach(function (m) { if (tms(m.at) > tms(lastNum.at)) recvSince += m.qty_count || 0; });
+      if (lastNum) wv.forEach(function (m) { if (tms(m.at) > tms(lastNum.at)) wasteSince += m.qty_count || 0; });
+      var waste = { qty: 0, value: 0, n: 0, unpriced: 0 };
+      wv.forEach(function (m) {
+        if (m.date < from) return;
+        waste.qty += m.qty_count || 0; waste.n++;
+        if (m.amount > 0) waste.value += m.amount; else waste.unpriced++;
+      });
+      waste.qty = round2(waste.qty); waste.value = round2(waste.value);
       var r = {
         id: it.id, name_th: it.name_th, zone: it.zone, kind: it.kind, unit: it.unit, min: it.min, max: it.max, step: it.step || 1,
         configured: isConfigured(it), last: last ? { date: last.date, qty: isNum(last.qty) ? last.qty : null, level: last.level || '', at: last.at, draft: !!last.draft } : null,
-        recvSince: round2(recvSince), onHand: lastNum ? round2(lastNum.qty + recvSince) : null, onOrder: round2((o.onOrder || {})[it.id] || 0),
+        recvSince: round2(recvSince), wasteSince: round2(wasteSince), onHand: lastNum ? round2(Math.max(0, lastNum.qty + recvSince - wasteSince)) : null, onOrder: round2((o.onOrder || {})[it.id] || 0),
+        waste: waste,
         intervals: [], anomalies: 0, days: 0, avgDaily: null, p90Daily: null, peakDaily: null, estNow: null, daysCover: null, runsOutIn: null, belowMinIn: null,
         weekday: null, forecast: [], suggest: null, status: 'unknown'
       };
@@ -1421,7 +1467,11 @@ var Logic = (function () {
     }
     var dataDays = openList.filter(function (d) { return d >= from; }).length;
     var by = function (s) { return res.filter(function (r) { return r.status === s; }).length; };
+    var wasteAll = { value: 0, n: 0, unpriced: 0 };
+    res.forEach(function (r) { wasteAll.value += r.waste.value; wasteAll.n += r.waste.n; wasteAll.unpriced += r.waste.unpriced; });
+    wasteAll.value = round2(wasteAll.value);
     return {
+      waste: wasteAll,
       today: today, lookback: look, leadDays: lead, cycleDays: cycle, minDays: minDays, dataDays: dataDays, total: res.length,
       coverage: coverage,
       status: { low: by('low'), near: by('near'), ok: by('ok'), over: by('over'), unknown: by('unknown') },
@@ -1432,7 +1482,27 @@ var Logic = (function () {
     };
   }
 
-  var ALERT_TH = { runout: '⏳ ของจะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 แจ้งเรื่องอื่น' };
+  var ALERT_TH = { runout: '⏳ ของจะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 แจ้งเรื่องอื่น', waste: '🗑️ ของเสีย (waste)' };
+  // w: { by, at, lines:[{name_th, qty, unit, value}], note, note_th, photoUrls }
+  function buildWasteMessage(w) {
+    var L = ['🗑️ ของเสีย (waste) จาก ' + w.by + ' · ' + bkkTime(w.at)], tot = 0, unpriced = 0;
+    w.lines.forEach(function (l) {
+      L.push('• ' + l.name_th + ' ' + fmtNum(l.qty) + ' ' + l.unit + (l.value > 0 ? ' ≈ ฿' + fmtNum(Math.round(l.value)) : ''));
+      if (l.value > 0) tot += l.value; else unpriced++;
+    });
+    if (tot > 0) L.push('รวมประมาณ ฿' + fmtNum(Math.round(tot)) + ' (คิดจากราคาในบิลรับของล่าสุด' + (unpriced ? ' · ' + unpriced + ' รายการไม่มีราคา' : '') + ')');
+    else L.push('(ยังไม่มีราคาจากบิลรับของ เลยคิดมูลค่าไม่ได้)');
+    if (w.note) {
+      L.push('รายละเอียด: ' + (w.note_th || w.note));
+      if (w.note_th) L.push('   ↳ ต้นฉบับพม่า: ' + w.note);
+      if (w.note_th) L.push('🌐 แปลอัตโนมัติจากภาษาพม่า');
+    }
+    if (w.photoUrls && w.photoUrls.length) {
+      L.push('📷 รูป ' + w.photoUrls.length + ' รูป (เปิดใน Google Drive ของบอส):');
+      w.photoUrls.forEach(function (u) { L.push(u); });
+    }
+    return L.join('\n');
+  }
 
   var MM_RE = /[\u1000-\u109F]/;
   function hasBurmese(s) { return MM_RE.test(String(s || '')); }
@@ -1502,7 +1572,7 @@ var Logic = (function () {
     buildBossMessage: buildBossMessage, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
-    buildReceiveMessage: buildReceiveMessage, round2: round2,
+    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
@@ -1611,7 +1681,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     screen: 'loading', pin: store.get('pin'), me: store.get('me'), boot: null,
     draft: { entries: {} }, pending: {}, inflight: null, net: 'ok', saveTimer: null,
     zone: null, onlyUncounted: false, kp: null, from: 'zone', note: '', result: null,
-    pinBuf: '', pinMsg: '', urgent: null, admin: null, error: ''
+    pinBuf: '', pinMsg: '', waste: null, admin: null, error: ''
   };
 
   // หมวด (โซน) มาจากหลังบ้าน (บอสแก้ได้) — ไม่มี (หลังบ้านรุ่นเก่า) ใช้ค่าตั้งต้นใน i18n.js
@@ -2177,7 +2247,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       } else {
         h += '<div class="note info center">👨‍🍳 ' + bi1('leadSends') + '</div>';
       }
-      h += '<button class="btn btn-ghost" data-act="toUrgent">🚨 ' + bi1('urgent') + '</button></div></div>';
+      h += '<button class="btn btn-ghost" data-act="toWaste">🗑️ ' + bi1('waste') + '</button></div></div>';
       return h;
     },
 
@@ -2295,22 +2365,21 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="toHome">' + bi1('back') + '</button></div></div>';
     },
 
-    urgent: function () {
-      var u = S.urgent;
-      var types = [['runout', '⏳', 'urgentRunOut'], ['spoiled', '🗑️', 'urgentSpoiled'], ['other', '📣', 'urgentOther']];
-      var h = top({ th: '🚨 ' + tr('urgent').th, mm: tr('urgent').mm, back: 'toHome' }) + '<div class="wrap screen"><div class="choice">' +
-        types.map(function (t) {
-          return '<button class="card' + (u.type === t[0] ? ' on' : '') + '" data-act="urgType" data-v="' + t[0] + '"><span class="ic">' + t[1] + '</span><span>' + bi(t[2]) + '</span></button>';
-        }).join('') + '</div>';
-      h += '<div class="field"><label>' + esc(tr('pickItem').th) + '<span class="mm">' + esc(tr('pickItem').mm) + '</span></label>';
-      if (u.item) {
-        h += '<div class="picked"><span>' + esc(u.item) + '</span><button class="iconbtn" data-act="urgClear" style="width:36px;height:36px">✕</button></div>';
-      } else {
-        h += '<input class="inp" id="urg-q" data-input="urgQ" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(u.q) + '" autocomplete="off"><div class="picks" id="urg-picks">' + urgPicks() + '</div>';
-      }
-      h += '</div>' + photoField(u, 'urgent') + '<div class="field"><label>' + esc(tr('quantity').th) + '<span class="mm">' + esc(tr('quantity').mm) + '</span></label><input class="inp" data-input="urgQty" value="' + esc(u.qty) + '" placeholder="เช่น เหลือ 1 ถุง"></div>' +
-        '<div class="field"><label>' + esc(tr('detail').th) + '<span class="mm">' + esc(tr('detail').mm) + '</span></label><textarea data-input="urgNote" maxlength="300" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(u.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
-      h += '</div><div class="bottom"><div class="wrap"><button class="btn btn-primary stack" data-act="urgSend"' + (u.type ? '' : ' disabled') + '>' + biIcon('🚨', 'send') + '</button></div></div>';
+    waste: function () {
+      var w = S.waste;
+      var h = top({ th: '🗑️ ' + tr('wasteTitle').th, mm: tr('wasteTitle').mm, back: 'toHome' }) + '<div class="wrap screen">';
+      if (w.sent.length) h += '<div class="note ok">✅ ' + bi1('wasteSentList') + '<br>' + w.sent.map(esc).join('<br>') + '</div>';
+      h += '<div class="note info">' + bi1('wasteHow') + '</div>';
+      h += '<div class="field">' + w.lines.map(function (l, i) {
+        var it = itemById(l.id) || { name_th: l.id, name_mm: '', unit: '' };
+        return '<div class="card waste-line"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span></div>' +
+          '<button class="iconbtn" data-act="wasteDel" data-i="' + i + '" aria-label="ลบ">✕</button>' +
+          '<div class="rqty"><span>' + bi1('wasteQty') + '</span><span class="rq-in"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" id="waste-n-' + i + '" data-input="wasteQty" data-i="' + i + '" value="' + esc(l.qty) + '" placeholder="0"><span>' + unitBi(it) + '</span></span></div></div>';
+      }).join('');
+      h += '<input class="inp" id="waste-q" data-input="wasteQ" placeholder="🔍 ' + esc(w.lines.length ? tr('wasteAddMore').th + ' · ' + tr('wasteAddMore').mm : tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(w.q) + '" autocomplete="off"><div class="picks" id="waste-picks">' + wastePicks() + '</div></div>';
+      h += photoField(w, 'waste', 'wasteNeedPhoto');
+      h += '<div class="field"><label>' + esc(tr('wasteNote').th) + '<span class="mm">' + esc(tr('wasteNote').mm) + '</span></label><textarea data-input="wasteNote" maxlength="300" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(w.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
+      h += '</div><div class="bottom"><div class="wrap"><div class="hint center" id="waste-miss">' + wasteMissing() + '</div><button class="btn btn-primary stack" id="waste-send" data-act="wasteSend"' + (wasteMissing() ? ' disabled' : '') + '>' + biIcon('🗑️', 'sendToBoss') + '</button></div></div>';
       return h;
     },
 
@@ -2792,20 +2861,34 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
-  function urgPicks() {
-    var q = (S.urgent.q || '').trim().toLowerCase();
+  function wastePicks() {
+    var w = S.waste, q = (w.q || '').trim().toLowerCase();
     if (!q) return '';
-    var hits = items().filter(function (it) { return matchItem(it, q); }).sort(bySearch(q)).slice(0, 8);
+    var have = w.lines.map(function (l) { return l.id; });
+    var hits = items().filter(function (it) { return have.indexOf(it.id) < 0 && matchItem(it, q); }).sort(bySearch(q)).slice(0, 8);
+    if (!hits.length) return '<div class="muted" style="padding:6px 2px">' + bi1('notFound', { q: w.q.trim() }) + '</div>';
     return hits.map(function (it) {
-      return '<button data-act="urgPick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>';
-    }).join('') + '<button data-act="urgPickText">✍️ ใช้คำว่า "' + esc(S.urgent.q) + '"</button>';
+      return '<button data-act="wastePick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>';
+    }).join('');
+  }
+  // ยังขาดอะไรถึงจะส่งได้ (ว่าง = ส่งได้)
+  function wasteMissing() {
+    var w = S.waste;
+    if (!w.lines.length) return bi1('wasteNeedItem');
+    if (w.lines.some(function (l) { return !(Number(l.qty) > 0); })) return bi1('wasteNeedQty');
+    if (!w.photos.length || w.busy) return bi1('wasteNeedPhoto');
+    return '';
+  }
+  function wasteBtnUpdate() {
+    var m = wasteMissing(), b = document.getElementById('waste-send'), t = document.getElementById('waste-miss');
+    if (b) b.disabled = !!m;
+    if (t) t.innerHTML = m;
   }
 
-  // ---------- รูปแนบ (แจ้งด่วน) ----------
+  // ---------- รูปแนบ (ของเสีย / รับของ) ----------
   function photoField(u, target, labelKey, compact) {
     var lb = tr(labelKey || 'photo');
     var h = '<div class="field"><label>📷 ' + esc(lb.th) + '<span class="mm">' + esc(lb.mm) + '</span></label>';
-    if (target === 'urgent' && u.type === 'spoiled' && !u.photos.length) h += '<div class="note warn" style="margin-bottom:10px">' + bi1('spoiledPhotoHint') + '</div>';
     h += '<div class="photos">' + u.photos.map(function (p, i) {
       return '<div class="ph"><img src="' + p + '" alt=""><button data-act="photoDel" data-target="' + target + '" data-i="' + i + '" aria-label="ลบรูป">✕</button></div>';
     }).join('');
@@ -3151,7 +3234,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         rerenderKeepScroll();
       });
     },
-    toUrgent: function () { S.urgent = { type: '', q: '', item: '', qty: '', note: '', photos: [], busy: false }; go('urgent'); },
+    toWaste: function () { S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: [] }; go('waste'); },
 
     pinKey: function (el) {
       pinInput(el, 4, function (pin) {
@@ -3363,18 +3446,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
       go('home');
     },
 
-    urgType: function (el) { S.urgent.type = el.dataset.v; rerenderKeepScroll(); },
-    urgPick: function (el) { S.urgent.item = itemById(el.dataset.id).name_th; S.urgent.q = ''; rerenderKeepScroll(); },
-    urgPickText: function () { S.urgent.item = S.urgent.q.trim(); S.urgent.q = ''; rerenderKeepScroll(); },
-    urgClear: function () { S.urgent.item = ''; rerenderKeepScroll(); },
+    wastePick: function (el) {
+      var w = S.waste;
+      w.lines.push({ id: el.dataset.id, qty: '' });
+      w.q = '';
+      rerenderKeepScroll();
+      var n = document.getElementById('waste-n-' + (w.lines.length - 1));
+      if (n) n.focus();
+    },
+    wasteDel: function (el) { S.waste.lines.splice(+el.dataset.i, 1); rerenderKeepScroll(); },
     photoDel: function (el) { var u = S[el.dataset.target]; u.photos.splice(+el.dataset.i, 1); if (u.files) u.files.splice(+el.dataset.i, 1); rerenderKeepScroll(); },
-    urgSend: function (el) {
-      var u = S.urgent;
-      if (!u.type) return;
-      if (u.busy) return;
-      outboxAdd('apiAlert', [S.pin, S.me, { type: u.type, item: u.item || u.q, qty: u.qty, note: u.note, photos: u.photos }], '🚨 ' + tr('urgent').th + ' · ' + tr('urgent').mm + (u.item || u.q ? ' (' + (u.item || u.q) + ')' : ''));
+    wasteSend: function () {
+      var w = S.waste;
+      if (wasteMissing()) return;
+      var lines = w.lines.map(function (l) { return { item_id: l.id, qty: L.round2(Number(l.qty)) }; });
+      var text = w.lines.map(function (l) { var it = itemById(l.id) || {}; return (it.name_th || l.id) + ' ' + L.fmtNum(Number(l.qty)) + ' ' + (it.unit || ''); }).join(' · ');
+      outboxAdd('apiWaste', [S.pin, S.me, { lines: lines, note: w.note, photos: w.photos }], '🗑️ ' + text);
+      buzz();
       toast('✅ ' + tr('savedSending').th + ' · ' + tr('savedSending').mm);
-      go('home');
+      // ส่งแล้วอยู่หน้าเดิม เผื่อทิ้งอีกรอบ (กดย้อนกลับไปหน้าแรกได้)
+      S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: w.sent.concat([text]) };
+      render(); window.scrollTo(0, 0);
     }
   };
 
@@ -3436,13 +3528,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     note: function (el) { S.note = el.value; },
-    urgQ: function (el) {
-      S.urgent.q = el.value;
-      var p = document.getElementById('urg-picks');
-      if (p) p.innerHTML = urgPicks();
+    wasteQ: function (el) {
+      S.waste.q = el.value;
+      var p = document.getElementById('waste-picks');
+      if (p) p.innerHTML = wastePicks();
     },
-    urgQty: function (el) { S.urgent.qty = el.value; },
-    urgNote: function (el) { S.urgent.note = el.value; },
+    wasteQty: function (el) { S.waste.lines[+el.dataset.i].qty = el.value; wasteBtnUpdate(); },
+    wasteNote: function (el) { S.waste.note = el.value; },
     recvQ: function (el) {
       S.recv.q = el.value;
       var p = document.getElementById('recv-picks');
@@ -3904,6 +3996,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return '<button class="cover-row" data-act="dashItem" data-id="' + esc(r.id) + '"><span>' + esc(r.name_th) + '</span><span class="cbar"><i style="width:' + Math.min(100, dc / 7 * 100) + '%;background:' + (dc < 1 ? 'var(--bad)' : dc < 2 ? 'var(--warn)' : 'var(--ok)') + '"></i></span><b>' + (dc >= 7 ? '7+' : L.fmtNum(dc)) + ' วัน</b></button>';
     }).join('') + '<small class="muted">คิดจาก ของที่มีตอนนี้ ÷ ใช้เฉลี่ยต่อวัน · แถบเต็ม = 7 วัน</small></div>'
       : '<div class="note">ยังคำนวณไม่ได้ — ต้องมีข้อมูลนับต่อเนื่องอย่างน้อย ' + D.minDays + ' วันต่อรายการ</div>';
+    h += dashWasteCard(items, D);
     // การนับย้อนหลัง
     if (D.coverage.length) {
       var cv = D.coverage.slice(-14);
@@ -4104,11 +4197,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<p class="muted" style="font-size:13px;margin-top:10px">แผนกใหม่ (เช่น หน้าร้าน) → เพิ่มที่เก็บของแผนกนั้นที่ 📋 รายการของ → 🗂️ จัดการที่เก็บ แล้วใส่ชื่อแผนกให้ตรงกัน</p>';
     } else if (A.tab === 'history') {
       h += reportsSection();
-      if (!d.receipts) h += '<p class="muted"><span class="spin-sm"></span>กำลังโหลดรับของ/แจ้งด่วน…</p>';
+      if (!d.receipts) h += '<p class="muted"><span class="spin-sm"></span>กำลังโหลดรับของ/ของเสีย…</p>';
       else h += '<div class="section-h">📦 รับของ (30 ครั้งล่าสุด)</div>' + ((d.receipts || []).length ? '<div class="list">' + d.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
-      if (d.alerts) h += '<div class="section-h">แจ้งด่วน (30 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
+      if (d.alerts) h += '<div class="section-h">🗑️ ของเสีย / แจ้งด่วน (30 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
         return '<div class="card hist"><div style="display:flex;justify-content:space-between;gap:8px"><b>' + esc(a.by) + ' · ' + esc(String(a.at).slice(0, 10)) + ' ' + esc(L.bkkTime(a.at)) + '</b>' + statusLabel(a.notify_status) + '</div>' +
-          '<div>' + esc({ runout: '⏳ จะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 อื่นๆ' }[a.type] || a.type) + (a.item ? ' — ' + esc(a.item_th || a.item) + (a.item_th ? ' <span class="mm muted">(' + esc(a.item) + ')</span>' : '') : '') +
+          '<div>' + esc({ runout: '⏳ จะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 อื่นๆ', waste: '🗑️ ของเสีย' }[a.type] || a.type) + (a.item ? ' — ' + esc(a.item_th || a.item) + (a.item_th ? ' <span class="mm muted">(' + esc(a.item) + ')</span>' : '') : '') +
           (a.qty ? ' (' + esc(a.qty_th || a.qty) + ')' : '') + '</div>' +
           (a.note ? '<div class="muted">' + esc(a.note_th || a.note) + (a.note_th ? '<br><small class="mm">↳ ' + esc(a.note) + '</small> <small>🌐 แปลอัตโนมัติ</small>' : '') + '</div>' : '') +
           (a.photos ? '<div class="picks">' + String(a.photos).split(',').filter(Boolean).map(function (id, k) {
@@ -4441,6 +4534,23 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
   }
 
+  // ของเสีย (waste) ในช่วงที่ดูย้อนหลัง — มูลค่าคิดจากราคาบิลรับของล่าสุด (ไม่มีราคา = บอกจำนวนอย่างเดียว)
+  function dashWasteCard(items, D) {
+    var W = D.waste || { n: 0 };
+    var h = '<div class="section-h">🗑️ ของเสีย <span class="n">(' + D.lookback + ' วัน)</span></div>';
+    if (!W.n) return h + '<div class="note">ยังไม่มีบันทึกของเสีย — ทีมกด "🗑️ บันทึกของเสีย" ที่หน้าแรก (เลือกของ + จำนวน + รูป)</div>';
+    var list = items.filter(function (r) { return r.waste && r.waste.n; })
+      .sort(function (a, b) { return b.waste.value - a.waste.value || b.waste.n - a.waste.n; });
+    return h + '<div class="card" style="padding:12px 14px">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:6px"><b>รวม ' + W.n + ' ครั้ง</b>' +
+      (W.value > 0 ? '<b>≈ ฿' + L.fmtNum(Math.round(W.value)) + '</b>' : '') + '</div>' +
+      list.slice(0, 10).map(function (r) {
+        return '<button class="cover-row" data-act="dashItem" data-id="' + esc(r.id) + '"><span>' + esc(r.name_th) + '</span><span class="muted">' +
+          L.fmtNum(r.waste.qty) + ' ' + esc(r.unit) + ' · ' + r.waste.n + ' ครั้ง</span><b>' + (r.waste.value > 0 ? '฿' + L.fmtNum(Math.round(r.waste.value)) : '–') + '</b></button>';
+      }).join('') +
+      '<small class="muted">มูลค่าประมาณจากราคาในบิลรับของล่าสุด' + (W.unpriced ? ' · ' + W.unpriced + ' ครั้งไม่มีราคา (–)' : '') + ' · ดูรูปได้ที่แท็บประวัติ</small></div>';
+  }
+
   function clearSettings() {
     var m = S.admin.clearMsg;
     var cb = function (id, label, on) { return '<label class="check"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '> ' + label + '</label>'; };
@@ -4450,7 +4560,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<p class="muted" style="margin:0;font-size:14px">ใช้ตอนทดสอบเสร็จ ก่อนเริ่มใช้จริง · <b>แอพสำรองชีตทั้งไฟล์ไว้ใน Drive ก่อนล้างทุกครั้ง</b> · ไม่แตะ รายการของ ทีม ร้านค้า และการตั้งค่า LINE/รหัส/Claude</p>' +
       cb('c-counts', 'ผลนับ + ร่างที่นับค้าง + ประวัติส่งบอส', true) +
       cb('c-orders', 'ใบสั่งซื้อ + รับของ + ของเข้า (เลขใบสั่ง/ใบรับเริ่ม #1 ใหม่)', true) +
-      cb('c-alerts', 'แจ้งด่วน', true) +
+      cb('c-alerts', 'ประวัติของเสีย / แจ้งด่วน (ตัวเลขของเสียอยู่ใน "ของเข้า" ข้อบน)', true) +
       cb('c-ai', 'บันทึกการใช้ Claude', false) +
       '<p class="muted" style="margin:0;font-size:13px">รูปที่เคยแนบไว้ในโฟลเดอร์ Drive ของแอพไม่ถูกลบ</p>' +
       '<div><label>พิมพ์คำว่า <b>ล้างข้อมูล</b> เพื่อยืนยัน</label><input type="text" id="c-confirm" autocomplete="off" placeholder="ล้างข้อมูล"></div>' +
