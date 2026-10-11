@@ -660,6 +660,7 @@ var I18N = {
   prepMadeBtn: ['ทำเสร็จ · ใส่จำนวน', 'လုပ်ပြီးပြီ · အရေအတွက် ထည့်မယ်'],
   prepMadeQ: ['ทำได้กี่ {u}?', 'ဘယ်နှ {um} ရလဲ?'],
   prepMadeSaved: ['เพิ่ม {n} {u} เข้าสต็อคแล้ว', '{n} {um} စတော့ထဲ ထပ်ထည့်ပြီးပြီ'],
+  prepOther: ['ทำเสร็จรายการอื่น (ไม่อยู่ในรายการข้างบน)', 'လုပ်ပြီးတဲ့ တခြားပစ္စည်း (အပေါ်က စာရင်းထဲ မပါတာ)'],
   prepUncounted: ['ยังไม่ได้นับของตัดแต่ง/ทำเอง {n} รายการ — นับก่อน รายการนี้ถึงจะครบ', 'လှီးပြီးသား/ချက်ပြီးသား {n} ခု မရေတွက်ရသေးဘူး — အရင် ရေတွက်မှ ဒီစာရင်း စုံမယ်'],
   prepUncountedShort: ['ยังไม่นับ {n}', 'မရေတွက်ရသေး {n} ခု'],
   bigNumber: ['{n} {u} เยอะผิดปกติ (Max {max}) — ตัวเลขถูกไหม?', '{n} {um} က ပုံမှန်ထက် အရမ်းများနေတယ် (Max {max}) — ဂဏန်း မှန်ရဲ့လား?'],
@@ -916,7 +917,7 @@ var Logic = (function () {
     var out = [];
     (prepRows || []).forEach(function (r) {
       var rc = recipes && recipes[r.item.id], n = recipeRounds(rc, r.need);
-      if (!n) return;
+      if (!n || rc.buy === false) return; // สูตรที่ใช้วัตถุดิบจากสต็อคเดิม (เช่น ซอยแตงกวา) ไม่สั่งซื้อเพิ่มตามสูตร — สต็อคดิบมี Min/Max ของมันเอง
       out.push({ item: r.item, rounds: n, yield: isNum(rc.yield) ? rc.yield : null, lines: rc.lines.map(function (l) {
         var it = l.item_id && itemsById ? itemsById[l.item_id] : null, e = it && entries ? entries[l.item_id] : null;
         return { item_id: it ? it.id : '', name: it ? it.name_th : l.name, name_mm: it ? it.name_mm || '' : '', qty: round2(l.qty * n), unit: l.unit,
@@ -2414,6 +2415,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
         });
         h += '</div>';
       }
+      h += '<div class="section-h">➕ ' + bi1('prepOther') + '</div>' +
+        '<input class="inp" id="prep-q" data-input="prepQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.prepQ || '') + '">' +
+        '<div class="picks" id="prep-picks">' + prepPicks() + '</div>';
       return h + '</div>';
     },
 
@@ -2822,6 +2826,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
     var t = tr('recipeUse', { n: n });
     return '<small class="rc-use">🧾 ' + esc(t.th) + ': ' + esc(th.join(' · ')) + '</small><small class="mm rc-use">' + esc(t.mm) + ': ' + esc(mm.join(' · ')) + '</small>';
+  }
+
+  // ทำเสร็จรายการอื่น (ไม่อยู่ในรายการต้องทำเพิ่ม) — ค้นหาของทำเอง/ตัดแต่ง แล้วใส่จำนวนที่ทำได้
+  function prepPicks() {
+    var q = (S.prepQ || '').trim().toLowerCase();
+    if (!q) return '';
+    return items().filter(function (it) { return it.kind === 'prep' && inMyZones(it) && matchItem(it, q); }).sort(bySearch(q)).slice(0, 8).map(function (it) {
+      return '<button data-act="prepDone" data-id="' + esc(it.id) + '" data-n="">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>';
+    }).join('');
   }
 
   function needLabel(it) { return it.kind === 'prep' ? 'toMake' : 'toBuy'; }
@@ -3587,6 +3600,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     note: function (el) { S.note = el.value; },
+    prepQ: function (el) {
+      S.prepQ = el.value;
+      var p = document.getElementById('prep-picks');
+      if (p) p.innerHTML = prepPicks();
+    },
     wasteQ: function (el) {
       S.waste.q = el.value;
       var p = document.getElementById('waste-picks');
@@ -4790,10 +4808,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var rc = (S.admin.data.recipes || {})[it.id] || null;
     var text = rc ? rc.lines.map(function (l) { return l.name + ' ' + L.fmtNum(l.qty) + ' ' + l.unit; }).join('\n') : '';
     return '<div class="card form" style="padding:16px;margin-top:12px"><b>🧾 สูตร: วัตถุดิบต่อ 1 รอบผลิต' + (rc ? ' <span class="tag ok">ตั้งแล้ว</span>' : '') + '</b>' +
-      '<p class="muted" style="margin:0;font-size:13.5px">ของนี้ต่ำกว่า Min → รายงาน LINE บอกวัตถุดิบที่ต้องซื้อ + มีในปุ่ม "สร้างใบสั่งจากรอบนี้" + หน้าน้องโชว์ว่าใช้อะไร · พิมพ์ทีละบรรทัด เช่น <b>กะหล่ำปลี 2 กก.</b></p>' +
+      '<p class="muted" style="margin:0;font-size:13.5px">หน้าน้องโชว์ว่าต้องใช้อะไรเท่าไหร่ · น้องกด "ทำเสร็จ" แล้วแดชบอร์ดคิด "ใช้ตามสูตร" ให้ · พิมพ์ทีละบรรทัด เช่น <b>กะหล่ำปลี 2 กก.</b> หรือ <b>แตงกวา 600 กรัม</b></p>' +
       '<textarea id="e-rc" data-input="rcText" rows="6" placeholder="กะหล่ำปลี 2 กก.&#10;หัวไชเท้า 2 กก.&#10;กระดูกหมู 2 กก.">' + esc(text) + '</textarea>' +
       '<div id="e-rc-pv">' + recipePreview(text) + '</div>' +
-      '<div><label>1 รอบทำได้ประมาณ (' + esc(it.unit || 'หน่วยนับ') + ')</label><input type="number" id="e-rc-y" inputmode="decimal" step="any" min="0" value="' + (rc && rc.yield ? rc.yield : '') + '" placeholder="ไม่รู้เว้นว่าง = ต่ำกว่า Min ทำ 1 รอบ"></div>' +
+      '<div><label>1 รอบทำได้ประมาณ (' + esc(it.unit || 'หน่วยนับ') + ')</label><input type="number" id="e-rc-y" inputmode="decimal" step="any" min="0" value="' + (rc && rc.yield ? rc.yield : '') + '" placeholder="ไม่รู้เว้นว่าง = ต่ำกว่า Min ทำ 1 รอบ">' +
+        '<div class="muted" style="font-size:13px;margin-top:4px">ต้องใส่ถึงจะคิด "ใช้ตามสูตร" ได้ · ของตัดแต่ง: ตั้ง 1 รอบ = 1 ' + esc(it.unit || 'หน่วย') + ' แล้วใส่วัตถุดิบที่ใช้ต่อ 1 ' + esc(it.unit || 'หน่วย') + '</div></div>' +
+      '<label class="check"><input type="checkbox" id="e-rc-buy"' + (rc && rc.buy !== false ? ' checked' : '') + '> 🛒 ต่ำกว่า Min แล้วสั่งวัตถุดิบเพิ่มตามสูตร <small class="muted">(ติ๊กเมื่อวัตถุดิบไม่ได้สต็อคเผื่อไว้ เช่น ต้มจับฉ่าย · ของตัดแต่งจากของที่สต็อคอยู่แล้ว เช่น แตงกวาซอย ไม่ต้องติ๊ก จะได้ไม่สั่งซ้ำ)</small></label>' +
       '<button class="btn btn-primary" data-act="aSaveRecipe">💾 บันทึกสูตร</button></div>';
   }
   function recipeParse(text) {
@@ -5599,7 +5619,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (bad.length) return toast('อ่านจำนวนไม่ได้: ' + bad[0].raw);
       var y = Number((document.getElementById('e-rc-y') || {}).value);
       el.disabled = true; el.textContent = 'กำลังบันทึก…';
-      api('apiAdminSaveRecipe', A.pin, it.id, { yield: y > 0 ? y : null, lines: ls.map(function (l) { return { item_id: l.item ? l.item.id : '', name: l.item ? l.item.name_th : l.name, qty: l.qty, unit: l.unit }; }) })
+      var buy = !!(document.getElementById('e-rc-buy') || {}).checked;
+      api('apiAdminSaveRecipe', A.pin, it.id, { yield: y > 0 ? y : null, buy: buy, lines: ls.map(function (l) { return { item_id: l.item ? l.item.id : '', name: l.item ? l.item.name_th : l.name, qty: l.qty, unit: l.unit }; }) })
         .then(function (r) {
           A.data.recipes = r; if (S.boot) S.boot.recipes = r; adminCacheSave();
           toast(ls.length ? 'บันทึกสูตรแล้ว ✓' : 'ลบสูตรแล้ว'); rerenderKeepScroll();
