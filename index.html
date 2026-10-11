@@ -103,25 +103,8 @@ input, textarea, select { font: inherit; color: var(--ink); }
 .who b { display: block; font-size: 19px; }
 
 /* ---------- หน้าแรก ---------- */
-.hero { padding: 18px; display: flex; align-items: center; gap: 16px; }
-.ring { --p: 0; width: 76px; height: 76px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: conic-gradient(var(--brand) calc(var(--p) * 1%), var(--line) 0); }
-.ring span { width: 60px; height: 60px; border-radius: 50%; background: var(--card); display: grid; place-items: center; font-weight: 800; font-size: 17px; }
-.hero b { font-size: 20px; display: block; }
-.zones { display: grid; gap: 12px; }
-.zone { display: flex; align-items: center; gap: 14px; padding: 14px 16px; text-align: left; width: 100%; position: relative; }
-.zone:active { transform: scale(.99); }
-.zone .ic { font-size: 30px; width: 40px; text-align: center; flex: none; }
-.zone .tx { flex: 1; min-width: 0; }
-.zone .tx b { display: block; font-size: 17px; line-height: 1.3; }
-.zone .tx .mm { display: block; font-size: 14px; color: var(--muted); }
-.zone .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
 .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 8px; }
 .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
-.zone.done .bar i { background: var(--ok); }
-.zone .cnt { font-weight: 800; font-size: 17px; flex: none; text-align: right; }
-.zone .cnt small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); }
-.zone.optional { opacity: .72; }
 .tag { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 600; line-height: 1.5; background: var(--bg); color: var(--muted); }
 .tag .mm { line-height: 1.5; }
 .need .tag { font-size: 14px; padding: 4px 12px; border-radius: 10px; }
@@ -295,12 +278,6 @@ a.btn { text-decoration: none; color: inherit; }
 @keyframes shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-12px); } 40% { transform: translateX(12px); } 60% { transform: translateX(-7px); } 80% { transform: translateX(7px); } }
 
 /* ---------- สั่งซื้อ / รับของ ---------- */
-.recv-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: 100%; text-align: left; margin-top: 12px; flex-wrap: wrap; }
-.recv-card .ic { font-size: 28px; }
-.recv-card .tx { flex: 1; min-width: 140px; }
-.recv-card .tx b { display: block; font-size: 17px; }
-.recv-card .tx .mm { display: block; font-size: 14px; color: var(--muted); }
-.recv-card.has { outline: 2.5px solid var(--brand); background: linear-gradient(90deg, var(--brand-soft), var(--card) 70%); }
 .po-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; width: 100%; text-align: left; }
 .po-card .tx { flex: 1; min-width: 0; }
 .po-items { font-size: 14px; margin-top: 4px; line-height: 1.5; color: #3f3a36; }
@@ -479,12 +456,6 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .imp-q span { font-size: 14px; min-width: 30px; }
 
 /* ต้องทำเพิ่มวันนี้ */
-.prep-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; width: 100%; text-align: left; margin-top: 12px; }
-.prep-card .ic { font-size: 28px; flex: none; }
-.prep-card .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.prep-card .tx .mm { font-size: 14px; color: var(--muted); }
-.prep-card .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.prep-card .go { font-size: 26px; color: var(--muted); flex: none; }
 .prep-row { flex-wrap: wrap; }
 .prep-row .nm { cursor: pointer; flex: 1 1 100%; }
 .prep-row .nm small { display: block; margin-top: 3px; font-size: 14px; }
@@ -537,6 +508,44 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .waste-line .rq-in .inp { width: 110px; }
 #waste-miss { font-size: 13.5px; color: var(--muted); margin-bottom: 8px; }
 #waste-miss:empty { display: none; }
+
+/* หน้าแรกแบบเห็นครบในจอเดียว */
+.prog { margin: 0 0 12px; }
+.prog-t { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14.5px; }
+.prog-t b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.prog-t .pct { margin-left: auto; font-weight: 800; color: var(--brand); font-variant-numeric: tabular-nums; }
+.prog .bar, .ztile .bar { display: block; height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 6px; }
+.prog .bar i, .ztile .bar i { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
+.ztiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ztile { background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 10px 12px; text-align: left; display: flex; flex-direction: column; min-width: 0; min-height: 98px; box-shadow: var(--shadow); }
+.ztile:active, .atile:active { transform: scale(.98); }
+.ztile .zt-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.ztile .ic { font-size: 26px; line-height: 1; }
+.ztile .cnt { font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.ztile b { font-size: 15.5px; line-height: 1.25; margin-top: 8px; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ztile .mm { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.7; }
+.ztile .bar { margin-top: auto; }
+.ztile .zt-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; font-size: 12px; }
+.ztile .zt-meta .tag { font-size: 11.5px; padding: 1px 7px; }
+.ztile .who { color: var(--brand); font-weight: 600; }
+.ztile.doing { border-color: var(--brand); }
+.ztile.doing .cnt { color: var(--brand); }
+.ztile.done { border-color: var(--ok); background: var(--ok-soft); }
+.ztile.done .cnt { color: var(--ok); }
+.ztile.done .bar i { background: var(--ok); }
+.ztile.optional { opacity: .75; border-style: dashed; }
+.atiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin-top: 12px; }
+.atile { position: relative; background: var(--card); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 6px 10px; display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; box-shadow: var(--shadow); }
+.atile .ic { font-size: 26px; line-height: 1.2; }
+.atile b { font-size: 14px; line-height: 1.25; margin-top: 4px; }
+.atile .mm { font-size: 11.5px; color: var(--muted); line-height: 1.6; }
+.atile .badge { position: absolute; top: 6px; right: 6px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; background: var(--bad); color: #fff; font-size: 12.5px; font-weight: 800; display: grid; place-items: center; }
+.atile .badge.brand { background: var(--brand); }
+.atile.has { border-color: var(--brand); }
+.atile.urge { border-color: var(--bad); }
+
+.sent-strip { margin-bottom: 10px; padding: 8px 12px; font-size: 13.5px; line-height: 1.5; }
+.sent-strip small { font-size: 12px; opacity: .85; }
 
 </style>
 </head>
@@ -2254,24 +2263,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var h = top({ th: tr('todayCount').th + (lbl ? ' · ' + lbl : ''), mm: L.thaiDate(b.date), me: true }) + '<div class="wrap screen">';
       if (!myZones().length) h += '<div class="note warn" style="margin-bottom:12px">' + bi1('noPlacesYet') + '</div>';
       if (sub) {
-        h += '<div class="note ok" style="margin-bottom:12px">✅ ' + bi1('sent') + ' ' + esc(L.bkkTime(sub.at)) + ' (' + esc(sub.by) + ')<br><small>' + bi1('resendHint') + '</small>' +
+        h += '<div class="note ok sent-strip">✅ ' + bi1('sent') + ' ' + esc(L.bkkTime(sub.at)) + ' (' + esc(sub.by) + ') <small>· ' + bi1('resendHint') + '</small>' +
           (S.result && S.result.message ? '<br><button class="mini-link" data-act="toSent">💬 ข้อความที่บอสได้รับ</button>' : '') + '</div>';
       }
-      h += '<div class="card hero"><div class="ring" style="--p:' + pct + '"><span>' + pct + '%</span></div><div>' +
-        '<b>' + counted + ' / ' + total + ' ' + esc(tr('items').th) + '</b>' +
-        '<div class="muted">' + bi1('counted') + '</div>' +
-        (below ? '<div class="meta" style="margin-top:6px"><span class="tag bad">▼ ' + below + ' ' + bi1('belowMin') + '</span></div>' : '') +
-        '</div></div>';
+      // หน้าแรกเห็นครบในจอเดียว: ความคืบหน้าบรรทัดเดียว → ที่เก็บเป็นปุ่ม 2 คอลัมน์ → งานอื่น 1 แถว → ค้นหา
+      h += '<div class="prog"><div class="prog-t"><b>' + counted + ' / ' + total + '</b><span>' + bi1('counted') + '</span>' +
+        (below ? '<span class="tag bad">▼ ' + below + ' ' + bi1('belowMin') + '</span>' : '') + '<span class="pct">' + pct + '%</span></div>' +
+        '<span class="bar"><i style="width:' + pct + '%"></i></span></div>';
       h += outboxHtml();
-      h += recvCard();
-      h += prepCard(sum);
-      h += '<div class="search-box"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.homeQ || '') + '">' +
+      h += '<div class="ztiles">' + due.map(function (z) { return zoneTile(z, sum, false); }).join('') + later.map(function (z) { return zoneTile(z, sum, true); }).join('') + '</div>';
+      if (later.length) h += '<p class="sub" style="margin:8px 0 0">📅 ' + bi1('weeklyZone') + ' · ' + bi1('optionalToday') + '</p>';
+      h += '<div class="atiles">' + recvTile() + prepTile(sum) + actTile('toWaste', '🗑️', 'waste', 0, '') + '</div>';
+      h += '<div class="search-box" style="margin-top:14px"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.homeQ || '') + '">' +
         '<div id="home-found">' + homeFound() + '</div></div>';
-      h += '<div class="zones" style="margin-top:14px">' + due.map(function (z) { return zoneCard(z, sum, false); }).join('') + '</div>';
-      if (later.length) {
-        h += '<div class="section-h">📅 ' + bi1('weeklyZone') + '</div><p class="sub" style="margin-top:-6px">' + bi1('optionalToday') + '</p>' +
-          '<div class="zones">' + later.map(function (z) { return zoneCard(z, sum, true); }).join('') + '</div>';
-      }
       if (isLead()) {
         var mmLeft = items().filter(function (it) { return inMyZones(it) && it.mm_auto !== 'mon'; }).length;
         h += '<p class="center" style="margin:22px 0 0"><button class="muted" data-act="toMmFix" style="text-decoration:underline;font-size:14px">✏️ ' + bi1('mmCheckTitle') +
@@ -2283,7 +2287,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       } else {
         h += '<div class="note info center">👨‍🍳 ' + bi1('leadSends') + '</div>';
       }
-      h += '<button class="btn btn-ghost" data-act="toWaste">🗑️ ' + bi1('waste') + '</button></div></div>';
+      h += '</div></div>';
       return h;
     },
 
@@ -2509,13 +2513,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
             ' <small>' + (has ? (L.isNum(e.v) ? L.fmtNum(e.v) : esc(tr(e.lv === 'ok' ? 'enough' : e.lv).th)) : '–') + '</small></button>';
         }).join('') + '</div></div>';
     }).join('') + '</div>';
-  }
-
-  function recvCard() {
-    var n = ((S.boot && S.boot.pos) || []).length;
-    return '<button class="card recv-card' + (n ? ' has' : '') + '" data-act="toRecv"><span class="ic">📦</span><span class="tx"><b>' + esc(tr('receive').th) +
-      '</b><span class="mm">' + esc(tr('receive').mm) + '</span></span>' +
-      (n ? '<span class="tag brand">' + bi1('receiveWaiting', { n: n }) + '</span>' : '<span class="muted" style="font-size:13px">' + bi1('noPending') + '</span>') + '</button>';
   }
 
   function poDateTh(iso) { return iso ? L.thaiDate(L.businessDate(new Date(iso))) : ''; }
@@ -2765,18 +2762,27 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return fallback();
   }
 
-  function zoneCard(z, sum, optional) {
+  // ปุ่มที่เก็บบนหน้าแรก: ไอคอน + ชื่อ + นับแล้วกี่รายการ + แถบ · สีบอกสถานะ (เขียว = ครบ, ขอบเขียวเข้ม = กำลังนับ)
+  function zoneTile(z, sum, optional) {
     var st = sum.zones[z.id];
     var pct = st.total ? Math.round(st.counted / st.total * 100) : 0;
     var done = st.total && st.counted === st.total;
-    var status = done ? '<span class="tag ok">✓ ' + bi1('done') + '</span>'
-      : st.counted ? '<span class="tag brand">' + bi1('inProgress') + '</span>' + (st.by.length ? '<span class="tag">👤 ' + esc(st.by.join(', ')) + '</span>' : '')
-        : '<span class="tag">' + bi1('notStarted') + '</span>';
-    return '<button class="card zone' + (done ? ' done' : '') + (optional ? ' optional' : '') + '" data-act="openZone" data-z="' + z.id + '">' +
-      '<span class="ic">' + z.icon + '</span><span class="tx"><b>' + esc(z.th) + '</b><span class="mm">' + esc(z.mm) + '</span>' +
-      '<span class="meta">' + status + (st.below ? '<span class="tag bad">▼ ' + st.below + '</span>' : '') + (st.todo && !st.due ? '<span class="tag warn">' + bi1('todayHere', { n: st.todo }) + '</span>' : '') + '</span>' +
-      '<span class="bar"><i style="width:' + pct + '%"></i></span></span>' +
-      '<span class="cnt">' + st.counted + '/' + st.total + '<small>' + esc(tr('items').th) + '</small></span></button>';
+    var meta = (st.below ? '<span class="tag bad">▼ ' + st.below + '</span>' : '') +
+      (st.counted && !done && st.by.length ? '<span class="who">👤 ' + esc(st.by.join(', ')) + '</span>' : '') +
+      (st.todo && !st.due ? '<span class="tag warn">' + bi1('todayHere', { n: st.todo }) + '</span>' : '');
+    return '<button class="ztile' + (done ? ' done' : st.counted ? ' doing' : '') + (optional ? ' optional' : '') + '" data-act="openZone" data-z="' + z.id + '">' +
+      '<span class="zt-top"><span class="ic">' + z.icon + '</span><span class="cnt">' + (done ? '✓ ' : '') + st.counted + '/' + st.total + '</span></span>' +
+      '<b>' + esc(z.th) + (optional ? ' 📅' : '') + '</b><span class="mm">' + esc(z.mm) + '</span>' +
+      '<span class="bar"><i style="width:' + pct + '%"></i></span>' + (meta ? '<span class="zt-meta">' + meta + '</span>' : '') + '</button>';
+  }
+  function actTile(act, icon, key, badge, cls) {
+    return '<button class="atile' + (cls ? ' ' + cls : '') + '" data-act="' + act + '"><span class="ic">' + icon + '</span><b>' + esc(tr(key).th) + '</b><span class="mm">' + esc(tr(key).mm) + '</span>' +
+      (badge ? '<span class="badge' + (cls === 'has' ? ' brand' : '') + '">' + badge + '</span>' : '') + '</button>';
+  }
+  function recvTile() { var n = ((S.boot && S.boot.pos) || []).length; return actTile('toRecv', '📦', 'receive', n, n ? 'has' : ''); }
+  function prepTile(sum) {
+    if (!items().some(function (it) { return it.kind === 'prep' && inMyZones(it); })) return '';
+    return actTile('toPrep', '🔪', 'prepToday', sum.prep.length, sum.prep.length ? 'urge' : '');
   }
 
   // วัตถุดิบตามสูตร (จำนวนรอบที่ต้องทำ) — ชื่อพม่าถ้ามีในรายการของ
@@ -2791,15 +2797,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
     var t = tr('recipeUse', { n: n });
     return '<small class="rc-use">🧾 ' + esc(t.th) + ': ' + esc(th.join(' · ')) + '</small><small class="mm rc-use">' + esc(t.mm) + ': ' + esc(mm.join(' · ')) + '</small>';
-  }
-
-  function prepCard(sum) {
-    var unPrep = sum.uncounted.filter(function (it) { return it.kind === 'prep'; }).length;
-    var hasPrep = items().some(function (it) { return it.kind === 'prep' && inMyZones(it); });
-    if (!hasPrep) return '';
-    return '<button class="card prep-card" data-act="toPrep"><span class="ic">🔪</span><span class="tx"><b>' + esc(tr('prepToday').th) + '</b><span class="mm">' + esc(tr('prepToday').mm) + '</span>' +
-      '<span class="meta">' + (sum.prep.length ? '<span class="tag bad">' + bi1('prepCard', { n: sum.prep.length }) + '</span>' : unPrep ? '' : '<span class="tag ok">✓ ' + bi1('nothingToMake') + '</span>') +
-      (unPrep ? '<span class="tag warn">' + bi1('prepUncountedShort', { n: unPrep }) + '</span>' : '') + '</span></span><span class="go">›</span></button>';
   }
 
   function needLabel(it) { return it.kind === 'prep' ? 'toMake' : 'toBuy'; }
