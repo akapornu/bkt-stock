@@ -1057,7 +1057,7 @@ var Logic = (function () {
         L.push(z.icon + ' ' + z.th + ' (' + rows.length + ')');
         rows.forEach(function (r) {
           var b = buyQty(r.item, r.need);
-          L.push('• ' + r.item.name_th + ' → สั่ง ' + fmtNum(b.qty) + ' ' + b.unit + (b.size ? ' (' + b.size + ')' : '') +
+          L.push('• ' + r.item.name_th + ' → สั่ง ' + orderQtyText(b.qty, b) +
             (b.approxCount !== null ? ' (≈' + fmtNum(b.approxCount) + ' ' + r.item.unit + ')' : ''));
           L.push('   เหลือ ' + fmtNum(r.qty) + ' | Min ' + fmtNum(r.item.min) + ' | Max ' + fmtNum(r.item.max) + (b.approxCount !== null ? ' (' + r.item.unit + ')' : ''));
           if (r.parts) L.push('   แยกที่: ' + Object.keys(r.parts).map(function (zid) {
@@ -1123,7 +1123,9 @@ var Logic = (function () {
     var f = conv ? item.buy_factor : 1;
     var unit = conv ? item.buy_unit : item.unit;
     var step = isNum(item.buy_step) && item.buy_step > 0 ? item.buy_step : (DISCRETE.indexOf(unit) >= 0 ? 1 : 0);
-    var q = needCount / f;
+    var q = needCount / f, g = gramsPer(unit);
+    // ของชั่ง (ไม่ได้ตั้งปัดเอง): ปัดขึ้นให้สั่งเป็นคำพูดได้ — ต่ำกว่า 1 กก. ทีละครึ่งขีด (50 กรัม) · 1 กก. ขึ้นไป ทีละขีด (100 กรัม)
+    if (!step && g && q > 0) step = (q * g >= 950 ? 100 : 50) / g;
     if (step) q = Math.ceil(q / step - 1e-9) * step;
     q = round2(q);
     return { qty: q, unit: unit, size: conv ? '' : (item.size || ''), factor: f, approxCount: conv ? round2(q * f) : null };
@@ -1169,6 +1171,18 @@ var Logic = (function () {
   var PO_STATUS_TH = { open: 'รอรับ', partial: 'รับบางส่วน', received: 'รับครบ', closed: 'ปิดแล้ว' };
 
   function lineQtyText(qty, l) { return fmtNum(qty) + ' ' + l.unit + (l.size ? ' (' + l.size + ')' : ''); }
+  // น้ำหนักแบบที่พูดตอนสั่งร้าน: 1 กก. ขึ้นไป → กก. (1500 กรัม = 1.5 กก.) · 1–9.5 ขีด → ขีด (600 กรัม = 6 ขีด) · ต่ำกว่า 1 ขีด → กรัม
+  // ไม่ใช่หน่วยน้ำหนัก = '' (ใช้หน่วยเดิม)
+  function spokenWeight(qty, unit) {
+    var g = gramsPer(unit);
+    if (!g || !(qty > 0)) return '';
+    var grams = round2(qty * g);
+    if (grams >= 1000) return fmtNum(round2(grams / 1000)) + ' กก.';
+    if (grams >= 100) return fmtNum(round2(grams / 100)) + ' ขีด';
+    return fmtNum(grams) + ' กรัม';
+  }
+  // จำนวนในข้อความสั่งของ (ส่งร้าน / รายงานบอส) — ของชั่งเป็นคำพูด ที่เหลือเหมือนเดิม
+  function orderQtyText(qty, l) { return (!l.size && spokenWeight(qty, l.unit)) || lineQtyText(qty, l); }
 
   // ---------- วางรายการสั่งซื้อเป็นข้อความ → แยกเป็นใบสั่งตามผู้ขาย ----------
   // "ผู้ขาย: พี่แหลม" ขึ้นใบใหม่ · บรรทัด "ชื่อ จำนวน หน่วย" เช่น "กระเทียมจีน 1.5 กก." · ก่อนมีหัวผู้ขาย = ไม่ระบุร้าน
@@ -1241,7 +1255,7 @@ var Logic = (function () {
     if (po.supplier_name) L.push('ถึง: ' + po.supplier_name);
     L.push('');
     (po.lines || []).filter(function (l) { return l.qty > 0; }).forEach(function (l, i) {
-      L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + lineQtyText(l.qty, l));
+      L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l));
     });
     if (po.note) { L.push(''); L.push('หมายเหตุ: ' + po.note); }
     L.push('');
@@ -1572,7 +1586,7 @@ var Logic = (function () {
     buildBossMessage: buildBossMessage, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
-    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost,
+    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
@@ -3654,6 +3668,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }, function (e) { toast(errMsg(e)); });
   }
 
+  // ใบสั่งใหม่ (ใบเปล่า/วางรายการ) นับเป็นของรอบนับล่าสุด → ของในใบนั้นไม่ขึ้นซ้ำตอนสร้างใบจากรอบนี้
+  function roundDate() { var P = S.admin && S.admin.po; return (P && P.round && P.round.date) || ''; }
+  // บันทึกใบสั่งแล้ว ติดป้าย "สั่งแล้ว" ในรายการรอบนี้ทันที ไม่ต้องรอโหลดใหม่ (กดสร้างใบร้านถัดไปได้เลย ของไม่ขึ้นซ้ำ)
+  function markOrdered(po) {
+    var P = S.admin && S.admin.po;
+    if (!po || !P || !P.round || String(po.source_date || '').slice(0, 10) !== P.round.date) return;
+    var keys = {};
+    po.lines.forEach(function (l) { if (l.qty > 0) keys[l.key] = true; });
+    P.round.lines.forEach(function (l) { if (keys[l.key]) l.ordered_in = '#' + po.id; });
+    adminCacheSave();
+  }
+
   var PO_TAG = { open: 'brand', partial: 'warn', received: 'ok', closed: '' };
   function poStatusTag(st) { return '<span class="tag ' + (PO_TAG[st] || '') + '">' + esc(L.PO_STATUS_TH[st] || st) + '</span>'; }
 
@@ -3766,6 +3792,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (E.source_date) h += '<p class="sub" style="margin-top:12px">จากรอบนับ ' + esc(L.thaiDate(E.source_date)) + ' · ติ๊กเฉพาะของที่สั่งร้านนี้ แก้จำนวนได้ตามยอดขายช่วงนั้น</p>';
     h += '<div class="list" style="margin-top:10px">' + E.lines.map(function (l, i) {
       var approx = l.factor && l.factor !== 1 ? '<small class="muted" id="pe-ap-' + i + '">≈ ' + L.fmtNum(L.round2((Number(l.qty) || 0) * l.factor)) + ' ' + esc(l.count_unit) + '</small>' : '';
+      if (L.gramsPer(l.unit) && !l.size) approx += '<small class="muted" id="pe-sp-' + i + '">' + esc(peSpoken(l)) + '</small>';
       var got = l.received > 0;
       return '<div class="card pe-line' + (l.include ? '' : ' off') + '"><label class="check"><input type="checkbox" data-input="peInc" data-i="' + i + '"' + (l.include ? ' checked' : '') + (got ? ' disabled' : '') + '></label>' +
         '<div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.for_item ? '<small class="muted">🧾 สูตร ' + esc(l.for_item) + '</small>' : '') + (l.left !== undefined && l.left !== null ? '<small class="muted">เหลือ ' + L.fmtNum(l.left) + ' · Min ' + L.fmtNum(l.min) + ' · Max ' + L.fmtNum(l.max) + (l.factor !== 1 ? ' (' + esc(l.count_unit) + ')' : '') + '</small>' : '') +
@@ -4883,10 +4910,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (b) b.textContent = '💾 บันทึกใบสั่ง (' + S.admin.poEdit.lines.filter(function (l) { return l.include && Number(l.qty) > 0; }).length + ' รายการ)';
   }
   INPUT.peInc = function (el) { S.admin.poEdit.lines[+el.dataset.i].include = el.checked; el.closest('.pe-line').classList.toggle('off', !el.checked); peSaveLabel(); };
+  // ของชั่ง: บอกว่าในข้อความส่งร้านจะเป็นกี่ขีด/กี่โล
+  function peSpoken(l) { var t = L.spokenWeight(Number(l.qty) || 0, l.unit); return t && t !== L.fmtNum(Number(l.qty)) + ' ' + l.unit ? 'ส่งร้าน: ' + t : ''; }
   INPUT.peQty = function (el) {
     var l = S.admin.poEdit.lines[+el.dataset.i];
     l.qty = el.value;
-    var ap = document.getElementById('pe-ap-' + el.dataset.i);
+    var ap = document.getElementById('pe-ap-' + el.dataset.i), sp = document.getElementById('pe-sp-' + el.dataset.i);
+    if (sp) sp.textContent = peSpoken(l);
     if (ap) ap.textContent = '≈ ' + L.fmtNum(L.round2((Number(l.qty) || 0) * l.factor)) + ' ' + l.count_unit;
     peSaveLabel();
   };
@@ -5358,7 +5388,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       ready.then(function () {
         return blocks.reduce(function (p, b) {
           return p.then(function () {
-            return api('apiAdminPoSave', A.pin, { supplier_id: b.supplier, source_date: '', note: '', lines: b.lines }).then(function (r) { results.push(r); });
+            return api('apiAdminPoSave', A.pin, { supplier_id: b.supplier, source_date: roundDate(), note: '', lines: b.lines }).then(function (r) { results.push(r); markOrdered(r.po); });
           });
         }, Promise.resolve());
       }).then(function () {
@@ -5371,7 +5401,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         else { rerenderKeepScroll(); toast(errMsg(e)); }
       });
     },
-    poBlank: function () { S.admin.poEdit = { id: 0, supplier_id: '', source_date: '', note: '', q: '', lines: [] }; go('apoedit'); },
+    poBlank: function () { S.admin.poEdit = { id: 0, supplier_id: '', source_date: roundDate(), note: '', q: '', lines: [] }; go('apoedit'); },
     poEditBack: function () { go(S.admin.poEdit && S.admin.poEdit.id ? 'apodetail' : 'admin'); },
     pePick: function (el) {
       var E = S.admin.poEdit, it = S.admin.data.items.filter(function (x) { return x.id === el.dataset.id; })[0];
@@ -5397,6 +5427,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       E.saving = true; rerenderKeepScroll();
       api('apiAdminPoSave', S.admin.pin, { id: E.id, supplier_id: E.supplier_id, source_date: E.source_date, note: E.note, lines: lines }).then(function (r) {
         S.admin.poEdit = null;
+        markOrdered(r.po);
         S.admin.poView = { po: r.po, receipts: [], text: r.text };
         toast('บันทึกใบสั่ง #' + r.po.id + ' แล้ว ✓');
         go('apodetail');
