@@ -546,7 +546,6 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 
 .sent-strip { margin-bottom: 10px; padding: 8px 12px; font-size: 13.5px; line-height: 1.5; }
 .sent-strip small { font-size: 12px; opacity: .85; }
-.atiles.four { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* แดชบอร์ด: ของแพง / ใช้ตามสูตร */
 .trk-row { display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 9px 0; text-align: left; border-bottom: 1px solid var(--line); font-size: 14px; }
 .trk-row:last-of-type { border-bottom: 0; }
@@ -741,16 +740,6 @@ var I18N = {
   wasteNeedPhoto: ['ถ่ายรูปของที่ทิ้งอย่างน้อย 1 รูป', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို ဓာတ်ပုံ အနည်းဆုံး 1 ပုံ ရိုက်ပါ'],
   wasteNote: ['สาเหตุ / รายละเอียด (ถ้ามี)', 'ဘာကြောင့် ပစ်ရလဲ / အသေးစိတ် (ရှိရင်)'],
   wasteSentList: ['ส่งแล้ว', 'ပို့ပြီးပြီ'],
-  // เบิกของแพง (กันของหาย) — 12 ต.ค. 69 (บรรณาธิการพม่าตรวจแล้ว 12 ต.ค. 69 — เบิก = ထုတ် / ထုတ်သုံး (ภาษาพูด) แทน ထုတ်ယူ ที่ออกภาษาเขียน · เลี่ยง ယူသွား เพราะฟังเหมือนเอากลับไป · ให้ MON ยืนยัน ထုတ်/ထုတ်သုံး, ဈေးကြီးပစ္စည်း, ထုတ်လိုက်တာ (ป้ายช่องจำนวน))
-  issue: ['เบิกของแพง', 'ဈေးကြီးပစ္စည်း ထုတ်မယ်'],
-  issueTitle: ['เบิกของแพง', 'ဈေးကြီးပစ္စည်း ထုတ်သုံးတာ မှတ်မယ်'],
-  issueHow: ['ของแพงต้องบันทึกทุกครั้งที่หยิบออกไปใช้: แตะของ ใส่จำนวน ถ่ายรูป · หยิบหลายอย่างพร้อมกัน ใส่ได้หลายรายการ', 'ဈေးကြီးပစ္စည်းကို ထုတ်သုံးတိုင်း မှတ်ရမယ် — ပစ္စည်းကို နှိပ်ပြီး အရေအတွက် ထည့်ပါ၊ ပြီးရင် ဓာတ်ပုံ ရိုက်ပါ · ပစ္စည်း အမျိုးမျိုး ထုတ်ရင် တစ်ခုပြီးတစ်ခု ထပ်ထည့်လို့ရတယ်'],
-  issueQty: ['เบิกไป', 'ထုတ်လိုက်တာ'],
-  issueAddMore: ['ค้นหาของแพง', 'ဈေးကြီးပစ္စည်း ရှာရန်'],
-  issueNeedItem: ['แตะเลือกของที่เบิก', 'ထုတ်လိုက်တဲ့ ပစ္စည်းကို နှိပ်ပြီး ရွေးပါ'],
-  issueNeedQty: ['ใส่จำนวนที่เบิกให้ครบทุกรายการ', 'ပစ္စည်းတိုင်းမှာ ထုတ်လိုက်တဲ့ အရေအတွက် ထည့်ပါ'],
-  issueNeedPhoto: ['ถ่ายรูปของที่เบิกอย่างน้อย 1 รูป', 'ထုတ်လိုက်တဲ့ ပစ္စည်းကို ဓာတ်ပုံ အနည်းဆုံး 1 ပုံ ရိုက်ပါ'],
-  issueNote: ['ใช้ทำอะไร (ถ้ามี)', 'ဘာအတွက် သုံးမှာလဲ (ရှိရင်)'],
   // ค้นหา (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69)
   notFound: ['ไม่พบ "{q}"', '"{q}" ရှာမတွေ့ပါ'],
   searchHere: ['ค้นหาในที่นี้', 'ဒီနေရာမှာ ရှာရန်'],
@@ -1069,39 +1058,6 @@ var Logic = (function () {
 
   function unitText(item) { return item.unit + (item.size ? ' (' + item.size + ')' : ''); }
 
-  // ของแพง (ต้องบันทึกตอนเบิก) รอบนี้เทียบกับนับครั้งก่อน: ใช้ไป = นับก่อน + เข้า (รับ/ผลิต/แก้ใบรับ) − นับนี้
-  // ส่วนที่ไม่มีบันทึก = ใช้ไป − เบิก − ทิ้ง · ต่างไม่เกินครึ่งของปุ่ม +/− ถือว่าตรง (ความละเอียดตอนนับ)
-  // o: { items:[ของแพง], prev:{id:{qty, at, date}}, now:{id:{qty, at}} (at = เวลาที่นับรอบนี้), moves:[{item_id, type, qty_count, count_unit, at}] }
-  function trackDaily(o) {
-    var rows = [];
-    (o.items || []).forEach(function (it) {
-      var p = o.prev[it.id], c = o.now[it.id], n = c && c.qty;
-      if (!p || !isNum(p.qty) || !isNum(n)) return;
-      var t0 = tms(p.at), t1 = tms(c.at), inc = 0, iss = 0, wst = 0;
-      (o.moves || []).forEach(function (m) {
-        if (m.item_id !== it.id || (m.count_unit && m.count_unit !== it.unit)) return;
-        var t = tms(m.at);
-        if (!(t > t0 && t <= t1)) return;
-        var q = Number(m.qty_count) || 0;
-        if (m.type === 'issue') iss += q; else if (m.type === 'waste') wst += q; else inc += q;
-      });
-      var use = round2(p.qty + inc - n), gap = round2(use - iss - wst);
-      rows.push({ item: it, since: p.date, use: use, recv: round2(inc), issued: round2(iss), wasted: round2(wst), gap: Math.abs(gap) <= (it.step || 1) / 2 ? 0 : gap });
-    });
-    return rows;
-  }
-  function trackLines(rows) {
-    var L = [], bad = rows.filter(function (r) { return r.gap !== 0; }), ok = rows.filter(function (r) { return r.gap === 0; });
-    L.push('🔒 ของแพง เทียบกับนับครั้งก่อน');
-    bad.forEach(function (r) {
-      var u = ' ' + r.item.unit;
-      L.push('• ' + r.item.name_th + ' ใช้ไป ' + fmtNum(r.use) + u + ' · บันทึกเบิก ' + fmtNum(r.issued) + (r.wasted ? ' · ทิ้ง ' + fmtNum(r.wasted) : '') + ' → ' +
-        (r.gap > 0 ? '⚠️ หายไม่มีบันทึก ' + fmtNum(r.gap) + u : 'บันทึกมากกว่าที่ลดลง ' + fmtNum(-r.gap) + u + ' (นับหรือบันทึกผิด?)'));
-    });
-    if (ok.length) L.push('✓ ตรงกับบันทึก: ' + ok.map(function (r) { return r.item.name_th; }).join(', '));
-    return L;
-  }
-
   // ร้านที่สั่งของแต่ละรายการครั้งล่าสุด (จากใบสั่ง) — ไว้จัดกลุ่มรายงานตามร้าน · ใบที่ไม่ระบุร้านไม่นับ
   function lastSuppliers(pos) {
     var out = {}, at = {};
@@ -1134,8 +1090,6 @@ var Logic = (function () {
       L.push('📝 ' + meta.by + ': ' + (meta.note_th || meta.note));
       if (meta.note_th) L.push('   ↳ ต้นฉบับพม่า (แปลอัตโนมัติ): ' + meta.note);
     }
-    var trk = meta.track || [], trkBad = trk.some(function (r) { return r.gap !== 0; });
-    if (trkBad) { L.push(''); L = L.concat(trackLines(trk)); }
     L.push('');
     if (!sum.buy.length) {
       L.push('✅ รอบนี้ไม่มีของต้องซื้อ');
@@ -1186,7 +1140,6 @@ var Logic = (function () {
       if (unBuy.length) L.push('   ของซื้อ: ' + unBuy.slice(0, 12).map(function (it) { return it.name_th; }).join(', ') + (unBuy.length > 12 ? ' +อีก ' + (unBuy.length - 12) : ''));
       if (unPrep) L.push('   ของตัดแต่ง/ทำเอง ' + unPrep + ' รายการ — รายการทำเพิ่มอาจไม่ครบ');
     }
-    if (trk.length && !trkBad) { L.push(''); L = L.concat(trackLines(trk)); }
     if (meta.appUrl) { L.push(''); L.push(sum.buy.length ? '🛒 สร้างใบสั่งซื้อจากรอบนี้: ' + meta.appUrl + '#po' : 'ดูละเอียดในแอพ: ' + meta.appUrl); }
     while (L[L.length - 1] === '') L.pop();
     var text = L.join('\n');
@@ -1462,8 +1415,7 @@ var Logic = (function () {
     });
     (o.moves || []).forEach(function (m) { (mBy[m.item_id] = mBy[m.item_id] || []).push(m); });
     var active = (o.items || []).filter(function (it) { return it.active !== false; });
-    var from7 = addDays(today, -7), track = {}, byIdAll = {};
-    (o.track || []).forEach(function (id) { track[id] = true; });
+    var from7 = addDays(today, -7), byIdAll = {};
     (o.items || []).forEach(function (it) { byIdAll[it.id] = it; });
     // ใช้ตามสูตร 7 วัน: ทำเสร็จ (produce) ÷ ได้ต่อรอบ × วัตถุดิบต่อรอบ — สูตรที่ไม่ได้ใส่ "1 รอบทำได้" คิดไม่ได้ (บอกบอสให้ใส่)
     var theory = {}, noYield = {};
@@ -1486,17 +1438,14 @@ var Logic = (function () {
       var cs = dates.map(function (d) { return cBy[it.id][d]; }).filter(function (c) { return !c.unit || c.unit === it.unit; });
       cs.forEach(function (c) { if (c.date >= from) cover[c.date] = (cover[c.date] || 0) + 1; });
       var allMv = (mBy[it.id] || []).filter(function (m) { return !m.count_unit || m.count_unit === it.unit; });
-      // ของเสีย (waste) / เบิก (issue) ไม่ใช่ของเข้า: ไม่บวกเป็นรับเข้า → "ใช้ไป" รวมไว้แล้ว · บันทึกหลังนับล่าสุด = ตัดออกจากของที่มีตอนนี้
-      var mv = allMv.filter(function (m) { return m.type !== 'waste' && m.type !== 'issue'; });
-      var wv = allMv.filter(function (m) { return m.type === 'waste'; }), iv = allMv.filter(function (m) { return m.type === 'issue'; });
-      var sumIn = function (list, t0, t1) { var q = 0; list.forEach(function (m) { var t = tms(m.at); if (t > t0 && t <= t1) q += m.qty_count || 0; }); return round2(q); };
+      // ของเสีย (waste) ไม่ใช่ของเข้า: ไม่บวกเป็นรับเข้า → "ใช้ไป" รวมของเสียเหมือนเดิม · ทิ้งหลังนับล่าสุด = ตัดออกจากของที่มีตอนนี้
+      var mv = allMv.filter(function (m) { return m.type !== 'waste'; }), wv = allMv.filter(function (m) { return m.type === 'waste'; });
       var nums = cs.filter(function (c) { return isNum(c.qty); });
       var last = cs.length ? cs[cs.length - 1] : null;
       var lastNum = nums.length ? nums[nums.length - 1] : null;
       var recvSince = 0, wasteSince = 0;
       if (lastNum) mv.forEach(function (m) { if (tms(m.at) > tms(lastNum.at)) recvSince += m.qty_count || 0; });
       if (lastNum) wv.forEach(function (m) { if (tms(m.at) > tms(lastNum.at)) wasteSince += m.qty_count || 0; });
-      var issueSince = lastNum ? sumIn(iv, tms(lastNum.at), Infinity) : 0;
       var waste = { qty: 0, value: 0, n: 0, unpriced: 0 };
       wv.forEach(function (m) {
         if (m.date < from) return;
@@ -1507,7 +1456,7 @@ var Logic = (function () {
       var r = {
         id: it.id, name_th: it.name_th, zone: it.zone, kind: it.kind, unit: it.unit, min: it.min, max: it.max, step: it.step || 1,
         configured: isConfigured(it), last: last ? { date: last.date, qty: isNum(last.qty) ? last.qty : null, level: last.level || '', at: last.at, draft: !!last.draft } : null,
-        recvSince: round2(recvSince), wasteSince: round2(wasteSince), onHand: lastNum ? round2(Math.max(0, lastNum.qty + recvSince - wasteSince - issueSince)) : null, onOrder: round2((o.onOrder || {})[it.id] || 0),
+        recvSince: round2(recvSince), wasteSince: round2(wasteSince), onHand: lastNum ? round2(Math.max(0, lastNum.qty + recvSince - wasteSince)) : null, onOrder: round2((o.onOrder || {})[it.id] || 0),
         waste: waste,
         intervals: [], anomalies: 0, days: 0, avgDaily: null, p90Daily: null, peakDaily: null, estNow: null, daysCover: null, runsOutIn: null, belowMinIn: null,
         weekday: null, forecast: [], suggest: null, status: 'unknown'
@@ -1526,8 +1475,7 @@ var Logic = (function () {
           mv.forEach(function (m) { var t = tms(m.at); if (t > tms(a.at) && t <= tms(b.at)) recv += m.qty_count || 0; });
           var use = round2(a.qty + recv - b.qty), days = openIn(a.date, b.date);
           if (use < 0) { r.anomalies++; continue; } // ของเพิ่มขึ้นโดยไม่มีบันทึกรับเข้า → นับ/รับไม่ครบ ไม่เอามาคิด
-          r.intervals.push({ date: b.date, use: use, days: days, daily: round2(use / days), recv: round2(recv),
-            issued: sumIn(iv, tms(a.at), tms(b.at)), wasted: sumIn(wv, tms(a.at), tms(b.at)) });
+          r.intervals.push({ date: b.date, use: use, days: days, daily: round2(use / days), recv: round2(recv) });
         }
         var tot = 0, expanded = [];
         r.intervals.forEach(function (x) { tot += x.use; r.days += x.days; for (var k = 0; k < x.days; k++) expanded.push(x.use / x.days); });
@@ -1539,19 +1487,9 @@ var Logic = (function () {
         // วันขายดี = P90 หรือค่าเฉลี่ยของวันในสัปดาห์ที่ขายดีสุด (ถ้ามีข้อมูลพอ) — เอาค่าที่มากกว่า
         if (r.p90Daily !== null) r.peakDaily = round2(Math.max(r.p90Daily, Math.max.apply(null, (r.weekday || []).filter(isNum).concat([0]))));
       }
-      var last7 = r.intervals.filter(function (x) { return x.date > from7; }), tol = (it.step || 1) / 2;
-      r.use7 = round2(last7.reduce(function (t, x) { return t + x.use; }, 0));
-      r.issued7 = round2(iv.filter(function (m) { return m.date > from7; }).reduce(function (t, m) { return t + (m.qty_count || 0); }, 0));
+      // 7 วันล่าสุด: ใช้ไปจากการนับ เทียบกับใช้ตามสูตร (ทำเสร็จ × สูตร)
+      r.use7 = round2(r.intervals.filter(function (x) { return x.date > from7; }).reduce(function (t, x) { return t + x.use; }, 0));
       r.theory7 = round2(theory[it.id] || 0);
-      // ของแพง: ใช้ไปจากการนับ − (เบิก + ทิ้ง ที่บันทึก) = ส่วนที่ไม่มีบันทึก (ต่างไม่เกินครึ่งของปุ่ม +/− ถือว่าตรง)
-      if (track[it.id]) {
-        var rows = last7.map(function (x) {
-          var g = round2(x.use - x.issued - x.wasted);
-          return { date: x.date, use: x.use, issued: x.issued, wasted: x.wasted, gap: Math.abs(g) <= tol ? 0 : g };
-        });
-        r.track = { rows: rows, gap: round2(rows.reduce(function (t, x) { return t + Math.max(0, x.gap); }, 0)),
-          over: round2(rows.reduce(function (t, x) { return t + Math.max(0, -x.gap); }, 0)) };
-      }
       // ตอนนี้ (ประมาณ) = นับล่าสุด + รับเข้า − ใช้ไปในวันที่ผ่านไปแล้วโดยไม่ได้นับ (เช่น ตู้ฟรีซนับวันอาทิตย์ วันนี้วันพุธ)
       if (r.onHand !== null) {
         var yest = addDays(today, -1);
@@ -1603,7 +1541,7 @@ var Logic = (function () {
     res.forEach(function (r) { wasteAll.value += r.waste.value; wasteAll.n += r.waste.n; wasteAll.unpriced += r.waste.unpriced; });
     wasteAll.value = round2(wasteAll.value);
     return {
-      waste: wasteAll, tracked: res.filter(function (r) { return r.track; }).length, noYield: Object.keys(noYield),
+      waste: wasteAll, noYield: Object.keys(noYield),
       today: today, lookback: look, leadDays: lead, cycleDays: cycle, minDays: minDays, dataDays: dataDays, total: res.length,
       coverage: coverage,
       status: { low: by('low'), near: by('near'), ok: by('ok'), over: by('over'), unknown: by('unknown') },
@@ -1704,7 +1642,7 @@ var Logic = (function () {
     buildBossMessage: buildBossMessage, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
-    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, trackDaily: trackDaily, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
+    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
@@ -1954,7 +1892,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     store.set('boot', { at: Date.now(), b: S.boot });
     pubRerender();
   }
-  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai', 'recipes', 'orders', 'track'];
+  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai', 'recipes', 'orders'];
   // apiBootstrap ตอบช้ากว่าสำเนาบน Firebase ที่เพิ่งเปลี่ยน → เก็บส่วนที่ใหม่กว่าไว้
   function keepNewerPub(b) {
     var o = S.boot, pv = o && o.pubV;
@@ -2360,8 +2298,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += outboxHtml();
       h += '<div class="ztiles">' + due.map(function (z) { return zoneTile(z, sum, false); }).join('') + later.map(function (z) { return zoneTile(z, sum, true); }).join('') + '</div>';
       if (later.length) h += '<p class="sub" style="margin:8px 0 0">📅 ' + bi1('weeklyZone') + ' · ' + bi1('optionalToday') + '</p>';
-      var acts = [recvTile(), prepTile(sum), trackedItems().length ? actTile('toIssue', '📤', 'issue', 0, '') : '', actTile('toWaste', '🗑️', 'waste', 0, '')].filter(Boolean);
-      h += '<div class="atiles' + (acts.length === 4 ? ' four' : '') + '">' + acts.join('') + '</div>';
+      h += '<div class="atiles">' + recvTile() + prepTile(sum) + actTile('toWaste', '🗑️', 'waste', 0, '') + '</div>';
       h += '<div class="search-box" style="margin-top:14px"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(S.homeQ || '') + '">' +
         '<div id="home-found">' + homeFound() + '</div></div>';
       if (isLead()) {
@@ -2495,19 +2432,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     waste: function () {
       var w = S.waste;
-      var h = top({ th: wIcon() + ' ' + tr(wk('Title')).th, mm: tr(wk('Title')).mm, back: 'toHome' }) + '<div class="wrap screen">';
+      var h = top({ th: '🗑️ ' + tr('wasteTitle').th, mm: tr('wasteTitle').mm, back: 'toHome' }) + '<div class="wrap screen">';
       if (w.sent.length) h += '<div class="note ok">✅ ' + bi1('wasteSentList') + '<br>' + w.sent.map(esc).join('<br>') + '</div>';
-      h += '<div class="note info">' + bi1(wk('How')) + '</div>';
+      h += '<div class="note info">' + bi1('wasteHow') + '</div>';
       h += '<div class="field">' + w.lines.map(function (l, i) {
         var it = itemById(l.id) || { name_th: l.id, name_mm: '', unit: '' };
         return '<div class="card waste-line"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span></div>' +
           '<button class="iconbtn" data-act="wasteDel" data-i="' + i + '" aria-label="ลบ">✕</button>' +
-          '<div class="rqty"><span>' + bi1(wk('Qty')) + '</span><span class="rq-in"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" id="waste-n-' + i + '" data-input="wasteQty" data-i="' + i + '" value="' + esc(l.qty) + '" placeholder="0"><span>' + unitBi(it) + '</span></span></div></div>';
+          '<div class="rqty"><span>' + bi1('wasteQty') + '</span><span class="rq-in"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" id="waste-n-' + i + '" data-input="wasteQty" data-i="' + i + '" value="' + esc(l.qty) + '" placeholder="0"><span>' + unitBi(it) + '</span></span></div></div>';
       }).join('');
-      h += '<input class="inp" id="waste-q" data-input="wasteQ" placeholder="🔍 ' + esc(w.lines.length ? tr(wk('AddMore')).th + ' · ' + tr(wk('AddMore')).mm : tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(w.q) + '" autocomplete="off"><div class="picks" id="waste-picks">' + wastePicks() + '</div></div>';
-      h += photoField(w, 'waste', wk('NeedPhoto'));
-      h += '<div class="field"><label>' + esc(tr(wk('Note')).th) + '<span class="mm">' + esc(tr(wk('Note')).mm) + '</span></label><textarea data-input="wasteNote" maxlength="300" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(w.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
-      h += '</div><div class="bottom"><div class="wrap"><div class="hint center" id="waste-miss">' + wasteMissing() + '</div><button class="btn btn-primary stack" id="waste-send" data-act="wasteSend"' + (wasteMissing() ? ' disabled' : '') + '>' + biIcon(wIcon(), w.mode === 'issue' ? 'send' : 'sendToBoss') + '</button></div></div>';
+      h += '<input class="inp" id="waste-q" data-input="wasteQ" placeholder="🔍 ' + esc(w.lines.length ? tr('wasteAddMore').th + ' · ' + tr('wasteAddMore').mm : tr('searchItem').th + ' · ' + tr('searchItem').mm) + '" value="' + esc(w.q) + '" autocomplete="off"><div class="picks" id="waste-picks">' + wastePicks() + '</div></div>';
+      h += photoField(w, 'waste', 'wasteNeedPhoto');
+      h += '<div class="field"><label>' + esc(tr('wasteNote').th) + '<span class="mm">' + esc(tr('wasteNote').mm) + '</span></label><textarea data-input="wasteNote" maxlength="300" placeholder="' + esc(tr('typeAnyLang').th + ' · ' + tr('typeAnyLang').mm) + '">' + esc(w.note) + '</textarea>' + '<div class="muted" style="font-size:13px;margin-top:6px">🌐 ' + bi1('autoTranslated') + '</div>' + '</div>';
+      h += '</div><div class="bottom"><div class="wrap"><div class="hint center" id="waste-miss">' + wasteMissing() + '</div><button class="btn btn-primary stack" id="waste-send" data-act="wasteSend"' + (wasteMissing() ? ' disabled' : '') + '>' + biIcon('🗑️', 'sendToBoss') + '</button></div></div>';
       return h;
     },
 
@@ -2983,22 +2920,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
-  // ของเสีย / เบิกของแพง ใช้หน้าจอเดียวกัน — ข้อความตามแบบ (wasteX / issueX)
-  function wk(k) { return (S.waste && S.waste.mode === 'issue' ? 'issue' : 'waste') + k; }
-  function wIcon() { return S.waste && S.waste.mode === 'issue' ? '📤' : '🗑️'; }
-  // ของแพงที่ต้องบันทึกตอนเบิก (บอสติ๊กในหน้าแก้รายการ) เฉพาะที่เก็บของคนนี้
-  function trackedItems() {
-    var t = (S.boot && S.boot.track) || [];
-    return t.length ? items().filter(function (it) { return t.indexOf(it.id) >= 0 && inMyZones(it); }) : [];
-  }
   function wastePicks() {
     var w = S.waste, q = (w.q || '').trim().toLowerCase();
-    var have = w.lines.map(function (l) { return l.id; });
-    if (w.mode === 'issue') { // เบิก: โชว์ของแพงทั้งหมดให้แตะเลย (ไม่กี่อย่าง) · พิมพ์ค้นหาได้
-      var tl = trackedItems().filter(function (it) { return have.indexOf(it.id) < 0 && (!q || matchItem(it, q)); });
-      return tl.map(function (it) { return '<button data-act="wastePick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>'; }).join('');
-    }
     if (!q) return '';
+    var have = w.lines.map(function (l) { return l.id; });
     var hits = items().filter(function (it) { return have.indexOf(it.id) < 0 && matchItem(it, q); }).sort(bySearch(q)).slice(0, 8);
     if (!hits.length) return '<div class="muted" style="padding:6px 2px">' + bi1('notFound', { q: w.q.trim() }) + '</div>';
     return hits.map(function (it) {
@@ -3008,9 +2933,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
   // ยังขาดอะไรถึงจะส่งได้ (ว่าง = ส่งได้)
   function wasteMissing() {
     var w = S.waste;
-    if (!w.lines.length) return bi1(wk('NeedItem'));
-    if (w.lines.some(function (l) { return !(Number(l.qty) > 0); })) return bi1(wk('NeedQty'));
-    if (!w.photos.length || w.busy) return bi1(wk('NeedPhoto'));
+    if (!w.lines.length) return bi1('wasteNeedItem');
+    if (w.lines.some(function (l) { return !(Number(l.qty) > 0); })) return bi1('wasteNeedQty');
+    if (!w.photos.length || w.busy) return bi1('wasteNeedPhoto');
     return '';
   }
   function wasteBtnUpdate() {
@@ -3368,8 +3293,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         rerenderKeepScroll();
       });
     },
-    toWaste: function () { S.waste = { mode: 'waste', q: '', lines: [], note: '', photos: [], busy: false, sent: [] }; go('waste'); },
-    toIssue: function () { S.waste = { mode: 'issue', q: '', lines: [], note: '', photos: [], busy: false, sent: [] }; go('waste'); },
+    toWaste: function () { S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: [] }; go('waste'); },
 
     pinKey: function (el) {
       pinInput(el, 4, function (pin) {
@@ -3596,11 +3520,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (wasteMissing()) return;
       var lines = w.lines.map(function (l) { return { item_id: l.id, qty: L.round2(Number(l.qty)) }; });
       var text = w.lines.map(function (l) { var it = itemById(l.id) || {}; return (it.name_th || l.id) + ' ' + L.fmtNum(Number(l.qty)) + ' ' + (it.unit || ''); }).join(' · ');
-      outboxAdd(w.mode === 'issue' ? 'apiIssue' : 'apiWaste', [S.pin, S.me, { lines: lines, note: w.note, photos: w.photos }], wIcon() + ' ' + text);
+      outboxAdd('apiWaste', [S.pin, S.me, { lines: lines, note: w.note, photos: w.photos }], '🗑️ ' + text);
       buzz();
       toast('✅ ' + tr('savedSending').th + ' · ' + tr('savedSending').mm);
       // ส่งแล้วอยู่หน้าเดิม เผื่อทิ้งอีกรอบ (กดย้อนกลับไปหน้าแรกได้)
-      S.waste = { mode: w.mode, q: '', lines: [], note: '', photos: [], busy: false, sent: w.sent.concat([text]) };
+      S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: w.sent.concat([text]) };
       render(); window.scrollTo(0, 0);
     }
   };
@@ -3749,7 +3673,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminCacheSave() {
     var A = S.admin;
     if (!A || !store.get('apin')) return;
-    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings, recipes: A.data.recipes, orders: A.data.orders, track: A.data.track }, dash: A.dash || null,
+    store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings, recipes: A.data.recipes, orders: A.data.orders }, dash: A.dash || null,
       po: A.po || null, rep: A.rep && A.rep.list && A.rep.list.length ? { list: A.rep.list.slice(0, 40), more: A.rep.more } : null });
   }
   function adminFromCache(ap) {
@@ -4144,7 +4068,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return '<button class="cover-row" data-act="dashItem" data-id="' + esc(r.id) + '"><span>' + esc(r.name_th) + '</span><span class="cbar"><i style="width:' + Math.min(100, dc / 7 * 100) + '%;background:' + (dc < 1 ? 'var(--bad)' : dc < 2 ? 'var(--warn)' : 'var(--ok)') + '"></i></span><b>' + (dc >= 7 ? '7+' : L.fmtNum(dc)) + ' วัน</b></button>';
     }).join('') + '<small class="muted">คิดจาก ของที่มีตอนนี้ ÷ ใช้เฉลี่ยต่อวัน · แถบเต็ม = 7 วัน</small></div>'
       : '<div class="note">ยังคำนวณไม่ได้ — ต้องมีข้อมูลนับต่อเนื่องอย่างน้อย ' + D.minDays + ' วันต่อรายการ</div>';
-    h += dashWasteCard(items, D) + dashTrackCard(items) + dashTheoryCard(items, D);
+    h += dashWasteCard(items, D) + dashTheoryCard(items, D);
     // การนับย้อนหลัง
     if (D.coverage.length) {
       var cv = D.coverage.slice(-14);
@@ -4347,9 +4271,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += reportsSection();
       if (!d.receipts) h += '<p class="muted"><span class="spin-sm"></span>กำลังโหลดรับของ/ของเสีย…</p>';
       else h += '<div class="section-h">📦 รับของ (30 ครั้งล่าสุด)</div>' + ((d.receipts || []).length ? '<div class="list">' + d.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มี</p>');
-      if (d.alerts) h += '<div class="section-h">🗑️ ของเสีย / 📤 เบิก (60 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
+      if (d.alerts) h += '<div class="section-h">🗑️ ของเสีย / แจ้งด่วน (30 ครั้งล่าสุด)</div>' + (d.alerts.length ? '<div class="list">' + d.alerts.map(function (a) {
         return '<div class="card hist"><div style="display:flex;justify-content:space-between;gap:8px"><b>' + esc(a.by) + ' · ' + esc(String(a.at).slice(0, 10)) + ' ' + esc(L.bkkTime(a.at)) + '</b>' + statusLabel(a.notify_status) + '</div>' +
-          '<div>' + esc({ runout: '⏳ จะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 อื่นๆ', waste: '🗑️ ของเสีย', issue: '📤 เบิกของแพง' }[a.type] || a.type) + (a.item ? ' — ' + esc(a.item_th || a.item) + (a.item_th ? ' <span class="mm muted">(' + esc(a.item) + ')</span>' : '') : '') +
+          '<div>' + esc({ runout: '⏳ จะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 อื่นๆ', waste: '🗑️ ของเสีย' }[a.type] || a.type) + (a.item ? ' — ' + esc(a.item_th || a.item) + (a.item_th ? ' <span class="mm muted">(' + esc(a.item) + ')</span>' : '') : '') +
           (a.qty ? ' (' + esc(a.qty_th || a.qty) + ')' : '') + '</div>' +
           (a.note ? '<div class="muted">' + esc(a.note_th || a.note) + (a.note_th ? '<br><small class="mm">↳ ' + esc(a.note) + '</small> <small>🌐 แปลอัตโนมัติ</small>' : '') + '</div>' : '') +
           (a.photos ? '<div class="picks">' + String(a.photos).split(',').filter(Boolean).map(function (id, k) {
@@ -4699,33 +4623,17 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<small class="muted">มูลค่าประมาณจากราคาในบิลรับของล่าสุด' + (W.unpriced ? ' · ' + W.unpriced + ' ครั้งไม่มีราคา (–)' : '') + ' · ดูรูปได้ที่แท็บประวัติ</small></div>';
   }
 
-  // ของแพง 7 วัน: ใช้ไป (จากการนับ) เทียบกับ เบิก + ทิ้ง ที่บันทึก
-  function dashTrackCard(items) {
-    var list = items.filter(function (r) { return r.track; });
-    var h = '<div class="section-h">🔒 ของแพง <span class="n">(7 วัน)</span></div>';
-    if (!list.length) return h + '<div class="note">ยังไม่ได้เลือกของแพง — เปิดหน้าแก้รายการ แล้วกด "🔒 ของแพง" ที่รายการที่อยากให้น้องบันทึกตอนเบิก</div>';
-    list.sort(function (a, b) { return b.track.gap - a.track.gap; });
-    return h + '<div class="card" style="padding:4px 14px 10px">' + list.map(function (r) {
-      var t = r.track, sum = function (k) { return L.round2(t.rows.reduce(function (s, x) { return s + x[k]; }, 0)); }, u = ' ' + esc(r.unit);
-      var res = !t.rows.length ? '<span class="muted">ยังเทียบไม่ได้ (ต้องนับต่อกันอย่างน้อย 2 วัน)</span>'
-        : t.gap > 0 ? '<b style="color:var(--bad)">⚠️ หายไม่มีบันทึก ' + L.fmtNum(t.gap) + u + '</b>'
-          : t.over > 0 ? '<b style="color:var(--warn)">บันทึกมากกว่าที่ลด ' + L.fmtNum(t.over) + u + '</b>' : '<b style="color:var(--ok)">✓ ตรง</b>';
-      return '<button class="trk-row" data-act="dashItem" data-id="' + esc(r.id) + '"><b>' + esc(r.name_th) + '</b>' +
-        (t.rows.length ? '<span class="muted">ใช้ไป ' + L.fmtNum(sum('use')) + u + ' · เบิก ' + L.fmtNum(sum('issued')) + ' · ทิ้ง ' + L.fmtNum(sum('wasted')) + '</span>' : '') + res + '</button>';
-    }).join('') + '<small class="muted">ใช้ไป = นับครั้งก่อน + รับเข้า − นับครั้งนี้ · ต่างไม่เกินครึ่งของ "ปุ่ม +/−" ถือว่าตรง</small></div>';
-  }
-  // ใช้ตามสูตร 7 วัน = ทำเสร็จ ÷ 1 รอบทำได้ × วัตถุดิบต่อรอบ — เทียบกับเบิก (ของแพง) และใช้ทั้งหมดจากการนับ
+  // ใช้ตามสูตร 7 วัน = ทำเสร็จ ÷ 1 รอบทำได้ × วัตถุดิบต่อรอบ — เทียบกับใช้ทั้งหมดจากการนับ
   function dashTheoryCard(items, D) {
     var list = items.filter(function (r) { return r.theory7 > 0; }).sort(function (a, b) { return b.theory7 - a.theory7; });
     var h = '<div class="section-h">🧾 ใช้ตามสูตร <span class="n">(7 วัน)</span></div>';
     if (D.noYield && D.noYield.length) h += '<div class="note warn" style="margin-bottom:8px">สูตรของ ' + esc(D.noYield.join(', ')) + ' ยังไม่ได้ใส่ "1 รอบทำได้" — คิดตามสูตรไม่ได้</div>';
     if (!list.length) return h + '<div class="note">ยังไม่มีข้อมูล — ต้องมี (1) สูตรที่ใส่ "1 รอบทำได้" และ (2) น้องกด "ทำเสร็จ · ใส่จำนวน" ตอนผลิต</div>';
     return h + '<div class="card" style="padding:4px 14px 10px">' + list.slice(0, 15).map(function (r) {
-      var u = ' ' + esc(r.unit), d = r.track ? L.round2(r.issued7 - r.theory7) : null;
+      var u = ' ' + esc(r.unit);
       return '<button class="trk-row" data-act="dashItem" data-id="' + esc(r.id) + '"><b>' + esc(r.name_th) + '</b>' +
-        '<span class="muted">ตามสูตร ' + L.fmtNum(r.theory7) + u + (r.track ? ' · เบิก ' + L.fmtNum(r.issued7) : '') + ' · ใช้ทั้งหมด ' + L.fmtNum(r.use7) + '</span>' +
-        (d !== null && Math.abs(d) > (r.step || 1) / 2 ? '<b style="color:' + (d > 0 ? 'var(--bad)' : 'var(--ok)') + '">' + (d > 0 ? 'เบิกเกินสูตร ' : 'เบิกน้อยกว่าสูตร ') + L.fmtNum(Math.abs(d)) + u + '</b>' : '') + '</button>';
-    }).join('') + '<small class="muted">"ใช้ทั้งหมด" จากการนับ รวมที่ใช้ทำเมนูอื่นด้วย · ของแพงดู "เบิก" เทียบ "ตามสูตร" ได้ตรงกว่า</small></div>';
+        '<span class="muted">ตามสูตร ' + L.fmtNum(r.theory7) + u + ' · ใช้ทั้งหมด (จากการนับ) ' + L.fmtNum(r.use7) + u + '</span></button>';
+    }).join('') + '<small class="muted">"ใช้ทั้งหมด" รวมที่ใช้ทำเมนูอื่นและของเสียด้วย — ถ้าวัตถุดิบนี้ใช้แต่ทำของในสูตร ส่วนที่เกินคือของหาย/ตัดแต่งเกิน</small></div>';
   }
 
   function clearSettings() {
@@ -4869,8 +4777,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="two"><div><label>หน่วยซื้อ</label><input type="text" id="e-bunit" list="unit-list" value="' + esc(it.buy_unit || '') + '" placeholder="ว่าง = หน่วยเดียวกับที่นับ"></div>' +
       '<div><label id="e-bf-label">1 หน่วยซื้อ ≈ กี่ ' + esc(it.unit || 'หน่วยนับ') + '</label><input type="number" id="e-bfactor" inputmode="decimal" step="any" min="0" value="' + num(it.buy_factor) + '" placeholder="เช่น 40"></div></div>' +
       '<div><label>ปัดจำนวนสั่งขึ้นทีละ</label><input type="number" id="e-bstep" inputmode="decimal" step="any" min="0" value="' + num(it.buy_step) + '" placeholder="ว่าง = นับเป็นชิ้นปัดเป็นจำนวนเต็ม, น้ำหนักไม่ปัด"></div>' +
-      (it.isNew ? '' : '<div><button class="tagc' + ((S.admin.data.track || []).indexOf(it.id) >= 0 ? ' on' : '') + '" id="e-track" data-act="aTrack">🔒 ของแพง — น้องต้องบันทึกตอนเบิก</button>' +
-        '<div class="muted" style="font-size:13px;margin-top:4px">กดแล้วมีผลทันที · แอพเทียบ "ใช้ไปจากการนับ" กับ "เบิก + ทิ้ง ที่บันทึก" แล้วบอกในรายงานทุกวันถ้าหายไม่มีบันทึก</div></div>') +
       '<label class="check"><input type="checkbox" id="e-active"' + (it.active !== false ? ' checked' : '') + '> ใช้งาน (เอาติ๊กออก = ซ่อนจากหน้านับ)</label>' +
       '<div id="e-msg" class="pin-msg"></div>' +
       '<button class="btn btn-primary" data-act="aSave">บันทึก</button>' +
@@ -5671,19 +5577,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     aForget: function () { store.del('apin'); store.del('adminCache'); toast('ลืมรหัสบอสในเครื่องนี้แล้ว'); rerenderKeepScroll(); },
-    aTrack: function (el) {
-      var A = S.admin, it = A.edit, before = (A.data.track || []).slice(), on = before.indexOf(it.id) < 0;
-      var set = function (t) { A.data.track = t; if (S.boot) S.boot.track = t; adminCacheSave(); };
-      set(on ? before.concat([it.id]) : before.filter(function (x) { return x !== it.id; }));
-      el.classList.toggle('on', on); // ไม่วาดใหม่ทั้งหน้า (ช่องที่พิมพ์ค้างไว้ไม่หาย)
-      toast(on ? '🔒 ' + it.name_th + ' — น้องต้องบันทึกตอนเบิก' : 'เอา ' + it.name_th + ' ออกจากของแพงแล้ว');
-      api('apiAdminSetTrack', A.pin, it.id, on).then(function (r) { set(r.track); }, function (e) {
-        set(before);
-        var b = document.getElementById('e-track');
-        if (b) b.classList.toggle('on', !on);
-        toast('⚠️ บันทึกของแพงไม่สำเร็จ — ' + errMsg(e));
-      });
-    },
     aDelItem: function (el) {
       var A = S.admin, it = A.edit;
       confirmBox('ลบ "' + esc(it.name_th) + '" ออกจากระบบ?',
