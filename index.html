@@ -146,8 +146,8 @@ input, textarea, select { font: inherit; color: var(--ink); }
 
 /* ---------- แป้นตัวเลข ---------- */
 .sheet-bg { position: fixed; inset: 0; z-index: 40; background: rgba(28, 25, 23, .28); }
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--card); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .18); padding: 14px 16px calc(14px + var(--safe-b)); max-width: 560px; margin: 0 auto; animation: up .18s ease-out; }
-@keyframes up { from { transform: translateY(40px); opacity: 0; } }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--card); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px rgba(0, 0, 0, .18); padding: 14px 16px calc(14px + var(--safe-b)); max-width: 560px; margin: 0 auto; animation: up .1s ease-out; }
+@keyframes up { from { transform: translateY(24px); } }
 .kp-head { display: flex; align-items: flex-start; gap: 10px; }
 .kp-head .nm { flex: 1; min-width: 0; }
 .kp-head b { font-size: 19px; display: block; line-height: 1.3; }
@@ -564,6 +564,9 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .rep-row small { font-size: 13px; color: var(--muted); line-height: 1.5; }
 .rep-row small.warn-t { color: var(--warn); }
 .rep-row.out .mm { color: var(--bad); }
+.un-sum { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; width: 100%; padding: 12px 14px; text-align: left; font-size: 14px; }
+.un-sum b { color: var(--warn); }
+.un-sum .go { margin-left: auto; color: var(--brand); font-weight: 600; }
 
 </style>
 </head>
@@ -759,6 +762,7 @@ var I18N = {
   reviewHow: ['นี่คือรายงานที่บอสจะได้รับ · ตรวจตัวเลขก่อนส่ง · ผิดตรงไหน แตะรายการนั้นแล้วแก้', 'ဒါက ဘော့စ်ဆီ ရောက်မယ့် စာရင်းပါ · မပို့ခင် ဂဏန်းတွေ စစ်ပါ · မှားနေရင် အဲဒီပစ္စည်းကို နှိပ်ပြီး ပြင်ပါ'],
   skippedZero: ['ไม่ได้นับ {z} — คิดว่าไม่มี', '{zm} မှာ မရေတွက်ရသေးဘူး — မရှိဘူးလို့ တွက်ထားတယ်'],
   recipeBuy: ['วัตถุดิบตามสูตร (ซื้อเพิ่ม)', 'ချက်နည်းအတွက် ထပ်ဝယ်ရမယ့် ပါဝင်ပစ္စည်း'],
+  showList: ['ดูรายการ', 'စာရင်း ကြည့်မယ်'],
   // ค้นหา (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69)
   notFound: ['ไม่พบ "{q}"', '"{q}" ရှာမတွေ့ပါ'],
   searchHere: ['ค้นหาในที่นี้', 'ဒီနေရာမှာ ရှာရန်'],
@@ -1844,12 +1848,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       my.db = app.database();
       my.ref = my.db.ref(base);
       my.onValue = function (snap) {
-        var v = snap.val() || {};
-        my.entries = v.e || {};
+        var v = snap.val() || {}, next = v.e || {}, shown = (S.draft && S.draft.entries) || {};
+        // ช่องที่เปลี่ยนจริง — ไม่นับเสียงสะท้อนของที่เครื่องนี้เพิ่งบันทึกเอง (ค่าตรงกับที่โชว์อยู่แล้ว) ไม่งั้นนับ 1 ครั้ง = วาดใหม่ 2 รอบ
+        var num = function (x) { return L.isNum(x) ? x : null; };
+        var changed = Object.keys(next).concat(Object.keys(my.entries)).filter(function (k, i, a) {
+          if (a.indexOf(k) !== i) return false;
+          var w = next[k], sh = shown[k];
+          if (!w || w.del) return !!sh;
+          return !sh || sh.at !== w.at || num(sh.v) !== num(w.v) || (sh.lv || null) !== (w.lv || null);
+        });
+        var subBefore = JSON.stringify([my.submitted, my.subs]);
+        my.entries = next;
         if (v.submitted) { my.submitted = v.submitted; if (v.submitted.subs) my.subs = v.submitted.subs; }
-        if (!my.ready) { my.ready = true; fbSeed(my); }
+        var first = !my.ready;
+        if (first) { my.ready = true; fbSeed(my); }
         fbCompose();
-        refreshLive();
+        if (first || changed.length || JSON.stringify([my.submitted, my.subs]) !== subBefore) refreshLive(first ? null : changed);
       };
       my.ref.on('value', my.onValue);
       // รายการของ/ทีม/ใบสั่ง/ใบรับล่าสุด — อ่านจาก Firebase ตรง (บอสแก้ปุ๊บ เครื่องน้องเห็นปั๊บ ไม่ต้องรอ Apps Script)
@@ -2181,13 +2195,24 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // อัปเดตเฉพาะส่วนที่เปลี่ยน (หลังบันทึก/ดึงผลของคนอื่น)
-  function refreshLive() {
-    var typing = document.activeElement && /^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName);
-    if (S.screen === 'home' || (S.screen === 'review' && !typing && !S.kp)) rerenderKeepScroll();
-    else if (S.screen === 'zone') {
-      zoneItems(S.zone).forEach(function (it) { updateRow(it.id); });
-      updateZoneHead();
-    }
+  // keys = ช่องที่เปลี่ยน (ไม่ส่ง = ไม่รู้ → ทั้งหมด) · หลายครั้งที่มาติดกัน (หลายคนนับพร้อมกัน) รวมวาดครั้งเดียว
+  // ในตู้วาดเฉพาะแถวที่เปลี่ยน · หน้ารายงานที่แป้นเปิด/กำลังพิมพ์อยู่ จำไว้วาดตอนปิดแป้น
+  function refreshLive(keys) {
+    var q = S.liveQ || (S.liveQ = { all: false, keys: {} });
+    if (!keys) q.all = true; else keys.forEach(function (k) { q.keys[k] = true; });
+    if (S.liveTimer) return;
+    S.liveTimer = setTimeout(function () {
+      S.liveTimer = null;
+      var Q = S.liveQ; S.liveQ = null;
+      var typing = document.activeElement && /^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName);
+      if (S.screen === 'home' || (S.screen === 'review' && !typing && !S.kp)) rerenderKeepScroll();
+      else if (S.screen === 'review') S.liveDirty = true;
+      else if (S.screen === 'zone') {
+        var ids = Q.all ? null : Object.keys(Q.keys).map(function (k) { return k.split('@')[0]; });
+        zoneItems(S.zone).forEach(function (it) { if (!ids || ids.indexOf(it.id) >= 0) updateRow(it.id); });
+        updateZoneHead();
+      }
+    }, 80);
   }
 
   function newLinkBanner() {
@@ -2372,7 +2397,17 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += sum.prep.length ? '<div class="card sum-list">' + reportRows(sum.prep, false) + '</div>'
         : '<div class="note ok">✅ ' + bi1('nothingToMake') + '</div>';
       h += recipeBuyHtml(sum);
-      if (sum.uncounted.length) {
+      // ยังไม่นับ: เยอะ (>15) = สรุปจำนวนต่อที่เก็บ แตะดูรายการ (รายการยาวทำให้หน้านี้วาดช้าบนมือถือ)
+      var showUn = sum.uncounted.length <= 15 || S.showUncounted;
+      if (sum.uncounted.length && !showUn) {
+        var perZone = {};
+        sum.uncounted.forEach(function (it) { perZone[it.zone] = (perZone[it.zone] || 0) + 1; });
+        h += '<div class="section-h">⏳ ' + bi1('notCounted') + ' <span class="n">(' + sum.uncounted.length + ')</span></div>' +
+          '<button class="card un-sum" data-act="showUncounted">' + ZONES.filter(function (z) { return perZone[z.id]; }).map(function (z) {
+            return '<span>' + z.icon + ' ' + esc(z.th) + ' <b>' + perZone[z.id] + '</b></span>';
+          }).join('') + '<span class="go">' + bi1('showList') + ' ›</span></button>';
+      }
+      if (sum.uncounted.length && showUn) {
         h += '<div class="section-h">⏳ ' + bi1('notCounted') + ' <span class="n">(' + sum.uncounted.length + ')</span></div><div class="card sum-list">' +
           sum.uncounted.map(function (it) {
             var e = entry(it.id), where = e && e.missing ? e.missing : L.itemLocs(it);
@@ -3124,7 +3159,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     S.kp = null;
     kpDraw();
     if (id) { updateRow(id); updateZoneHead(); }
-    if (changed && S.screen !== 'zone') setTimeout(function () { if (!S.kp) rerenderKeepScroll(); }, 0);
+    if ((changed || S.liveDirty) && S.screen !== 'zone') { S.liveDirty = false; setTimeout(function () { if (!S.kp) rerenderKeepScroll(); }, 0); }
   }
   function openKp(id, from) {
     var it = itemById(id), z = S.screen === 'zone' && S.zone ? S.zone : it.zone;
@@ -3136,7 +3171,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     updateRow(id);
     kpDraw();
     var row = document.getElementById('r-' + id);
-    if (row) row.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    if (row) row.scrollIntoView({ block: 'start' }); // ไม่เลื่อนแบบนุ่ม (ช้า) — กระโดดทันที
   }
 
   function kpAdvance() {
@@ -3340,8 +3375,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       go('zone');
       openKp(el.dataset.id, 'zone');
     },
+    showUncounted: function () { S.showUncounted = true; rerenderKeepScroll(); },
     toggleUncounted: function () { S.onlyUncounted = !S.onlyUncounted; S.kp = null; render(); },
-    toReview: function () { flush(); go('review'); },
+    toReview: function () { flush(); S.showUncounted = false; go('review'); },
     toPrep: function () { flush(); go('prep'); },
     toMmFix: function () { S.mmfix = S.mmfix || { tab: 'todo', q: '', edit: null }; go('mmfix'); },
     mmBack: function () { mmFlush(); go('home'); },
