@@ -3057,7 +3057,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var it = itemById(S.kp.id);
     if (!it) return '';
     var e = slotVal(it, S.kp.z), cfg = L.isConfigured(it), multi = isMulti(it);
-    var h = '<div class="sheet-bg" data-act="kpClose"></div><div class="sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
+    var h = '<div class="sheet-bg" id="kp-bg" data-act="kpClose"></div><div class="sheet" id="kp-sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : bi1('notSetUp')) + '</div>' +
       (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') +
       lastCountHtml(it) +
@@ -3112,19 +3112,36 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return isFinite(n) ? n : 0;
   }
 
+  // แป้นนับ: เปิด/ปิด/เปลี่ยนรายการ วาดใหม่เฉพาะแผ่นแป้น + แถวที่เกี่ยวข้อง — ไม่วาดทั้งหน้า
+  // (หน้ายาวที่มีอักษรพม่าเยอะ วาดใหม่ทั้งหน้าช้ามากบนมือถือ — บอสเจอที่หน้าตรวจก่อนส่ง)
+  function kpDraw() {
+    ['kp-bg', 'kp-sheet'].forEach(function (x) { var el = document.getElementById(x); if (el) el.remove(); });
+    if (S.kp) $app.insertAdjacentHTML('beforeend', keypadHtml());
+  }
+  // ปิดแป้น: หน้าที่ไม่ต้องคำนวณใหม่ = แค่เอาแผ่นแป้นออก · changed + หน้ารายงาน/หน้าแรก = ปิดแป้นก่อนแล้วค่อยวาดหน้าใหม่ (กดแล้วแป้นหายทันที)
+  function kpDone(changed) {
+    var id = S.kp && S.kp.id;
+    S.kp = null;
+    kpDraw();
+    if (id) { updateRow(id); updateZoneHead(); }
+    if (changed && S.screen !== 'zone') setTimeout(function () { if (!S.kp) rerenderKeepScroll(); }, 0);
+  }
   function openKp(id, from) {
     var it = itemById(id), z = S.screen === 'zone' && S.zone ? S.zone : it.zone;
     if (S.screen !== 'zone' && isMulti(it)) { var e = entry(id); if (e && e.missing && e.missing.length) z = e.missing[0]; }
+    var prev = S.kp && S.kp.id;
     S.kp = { id: id, z: z, buf: '' };
     S.from = from || S.screen;
-    rerenderKeepScroll();
+    if (prev && prev !== id) updateRow(prev);
+    updateRow(id);
+    kpDraw();
     var row = document.getElementById('r-' + id);
     if (row) row.scrollIntoView({ block: 'start', behavior: 'smooth' });
   }
 
   function kpAdvance() {
     var cur = S.kp && S.kp.id;
-    if (S.screen !== 'zone') { S.kp = null; rerenderKeepScroll(); return; }
+    if (S.screen !== 'zone') { kpDone(true); return; }
     var list = zoneItems(S.zone);
     var idx = list.map(function (i) { return i.id; }).indexOf(cur);
     var next = null;
@@ -3132,8 +3149,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!S.onlyUncounted || !L.hasCount(slotVal(list[i], S.zone))) { next = list[i]; break; }
     }
     if (!next) {
-      S.kp = null;
-      rerenderKeepScroll();
+      kpDone(false);
       toast('✅ ' + tr('done').th + ' · ' + tr('done').mm);
       return;
     }
@@ -3445,13 +3461,14 @@ if (typeof module !== 'undefined') module.exports = Logic;
       S.kp.buf = '';
       buzz();
       updateRow(S.kp.id); updateZoneHead();
-      rerenderKeepScroll();
+      kpDraw();
+      if (S.screen !== 'zone') setTimeout(function () { if (S.kp) rerenderKeepScroll(); }, 0); // รายงานข้างหลังเปลี่ยน
     },
     kpOut: function () { setEntry(kpKey(), { v: 0 }); afterKp(S.kp.id); },
     kpLv: function (el) { setEntry(kpKey(), { lv: el.dataset.v }); afterKp(S.kp.id); },
     kpClose: function () {
-      if (!S.kp || S.kp.buf === '') { S.kp = null; return rerenderKeepScroll(); }
-      kpCommit().then(function (ok) { if (ok) { S.kp = null; rerenderKeepScroll(); } });
+      if (!S.kp || S.kp.buf === '') return kpDone(false);
+      kpCommit().then(function (ok) { if (ok) kpDone(true); });
     },
 
     submit: function () {
@@ -3614,14 +3631,14 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var kp = S.kp, it = itemById(kp.id), v = parseBuf(kp.buf), key = kpKey();
     return kpCheck(it, v).then(function (ok) {
       if (ok) { setEntry(key, { v: v }); return true; }
-      if (S.kp === kp) { kp.buf = ''; rerenderKeepScroll(); }
+      if (S.kp === kp) { kp.buf = ''; kpDraw(); }
       return false;
     });
   }
 
   function afterKp(id) {
     updateRow(id); updateZoneHead();
-    if (S.from === 'review' || S.screen === 'review') { S.kp = null; rerenderKeepScroll(); return; }
+    if (S.from === 'review' || S.screen === 'review') { kpDone(true); return; }
     kpAdvance();
   }
 
