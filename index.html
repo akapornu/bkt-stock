@@ -551,6 +551,20 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .trk-row:last-of-type { border-bottom: 0; }
 .trk-row .muted { font-size: 13px; }
 
+/* หน้าตรวจก่อนส่ง = รายงานสรุปภาษาพม่า (ไทยกำกับ) */
+.rep-sum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 4px; }
+.rep-sum > span { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 8px 6px; text-align: center; display: flex; flex-direction: column; min-width: 0; }
+.rep-sum b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.rep-sum .mm { font-size: 12.5px; line-height: 1.6; }
+.rep-sum small { font-size: 11.5px; color: var(--muted); }
+.rep-row { padding: 10px 0; border-bottom: 1px solid var(--line); cursor: pointer; display: flex; flex-direction: column; gap: 1px; }
+.rep-row:last-child { border-bottom: 0; }
+.rep-row .mm { font-size: 15.5px; line-height: 1.75; color: var(--ink); }
+.rep-row .mm b { font-weight: 700; }
+.rep-row small { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.rep-row small.warn-t { color: var(--warn); }
+.rep-row.out .mm { color: var(--bad); }
+
 </style>
 </head>
 <body>
@@ -741,6 +755,10 @@ var I18N = {
   wasteNeedPhoto: ['ถ่ายรูปของที่ทิ้งอย่างน้อย 1 รูป', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို ဓာတ်ပုံ အနည်းဆုံး 1 ပုံ ရိုက်ပါ'],
   wasteNote: ['สาเหตุ / รายละเอียด (ถ้ามี)', 'ဘာကြောင့် ပစ်ရလဲ / အသေးစိတ် (ရှိရင်)'],
   wasteSentList: ['ส่งแล้ว', 'ပို့ပြီးပြီ'],
+  // หน้าตรวจก่อนส่ง = รายงานสรุปภาษาพม่า ให้หัวหน้าครัวตรวจตัวเลขก่อนส่งบอส — 14 ต.ค. 69 (บรรณาธิการพม่าตรวจแล้ว 14 ต.ค. 69 — ให้ MON ยืนยัน မရှိဘူးလို့ တွက်ထားတယ် (skippedZero) และหน่วย ခိတ် ในบรรทัดพม่า)
+  reviewHow: ['นี่คือรายงานที่บอสจะได้รับ · ตรวจตัวเลขก่อนส่ง · ผิดตรงไหน แตะรายการนั้นแล้วแก้', 'ဒါက ဘော့စ်ဆီ ရောက်မယ့် စာရင်းပါ · မပို့ခင် ဂဏန်းတွေ စစ်ပါ · မှားနေရင် အဲဒီပစ္စည်းကို နှိပ်ပြီး ပြင်ပါ'],
+  skippedZero: ['ไม่ได้นับ {z} — คิดว่าไม่มี', '{zm} မှာ မရေတွက်ရသေးဘူး — မရှိဘူးလို့ တွက်ထားတယ်'],
+  recipeBuy: ['วัตถุดิบตามสูตร (ซื้อเพิ่ม)', 'ချက်နည်းအတွက် ထပ်ဝယ်ရမယ့် ပါဝင်ပစ္စည်း'],
   // ค้นหา (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69)
   notFound: ['ไม่พบ "{q}"', '"{q}" ရှာမတွေ့ပါ'],
   searchHere: ['ค้นหาในที่นี้', 'ဒီနေရာမှာ ရှာရန်'],
@@ -2335,8 +2353,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var sum = summary();
       var lbl = myLabel();
       var h = top({ th: tr('reviewSend').th + (lbl ? ' · ' + lbl : ''), mm: tr('reviewSend').mm, back: 'toHome' }) + '<div class="wrap screen">';
+      // รายงานสรุปภาษาพม่า (ไทยกำกับ) — ตัวเลขชุดเดียวกับที่บอสได้รับ ให้หัวหน้าครัวตรวจก่อนส่ง · แตะรายการเพื่อแก้
+      h += '<div class="note info">📋 ' + bi1('reviewHow') + '</div>';
+      h += '<div class="rep-sum">' + [['toBuy', sum.buy.length], ['toMake', sum.prep.length], ['notCounted', sum.uncounted.length]].map(function (x) {
+        return '<span><b>' + x[1] + '</b> <span class="mm">' + esc(tr(x[0]).mm) + '</span><small>' + esc(tr(x[0]).th) + '</small></span>';
+      }).join('') + '</div>';
       h += '<div class="section-h">🛒 ' + bi1('toBuy') + ' <span class="n">(' + sum.buy.length + ')</span></div>';
-      h += sum.buy.length ? '<div class="card sum-list">' + groupRows(sum.buy, 'toBuy') + '</div>'
+      h += sum.buy.length ? '<div class="card sum-list">' + reportRows(sum.buy, true) + '</div>'
         : '<div class="note ok">✅ ' + bi1('nothingToBuy') + '</div>';
       if (sum.attention.length) {
         h += '<div class="section-h">⚠️ ' + bi1('needLook') + ' <span class="n">(' + sum.attention.length + ')</span></div><div class="card sum-list">' +
@@ -2346,8 +2369,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
           }).join('') + '</div>';
       }
       h += '<div class="section-h">🔪 ' + bi1('toMake') + ' <span class="n">(' + sum.prep.length + ')</span></div>';
-      h += sum.prep.length ? '<div class="card sum-list">' + groupRows(sum.prep, 'toMake') + '</div>'
+      h += sum.prep.length ? '<div class="card sum-list">' + reportRows(sum.prep, false) + '</div>'
         : '<div class="note ok">✅ ' + bi1('nothingToMake') + '</div>';
+      h += recipeBuyHtml(sum);
       if (sum.uncounted.length) {
         h += '<div class="section-h">⏳ ' + bi1('notCounted') + ' <span class="n">(' + sum.uncounted.length + ')</span></div><div class="card sum-list">' +
           sum.uncounted.map(function (it) {
@@ -2917,21 +2941,51 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="q">' + right + (sub ? '<small>' + sub + '</small>' : '') + '</div></div>';
   }
 
-  function groupRows(rows, key) {
+  // จำนวนเป็นภาษาพม่า: ของชั่ง 1 กก. ขึ้นไป = ကီလို · ต่ำกว่านั้นเป็นกรัม (ขีดเป็นหน่วยไทย ทีมพม่าคุ้นกับกรัมตามตาชั่ง — บรรณาธิการพม่าแนะนำ)
+  function qtyMm(qty, unit, it, size) {
+    var sp = !size && L.spokenWeight(qty, unit), m = sp && /^(.+) (กก\.|ขีด|กรัม)$/.exec(sp);
+    if (m) return m[2] === 'กก.' ? m[1] + ' ကီလို' : L.fmtNum(L.round2(Number(m[1].replace(/,/g, '')) * (m[2] === 'ขีด' ? 100 : 1))) + ' ' + (UNITS['กรัม'] || 'ဂရမ်');
+    return L.fmtNum(qty) + ' ' + (unit === it.unit ? unitMm(it) || unit : UNITS[unit] || unit) + (size ? ' (' + size + ')' : '');
+  }
+  // แถวรายงาน: บรรทัดพม่า (ชื่อ จำนวนสั่ง/ทำ — เหลือ) + บรรทัดไทยกำกับ · แยกตามที่เก็บ หมดขึ้นก่อน · แตะเพื่อแก้ตัวเลข
+  function reportRows(rows, buy) {
     var h = '';
     ZONES.forEach(function (z) {
-      var rs = rows.filter(function (r) { return r.item.zone === z.id; });
+      var rs = rows.filter(function (r) { return r.item.zone === z.id; }).sort(function (a, b) { return (a.qty > 0) - (b.qty > 0); });
       if (!rs.length) return;
-      h += '<div class="zone-label">' + z.icon + ' ' + esc(z.th) + '</div>';
+      h += '<div class="zone-label">' + z.icon + ' <span class="mm">' + esc(z.mm) + '</span> · ' + esc(z.th) + '</div>';
       h += rs.map(function (r) {
-        return sumRow(r.item, '<b>' + L.fmtNum(r.need) + ' ' + esc(r.item.unit) + '</b>' + (unitMm(r.item) ? '<span class="mm u">' + esc(unitMm(r.item)) + '</span>' : ''), esc(tr('left').th) + ' ' + L.fmtNum(r.qty) +
-          ' · Min ' + L.fmtNum(r.item.min) + ' · Max ' + L.fmtNum(r.item.max) + (r.item.size ? ' · ' + esc(r.item.size) : '') +
-          (r.parts ? ' · ' + esc(Object.keys(r.parts).map(function (z) { return zoneOf(z).icon + ' ' + L.fmtNum(r.parts[z]); })
-            .concat((r.assumed || []).map(function (z) { return zoneOf(z).icon + ' ' + tr('notCounted').th + ' = 0'; })).join(' + ')) : ''));
+        var it = r.item, b = buy ? L.buyQty(it, r.need) : { qty: r.need, unit: it.unit, size: '', approxCount: null };
+        var apMm = b.approxCount !== null ? ' (≈' + L.fmtNum(b.approxCount) + ' ' + (unitMm(it) || it.unit) + ')' : '';
+        var apTh = b.approxCount !== null ? ' (≈' + L.fmtNum(b.approxCount) + ' ' + it.unit + ')' : '';
+        var leftMm = r.qty > 0 ? tr('left').mm + ' ' + L.fmtNum(r.qty) + ' ' + (unitMm(it) || it.unit) : tr('out').mm;
+        var leftTh = r.qty > 0 ? tr('left').th + ' ' + L.fmtNum(r.qty) + ' ' + it.unit : tr('out').th;
+        var skip = (r.assumed || []).map(function (zid) { return zoneOf(zid); });
+        return '<div class="rep-row' + (r.qty > 0 ? '' : ' out') + '" data-act="kp" data-id="' + esc(it.id) + '">' +
+          '<div class="mm"><b>' + esc(it.name_mm || it.name_th) + '</b> ' + esc(qtyMm(b.qty, b.unit, it, b.size)) + esc(apMm) + ' — ' + esc(leftMm) + '</div>' +
+          '<small>' + esc(it.name_th) + ' ' + esc(L.orderQtyText(b.qty, b)) + esc(apTh) + ' — ' + esc(leftTh) + '</small>' +
+          (skip.length ? '<small class="warn-t">' + bi1('skippedZero', { z: skip.map(function (x) { return x.th; }).join(', '), zm: skip.map(function (x) { return x.mm || x.th; }).join(', ') }) + '</small>' : '') + '</div>';
       }).join('');
     });
     return h;
   }
+  // วัตถุดิบที่ต้องซื้อเพิ่มตามสูตร (เหมือนในรายงานบอส)
+  function recipeBuyHtml(sum) {
+    var byId = {};
+    items().forEach(function (it) { byId[it.id] = it; });
+    var needs = L.recipeNeeds(sum.prep, (S.boot && S.boot.recipes) || {}, sum.entries, byId);
+    if (!needs.length) return '';
+    return '<div class="section-h">🧾 ' + bi1('recipeBuy') + '</div><div class="card sum-list">' + needs.map(function (nd) {
+      var t = tr('recipeUse', { n: nd.rounds });
+      return '<div class="rep-row"><div class="mm"><b>' + esc(nd.item.name_mm || nd.item.name_th) + '</b> · ' + esc(t.mm) + '</div><small>' + esc(nd.item.name_th) + ' · ' + esc(t.th) + '</small>' +
+        nd.lines.map(function (l) {
+          var x = l.item_id ? byId[l.item_id] : null;
+          return '<div class="mm" style="padding-left:12px">- ' + esc(l.name_mm || l.name) + ' ' + esc(x ? qtyMm(l.qty, l.unit, x, '') : L.fmtNum(l.qty) + ' ' + (UNITS[l.unit] || l.unit)) + '</div>' +
+            '<small style="padding-left:12px">' + esc(l.name) + ' ' + esc(L.spokenWeight(l.qty, l.unit) || L.fmtNum(l.qty) + ' ' + l.unit) + '</small>';
+        }).join('') + '</div>';
+    }).join('') + '</div>';
+  }
+
 
   function wastePicks() {
     var w = S.waste, q = (w.q || '').trim().toLowerCase();
