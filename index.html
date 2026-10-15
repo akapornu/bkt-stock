@@ -1076,10 +1076,14 @@ var Logic = (function () {
   }
 
   // แสดงเลขแบบเดียวกับที่พิมพ์ในแป้น: 0.5, 1.25, 1,500
+  // ใส่ลูกน้ำเอง (2000 → 2,000) — toLocaleString สร้างตัวจัดรูปแบบใหม่ทุกครั้ง ช้ามากบนมือถือ (เปิดตู้ครั้งแรกเสีย ~0.15 วิ แค่ตรงนี้)
   function fmtNum(n) {
     if (!isNum(n)) return '–';
     var r = Math.round(n * 100) / 100;
-    return Math.abs(r) >= 1000 && r % 1 === 0 ? r.toLocaleString('en-US') : String(r);
+    if (!(Math.abs(r) >= 1000 && r % 1 === 0)) return String(r);
+    var s = String(Math.abs(r)), out = '';
+    while (s.length > 3) { out = ',' + s.slice(-3) + out; s = s.slice(0, -3); }
+    return (r < 0 ? '-' : '') + s + out;
   }
 
   function unitText(item) { return item.unit + (item.size ? ' (' + item.size + ')' : ''); }
@@ -2694,32 +2698,81 @@ if (typeof module !== 'undefined') module.exports = Logic;
     R.amount = rc.amount ? String(rc.amount) : '';
     R.note = rc.note || '';
     R.edit = { id: rc.id, by: rc.by, at: rc.at, admin: !!admin, note0: rc.note || '', amount0: R.amount, supplier0: rc.supplier_name || '',
-      photoCount: String(rc.photos || '').split(',').filter(Boolean).length, back: S.screen };
+      photoCount: String(rc.photos || '').split(',').filter(Boolean).length, back: S.screen, po_id: rc.po_id || 0 };
+    R.edit.lines0 = JSON.stringify(recvPayloadLines(R)); // ไว้เทียบตอนบันทึก: ไม่ได้แก้อะไร = ไม่ต้องส่ง
     return R;
   }
+  function openReceiptLocal(rc, pos, admin) {
+    var po = rc.po_id ? (pos || []).filter(function (p) { return p && String(p.id) === String(rc.po_id); })[0] : null;
+    if (rc.po_id && !po) return false;
+    S.recv = recvFromReceipt(JSON.parse(JSON.stringify(rc)), po ? JSON.parse(JSON.stringify(po)) : null, admin);
+    go('recvpo');
+    return true;
+  }
+  function receiptLoading(el) { el.disabled = true; var n = el.querySelector('.po-no') || el; n.insertAdjacentHTML('afterbegin', '<span class="spin-sm"></span>'); }
+  function recvPayloadLines(R) {
+    return R.lines.filter(function (l) { return Number(l.qty) > 0; }).map(function (l) {
+      return { key: l.key, item_id: l.item_id, name_th: l.name_th, unit: l.unit, qty: Number(l.qty), count: Number(l.count) > 0 ? Number(l.count) : null,
+        done: recvIsShort(l) && !!l.done, price: Number(l.price) > 0 ? Number(l.price) : null, amount: Number(l.amount) > 0 ? Number(l.amount) : null };
+    });
+  }
+  function recvUnchanged(R, p) {
+    return !p.void && JSON.stringify(p.lines) === R.edit.lines0 && String(p.amount) === String(R.edit.amount0 ? Number(R.edit.amount0) : '') &&
+      !(p.photos && p.photos.length) && p.note === undefined && p.supplier_name === undefined;
+  }
+  // ใบรับในเครื่อง (รายการล่าสุดของน้อง/ประวัติหน้าบอส/หน้าใบสั่ง) ให้ตรงกับที่เพิ่งแก้ทันที · คืนฟังก์ชันย้อนกลับ
+  function patchReceipt(list, id, p) {
+    var i = (list || []).map(function (r) { return r.id; }).indexOf(id);
+    if (i < 0) return function () {};
+    var old = list[i], rc = JSON.parse(JSON.stringify(old));
+    if (p.void) rc.status = 'void';
+    else {
+      rc.lines = p.lines.map(function (l) { var o = old.lines.filter(function (x) { return x.key === l.key; })[0] || {}; return Object.assign({}, o, l); });
+      rc.amount = p.amount;
+      if (p.note !== undefined) { rc.note = p.note; rc.note_th = ''; }
+      if (p.supplier_name !== undefined) rc.supplier_name = p.supplier_name;
+    }
+    rc.edited_at = new Date().toISOString();
+    rc.edit_log = (rc.edit_log ? rc.edit_log + '\n' : '') + '⏳ กำลังบันทึก…';
+    list[i] = rc;
+    return function () { var j = list.indexOf(rc); if (j >= 0) list[j] = old; };
+  }
 
+  // แก้/ยกเลิกใบรับ: กลับหน้าเดิมทันที แล้วส่งตามหลัง (เดิมรอหลังบ้าน 1.5–3 วิ + หน้าบอสโหลดใหม่ทั้งหน้าอีกรอบ)
+  // น้อง = ผ่าน outbox (เน็ตหลุดก็ไม่หาย) · บอส = ส่งตามหลัง พลาด → เปิดหน้าแก้เดิมพร้อมที่แก้ไว้ + แจ้ง ⚠️
   function recvSaveEdit(p) {
     var R = S.recv, ed = R.edit;
-    R.sending = true;
-    rerenderKeepScroll();
-    var call = ed.admin ? api('apiAdminReceiptEdit', S.admin.pin, ed.id, p) : api('apiReceiptEdit', S.pin, S.me, ed.id, p);
-    call.then(function (res) {
+    if (recvUnchanged(R, p)) { // ไม่ได้แก้อะไร — ไม่ต้องรอหลังบ้านบอกว่า "ไม่มีอะไรเปลี่ยน"
+      S.recv = null;
+      if (ed.admin) { toast('ไม่มีอะไรเปลี่ยน'); return go(ed.back === 'apodetail' && S.admin.poView ? 'apodetail' : 'admin'); }
+      return go('recv');
+    }
+    if (!ed.admin) {
+      var job = outboxAdd('apiReceiptEdit', [S.pin, S.me, ed.id, p], (p.void ? '🗑️ ' : '✏️ ') + ed.id + (R.po_id ? ' · #' + R.po_id : ''));
+      job.po = R.po_id || 0; outboxSave();
+      patchReceipt(S.recvRecent, ed.id, p);
+      if (p.void && S.recvRecent) S.recvRecent = S.recvRecent.filter(function (r) { return r.id !== ed.id; });
+      S.recv = null;
+      toast('✅ ' + tr('savedSending').th + ' · ' + tr('savedSending').mm);
+      return go('recv');
+    }
+    var A = S.admin, toPo = ed.back === 'apodetail' && A.poView, V = toPo ? A.poView : null;
+    var undo = [patchReceipt(A.data.receipts, ed.id, p), V ? patchReceipt(V.receipts, ed.id, p) : function () {}];
+    S.recv = null;
+    toast(p.void ? 'ยกเลิกใบรับ ' + ed.id + ' แล้ว' : 'แก้ใบรับ ' + ed.id + ' แล้ว ✓');
+    go(toPo ? 'apodetail' : 'admin');
+    api('apiAdminReceiptEdit', A.pin, ed.id, p).then(function (res) {
       if (S.boot) S.boot.pos = res.pos;
       S.recvList = res.pos;
-      if (ed.admin) {
-        toast(p.void ? 'ยกเลิกใบรับ ' + ed.id + ' แล้ว' : 'แก้ใบรับ ' + ed.id + ' แล้ว ✓');
-        if (ed.back === 'apodetail' && S.admin.poView) {
-          return api('apiAdminPoDetail', S.admin.pin, S.admin.poView.po.id).then(function (v) { S.admin.poView = v; go('apodetail'); });
-        }
-        return loadAdmin(S.admin.pin, 'history');
-      }
-      toast('✅ ' + (p.void ? tr('voided').th + ' · ' + tr('voided').mm : tr('editSaved').th + ' · ' + tr('editSaved').mm));
-      go('recv');
-      refreshRecvList();
+      if (S.admin !== A) return;
+      loadExtras(); loadPoData(true); // ประวัติรับของ + ยอดรับในใบสั่ง ตามจริงจากหลังบ้าน
+      if (V && A.poView === V) api('apiAdminPoDetail', A.pin, V.po.id).then(function (v) { if (A.poView === V) { A.poView = v; if (S.screen === 'apodetail') rerenderKeepScroll(); } }, function () { /* ไว้โหลดตอนเปิดใหม่ */ });
     }, function (e) {
-      R.sending = false;
-      rerenderKeepScroll();
-      toast(isNetErr(e) ? tr('offline').th : tr('error').th + ': ' + errMsg(e));
+      if (S.admin !== A) return;
+      undo.forEach(function (f) { f(); });
+      R.sending = false; S.recv = R;
+      go('recvpo');
+      toast('⚠️ บันทึกใบรับ ' + ed.id + ' ไม่สำเร็จ (ที่แก้ไว้ยังอยู่ กดบันทึกอีกครั้ง) — ' + errMsg(e));
     });
   }
 
@@ -3351,7 +3404,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
   function outboxDone(job, res) {
-    if (job.fn === 'apiReceive' && res && res.pos) { if (S.boot) S.boot.pos = res.pos; S.recvList = res.pos; }
+    if ((job.fn === 'apiReceive' || job.fn === 'apiReceiptEdit') && res && res.pos) { if (S.boot) S.boot.pos = res.pos; S.recvList = res.pos; }
+    if (job.fn === 'apiReceiptEdit' && res && res.receipt && S.recvRecent) S.recvRecent = S.recvRecent.map(function (r) { return r.id === res.receipt.id ? res.receipt : r; }).filter(function (r) { return r.status !== 'void'; });
     if (job.fn === 'apiSubmit' && res) {
       S.result = res;
       if (res.draft) applyServerDraft(res.draft);
@@ -3365,7 +3419,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (outbox().some(function (j) { return !j.failed; })) { if (S.net !== 'offline') setNet('saving'); }
     else if (S.net === 'saving' && !Object.keys(S.pending || {}).length && !S.inflight) setNet('ok');
   }
-  function poSending(id) { return outbox().some(function (j) { return j.fn === 'apiReceive' && !j.failed && j.args[2] && String(j.args[2].po_id) === String(id); }); }
+  // ใบสั่งที่ยังมีรับของ/แก้ใบรับค้างส่ง → กันรับซ้ำ (ยอดค้างรับยังไม่ตรง)
+  function poSending(id) {
+    return outbox().some(function (j) {
+      return !j.failed && ((j.fn === 'apiReceive' && j.args[2] && String(j.args[2].po_id) === String(id)) || (j.fn === 'apiReceiptEdit' && j.po && String(j.po) === String(id)));
+    });
+  }
   function outboxHtml() {
     var q = outbox();
     if (!q.length) return '';
@@ -3631,12 +3690,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var box = document.getElementById('rl-sh-' + el.dataset.k);
       if (box) box.innerHTML = recvShortHtml(l, +el.dataset.k);
     },
+    // เปิดทันทีจากข้อมูลในเครื่อง (เดิมรอหลังบ้าน 1.5–3 วิ โดยจอไม่เปลี่ยน) · ใบสั่งที่รับครบแล้ว (ไม่อยู่ในรายการ) ต้องโหลด
     recvEditOpen: function (el) {
-      el.disabled = true;
+      var rc = (S.recvRecent || []).filter(function (x) { return x.id === el.dataset.id; })[0];
+      if (rc && openReceiptLocal(rc, S.recvList || (S.boot && S.boot.pos), false)) return;
+      receiptLoading(el);
       api('apiReceiptGet', S.pin, el.dataset.id).then(function (r) {
         S.recv = recvFromReceipt(r.receipt, r.po, false);
         go('recvpo');
-      }, function (e) { el.disabled = false; toast(tr('error').th + ': ' + errMsg(e)); });
+      }, function (e) { el.disabled = false; toast(tr('error').th + ': ' + errMsg(e)); if (S.screen === 'recv') rerenderKeepScroll(); });
     },
     recvEditBack: function () {
       var ed = S.recv && S.recv.edit;
@@ -3652,10 +3714,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     recvSubmit: function () {
       var R = S.recv;
       if (R.busy || R.sending) return;
-      var lines = R.lines.filter(function (l) { return Number(l.qty) > 0; }).map(function (l) {
-        return { key: l.key, item_id: l.item_id, name_th: l.name_th, unit: l.unit, qty: Number(l.qty), count: Number(l.count) > 0 ? Number(l.count) : null,
-          done: recvIsShort(l) && !!l.done, price: Number(l.price) > 0 ? Number(l.price) : null, amount: Number(l.amount) > 0 ? Number(l.amount) : null };
-      });
+      var lines = recvPayloadLines(R);
       var amount = Number(R.amount) > 0 ? Number(R.amount) : '';
       if (R.edit) {
         var p = { lines: lines, amount: amount, photos: R.photos };
@@ -5796,11 +5855,14 @@ if (typeof module !== 'undefined') module.exports = Logic;
       poOptimistic(function (po) { po.lines.forEach(function (l) { if (l.key === k) l.done = on; }); po.status = L.poStatus(po); }, 'apiAdminPoLineDone', [k, on], '');
     },
     aRecvEdit: function (el) {
-      el.disabled = true;
-      api('apiReceiptGet', S.admin.pin, el.dataset.id).then(function (r) {
+      var A = S.admin, id = el.dataset.id, V = S.screen === 'apodetail' ? A.poView : null;
+      var rc = ((V && V.receipts) || A.data.receipts || []).filter(function (x) { return x.id === id; })[0];
+      if (rc && openReceiptLocal(rc, V ? [V.po] : (A.po && A.po.pos) || (S.boot && S.boot.pos), true)) return;
+      receiptLoading(el);
+      api('apiReceiptGet', A.pin, id).then(function (r) {
         S.recv = recvFromReceipt(r.receipt, r.po, true);
         go('recvpo');
-      }, function (e) { el.disabled = false; toast(errMsg(e)); });
+      }, function (e) { el.disabled = false; toast(errMsg(e)); if (S.screen === 'admin' || S.screen === 'apodetail') rerenderKeepScroll(); });
     },
     poClose: function () {
       var po = S.admin.poView.po;
