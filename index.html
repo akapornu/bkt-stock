@@ -567,6 +567,9 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .un-sum { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; width: 100%; padding: 12px 14px; text-align: left; font-size: 14px; }
 .un-sum b { color: var(--warn); }
 .un-sum .go { margin-left: auto; color: var(--brand); font-weight: 600; }
+/* เลือกใบสั่งหลายใบเพื่อคัดลอกรวม */
+.po-card .tick { width: 30px; height: 30px; border-radius: 9px; font-size: 18px; }
+.po-card.picked { outline: 2px solid var(--ok); }
 
 </style>
 </head>
@@ -1321,6 +1324,21 @@ var Logic = (function () {
     return L.join('\n');
   }
 
+  // หลายใบสั่งในข้อความเดียว (คัดลอกครั้งเดียววางไลน์ครั้งเดียว) — หัวเดียว แยกตามร้าน
+  function buildPoTextMulti(pos, meta) {
+    var L = ['สั่งของ ร้านบ้านขาวต้ม · ' + thaiDate(meta.date) + ' · ' + pos.length + ' ร้าน'];
+    pos.forEach(function (po) {
+      var lines = (po.lines || []).filter(function (l) { return l.qty > 0; });
+      L.push('');
+      L.push('🏪 ' + (po.supplier_name || 'ไม่ระบุร้าน') + ' · ใบสั่ง #' + po.id + ' (' + lines.length + ' รายการ)');
+      lines.forEach(function (l, i) { L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l)); });
+      if (po.note) L.push('หมายเหตุ: ' + po.note);
+    });
+    L.push('');
+    L.push('ขอบคุณครับ');
+    return L.join('\n');
+  }
+
   // ข้อความ LINE ถึงบอสเมื่อน้องกดรับของ
   function buildReceiveMessage(po, lines, meta) {
     var L = [];
@@ -1665,7 +1683,7 @@ var Logic = (function () {
     buildBossMessage: buildBossMessage, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
-    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
+    buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, buildPoTextMulti: buildPoTextMulti, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
     DEFAULT_SECTION: DEFAULT_SECTION, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
@@ -3873,15 +3891,35 @@ if (typeof module !== 'undefined') module.exports = Logic;
     } else {
       h += '<div class="picks" style="margin-top:0">' + P.suppliers.filter(function (x) { return x.active !== false; }).map(function (x) { return '<span class="tag">' + esc(x.name) + '</span>'; }).join('') + '</div>';
     }
-    // ใบสั่ง
-    h += '<div class="section-h">📄 ใบสั่งซื้อ</div>';
+    // ใบสั่ง — โหมดเลือกหลายใบ: แตะเลือก แล้วคัดลอกรวมเป็นข้อความเดียว (ไม่ต้องเข้า-ออกคัดลอกทีละใบ)
+    var pick = A.poPick;
+    h += '<div class="section-h">📄 ใบสั่งซื้อ' + (P.pos.length ? ' <button class="muted" data-act="poPickToggle" style="text-decoration:underline;font-size:14px;font-weight:500">' +
+      (pick ? 'ยกเลิกการเลือก' : '☑ เลือกหลายใบ คัดลอกรวม') + '</button>' : '') + '</div>';
+    if (pick) h += '<p class="muted" style="margin:-4px 0 10px;font-size:13.5px">แตะใบสั่งเพื่อเลือก/เอาออก · ใบที่ยังไม่รับของรอบนับล่าสุดเลือกไว้ให้แล้ว</p>';
     h += P.pos.length ? '<div class="list">' + P.pos.map(function (po) {
       var lines = po.lines.filter(function (l) { return l.qty > 0; });
-      var got = lines.filter(L.lineDone).length;
-      return '<button class="card po-card" data-act="poOpen" data-id="' + po.id + '"><div class="po-no">#' + po.id + '</div><div class="tx"><b>' + esc(po.supplier_name || 'ไม่ระบุร้าน') + '</b> ' + poStatusTag(po.status) +
+      var got = lines.filter(L.lineDone).length, on = pick && pick.ids.indexOf(po.id) >= 0;
+      return '<button class="card po-card' + (on ? ' picked' : '') + '" data-act="' + (pick ? 'poPick' : 'poOpen') + '" data-id="' + po.id + '">' +
+        (pick ? '<span class="tick' + (on ? ' on' : '') + '">' + (on ? '✓' : '') + '</span>' : '') + '<div class="po-no">#' + po.id + '</div><div class="tx"><b>' + esc(po.supplier_name || 'ไม่ระบุร้าน') + '</b> ' + poStatusTag(po.status) +
         '<div class="muted" style="font-size:13px">' + poDateTh(po.created_at) + ' · ' + lines.length + ' รายการ · รับแล้ว ' + got + '/' + lines.length + '</div></div></button>';
     }).join('') + '</div>' : '<p class="muted">ยังไม่มีใบสั่ง</p>';
+    if (pick) {
+      var text = pickedPoText();
+      if (text) h += '<details class="card" style="padding:12px 14px;margin-top:12px"><summary class="muted">ดูข้อความที่จะคัดลอก (' + L.fmtNum(text.length) + ' ตัวอักษร)</summary><div class="preview" style="margin-top:8px">' + esc(text) + '</div></details>';
+      h += '<div class="bottom"><div class="wrap"><button class="btn btn-primary" data-act="poCopyMulti"' + (pick.ids.length ? '' : ' disabled') + '>📋 คัดลอกรวม ' + pick.ids.length + ' ใบ</button></div></div>';
+    }
     return h;
+  }
+  // ข้อความรวมของใบที่เลือก (เรียงตามเลขใบสั่ง)
+  function pickedPoText() {
+    var A = S.admin, ids = (A.poPick && A.poPick.ids) || [];
+    var pos = A.po.pos.filter(function (po) { return ids.indexOf(po.id) >= 0; }).sort(function (a, b) { return a.id - b.id; });
+    return pos.length ? L.buildPoTextMulti(pos, { date: L.businessDate() }) : '';
+  }
+  function copyPoText(text, n) {
+    if (text.length > 4900) toast('⚠️ ยาว ' + L.fmtNum(text.length) + ' ตัวอักษร เกินที่ไลน์รับ (5,000) — เลือกน้อยลงแล้วส่ง 2 ครั้ง');
+    copyText(text).then(function () { if (text.length <= 4900) toast('คัดลอก ' + n + ' ใบแล้ว — ไปวางในไลน์ได้เลย'); },
+      function () { toast('คัดลอกไม่ได้ — เปิด "ดูข้อความที่จะคัดลอก" แล้วกดค้างเพื่อคัดลอก'); });
   }
 
   // ---------- วางรายการสั่งซื้อเป็นข้อความ → หลายใบสั่งทีเดียว ----------
@@ -3907,7 +3945,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function poImportScreen() {
     var I = S.admin.imp, h = top({ th: '📋 วางรายการสั่งซื้อ', back: 'impBack', net: false }) + '<div class="wrap screen">';
     if (I.results) {
-      h += '<div class="note ok">✅ สร้างใบสั่ง ' + I.results.length + ' ใบแล้ว</div><div class="list" style="margin-top:12px">' + I.results.map(function (r, i) {
+      h += '<div class="note ok">✅ สร้างใบสั่ง ' + I.results.length + ' ใบแล้ว</div>' +
+        (I.results.length > 1 ? '<button class="btn btn-primary" style="margin-top:12px" data-act="impCopyAll">📋 คัดลอกรวมทุกใบ (' + I.results.length + ' ร้าน) — วางไลน์ครั้งเดียว</button>' : '') +
+        '<div class="list" style="margin-top:12px">' + I.results.map(function (r, i) {
         return '<div class="card" style="padding:14px 16px"><div class="dr-top"><b>#' + r.po.id + ' ' + esc(r.po.supplier_name || 'ไม่ระบุร้าน') + '</b><span class="muted">' + r.po.lines.length + ' รายการ</span></div>' +
           '<div class="btn-row" style="margin-top:10px"><button class="btn btn-primary" data-act="impCopy" data-i="' + i + '">📋 คัดลอกไปส่งร้าน</button><button class="btn btn-ghost" data-act="poOpen" data-id="' + r.po.id + '">เปิดใบสั่ง</button></div></div>';
       }).join('') + '</div></div><div class="bottom"><div class="wrap"><button class="btn btn-ghost" data-act="impDone">เสร็จ</button></div></div>';
@@ -5585,6 +5625,26 @@ if (typeof module !== 'undefined') module.exports = Logic;
         if (results.length) { I.results = results; go('apoimport'); toast('สร้างได้ ' + results.length + ' ใบ แล้วติดปัญหา: ' + errMsg(e)); }
         else { rerenderKeepScroll(); toast(errMsg(e)); }
       });
+    },
+    poPickToggle: function () {
+      var A = S.admin, P = A.po;
+      if (A.poPick) { A.poPick = null; return rerenderKeepScroll(); }
+      // เลือกไว้ให้: ใบที่ยังไม่รับ (รอรับ/รับบางส่วน) ของรอบนับล่าสุด
+      var rd = roundDate(), ids = P.pos.filter(function (po) {
+        return (po.status === 'open' || po.status === 'partial') && (!rd || String(po.source_date || '').slice(0, 10) === rd);
+      }).map(function (po) { return po.id; });
+      A.poPick = { ids: ids };
+      rerenderKeepScroll();
+    },
+    poPick: function (el) {
+      var ids = S.admin.poPick.ids, id = Number(el.dataset.id), i = ids.indexOf(id);
+      if (i >= 0) ids.splice(i, 1); else ids.push(id);
+      rerenderKeepScroll();
+    },
+    poCopyMulti: function () { copyPoText(pickedPoText(), S.admin.poPick.ids.length); },
+    impCopyAll: function () {
+      var pos = S.admin.imp.results.map(function (r) { return r.po; });
+      copyPoText(L.buildPoTextMulti(pos, { date: L.businessDate() }), pos.length);
     },
     poBlank: function () { S.admin.poEdit = { id: 0, supplier_id: '', source_date: roundDate(), note: '', q: '', lines: [] }; go('apoedit'); },
     poEditBack: function () { go(S.admin.poEdit && S.admin.poEdit.id ? 'apodetail' : 'admin'); },
