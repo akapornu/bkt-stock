@@ -2621,6 +2621,31 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }).join('') + '</div>';
   }
 
+  // เปลี่ยนสถานะใบสั่งในเครื่องทันที (หน้ารายละเอียด + รายการใบสั่ง) แล้วส่งหลังบ้านตามหลัง · พลาด = คืนค่าเดิม + เตือน
+  function poSync(po) {
+    var P = S.admin && S.admin.po;
+    if (!P || !P.pos) return;
+    P.pos = P.pos.map(function (x) { return x.id === po.id ? po : x; });
+    adminCacheSave();
+  }
+  function poOptimistic(change, fn, args, okMsg) {
+    var A = S.admin, V = A.poView, before = JSON.parse(JSON.stringify(V.po)), po = JSON.parse(JSON.stringify(V.po));
+    change(po);
+    V.po = po; V.text = L.buildPoText(po, { date: String(po.created_at).slice(0, 10) }); poSync(po);
+    rerenderKeepScroll();
+    if (okMsg) toast(okMsg);
+    api.apply(null, [fn, A.pin, po.id].concat(args)).then(function (p2) {
+      if (A.poView && A.poView.po.id === p2.id) A.poView.po = p2;
+      poSync(p2);
+      if (S.screen === 'apodetail') rerenderKeepScroll();
+    }, function (e) {
+      if (A.poView && A.poView.po.id === before.id) A.poView.po = before;
+      poSync(before);
+      if (S.screen === 'apodetail') rerenderKeepScroll();
+      toast('⚠️ บันทึกไม่สำเร็จ คืนค่าเดิมแล้ว — ' + errMsg(e));
+    });
+  }
+
   function poDateTh(iso) { return iso ? L.thaiDate(L.businessDate(new Date(iso))) : ''; }
 
   function recvPoCard(po) {
@@ -3210,12 +3235,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // ---------- แจ้งเตือนสั้น / กล่องยืนยัน ----------
+  // ข้อความใหม่แทนข้อความเก่าทันที (บันทึกทันทีแล้วหลังบ้านพลาด จะได้ไม่ซ้อนกัน) · คำเตือน ⚠️ ค้างนานขึ้นให้อ่านทัน
   function toast(text) {
+    var old = document.querySelectorAll('.toast');
+    for (var i = 0; i < old.length; i++) old[i].remove();
     var el = document.createElement('div');
     el.className = 'toast';
     el.textContent = text;
     document.body.appendChild(el);
-    setTimeout(function () { el.remove(); }, 2300);
+    setTimeout(function () { el.remove(); }, /⚠️/.test(text) ? 4500 : 2300);
   }
 
   function confirmBox(titleHtml, bodyHtml, buttons) {
@@ -3786,21 +3814,26 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   // ================= หน้าบอส (ภาษาไทยอย่างเดียว) =================
   function loadAdmin(pin, tab) {
+    var t = tab || (S.admin && S.admin.tab) || 'dash';
+    // ข้อมูลของแท็บที่จะเปิด ยิงพร้อมกันเลย (เดิมรอ apiAdminLoad เสร็จก่อนค่อยยิง = รอหลังบ้าน 2 รอบ)
+    var early = t === 'dash' ? api('apiAdminDashboard', pin) : t === 'po' ? api('apiAdminPoData', pin) : null;
+    if (early) early.catch(function () { /* รับผลใน adminTabLoad */ });
     return api('apiAdminLoad', pin, true).then(function (d) {
       useZones(d.zones);
       var prev = S.admin || {};
       d.orders = L.mergeOrders(prev.data && prev.data.orders, d.orders);
-      S.admin = { pin: pin, data: d, tab: tab || prev.tab || 'dash', zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '',
+      S.admin = { pin: pin, data: d, tab: t, zone: prev.zone || ZONES[0].id, edit: null, staffDraft: null, lineMsg: '',
         dash: prev.dash || null, dashF: prev.dashF, dashQ: prev.dashQ };
       go('admin');
-      adminTabLoad();
+      adminTabLoad(early);
       loadExtras();
+      if (t !== 'po') loadPoData(true);
       adminCacheSave();
     });
   }
-  function adminTabLoad() {
-    if (S.admin.tab === 'po') loadPoData();
-    if (S.admin.tab === 'dash') loadDash();
+  function adminTabLoad(early) {
+    if (S.admin.tab === 'po') loadPoData(false, early);
+    if (S.admin.tab === 'dash') loadDash(early);
     if (S.admin.tab === 'history') loadReports();
   }
   // ประวัติรับของ/แจ้งด่วน/ค่า Claude — ไม่ต้องรอตอนเข้าหน้า
@@ -3827,6 +3860,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       po: c.po || null, rep: c.rep ? { list: c.rep.list, more: c.rep.more } : undefined };
     go('admin');
     var A = S.admin;
+    adminTabLoad(); // แดชบอร์ดยิงพร้อมกับ apiAdminLoad (เดิมรอกันทีละรอบ)
     api('apiAdminLoad', ap, true).then(function (d) {
       if (S.admin !== A) return;
       useZones(d.zones);
@@ -3835,8 +3869,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       d.orders = L.mergeOrders(A.data.orders, d.orders);
       A.data = d; A.stale = false;
       if (S.screen === 'admin' && !A.staffDraft && !A.move) rerenderKeepScroll();
-      adminTabLoad();
       loadExtras();
+      loadPoData(true); // โหลดใบสั่งไว้ก่อน แตะแท็บสั่งซื้อแล้วเป็นข้อมูลล่าสุดเลย
       adminCacheSave();
     }, function (e) {
       if (S.admin !== A) return;
@@ -3848,12 +3882,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // ================= สั่งซื้อ (หน้าบอส) =================
-  function loadPoData() {
-    return api('apiAdminPoData', S.admin.pin).then(function (d) {
-      S.admin.po = d;
+  // quiet = โหลดล่วงหน้าเงียบๆ (ไม่เตือนถ้าพลาด) · early = คำขอที่ยิงไว้แล้ว · ผลของคำขอเก่าที่มาช้ากว่าคำขอใหม่ → ทิ้ง
+  function loadPoData(quiet, early) {
+    var A = S.admin, n = A.poSeq = (A.poSeq || 0) + 1;
+    return (early || api('apiAdminPoData', A.pin)).then(function (d) {
+      if (S.admin !== A || n !== A.poSeq) return;
+      A.po = d;
       adminCacheSave();
-      if (S.screen === 'admin') rerenderKeepScroll();
-    }, function (e) { toast(errMsg(e)); });
+      if (S.screen === 'admin' && (A.tab === 'po' || !quiet)) rerenderKeepScroll();
+    }, function (e) { if (!quiet) toast(errMsg(e)); });
   }
 
   // ใบสั่งใหม่ (ใบเปล่า/วางรายการ) นับเป็นของรอบนับล่าสุด → ของในใบนั้นไม่ขึ้นซ้ำตอนสร้างใบจากรอบนี้
@@ -4028,11 +4065,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   function poDetailScreen() {
-    var V = S.admin.poView, po = V.po;
-    var h = top({ th: 'ใบสั่ง #' + po.id, back: 'poDetailBack', net: false }) + '<div class="wrap screen">';
-    h += '<div class="card po-head"><div class="po-no">#' + po.id + '</div><div><b>' + esc(po.supplier_name || 'ไม่ระบุร้าน') + '</b> ' + poStatusTag(po.status) +
+    var V = S.admin.poView, po = V.po, wait = !!V.pending, no = po.id || '…';
+    var h = top({ th: 'ใบสั่ง #' + no, back: 'poDetailBack', net: false }) + '<div class="wrap screen">';
+    h += '<div class="card po-head"><div class="po-no">#' + no + '</div><div><b>' + esc(po.supplier_name || 'ไม่ระบุร้าน') + '</b> ' + poStatusTag(po.status) +
       '<div class="muted" style="font-size:13px">สร้าง ' + poDateTh(po.created_at) + (po.source_date ? ' · จากรอบนับ ' + esc(L.thaiDate(po.source_date)) : '') + '</div></div></div>';
-    var closed = po.status === 'closed';
+    var closed = po.status === 'closed' || wait;
+    if (wait) h += '<div class="note info" style="margin-top:12px"><span class="spin-sm"></span>กำลังบันทึก… รอเลขใบสั่งจากระบบ แล้วกดคัดลอกได้</div>';
     h += '<div class="card sum-list" style="margin-top:12px">' + po.lines.map(function (l) {
       var rem = Math.max(0, L.round2(l.qty - (l.received || 0))), done = L.lineDone(l), v = L.varianceText(l);
       var st = !l.qty ? '' : !done ? ' · <span style="color:var(--bad)">ค้าง ' + L.fmtNum(rem) + '</span>' : v ? ' · ' + esc(v) : ' ✓';
@@ -4042,12 +4080,16 @@ if (typeof module !== 'undefined') module.exports = Logic;
         (l.qty ? '<small>สั่ง</small> <b>' + L.fmtNum(l.qty) + ' ' + esc(l.unit) + '</b>' : '') +
         '<small style="display:block">รับแล้ว ' + L.fmtNum(l.received || 0) + st + '</small>' + btn + '</div></div>';
     }).join('') + '</div>';
+    if (wait) return h + '<div class="btn-row" style="margin-top:12px"><button class="btn btn-primary" disabled>กำลังบันทึก…</button></div></div>';
     h += '<div class="btn-row" style="margin-top:12px"><button class="btn btn-primary" data-act="poCopy">📋 คัดลอกไปส่งร้าน</button>' +
       (closed ? '<button class="btn btn-ghost" data-act="poReopen">↩️ เปิดใบสั่งอีกครั้ง</button>' : '<button class="btn btn-ghost" data-act="poEditOpen">✏️ แก้ใบสั่ง</button>') + '</div>';
     if (po.status === 'open' || po.status === 'partial') h += '<button class="btn btn-danger" style="margin-top:10px" data-act="poClose">⛔ ปิดใบสั่ง (ของที่ค้างไม่มาแล้ว)</button>';
     h += '<div class="section-h">ข้อความที่จะคัดลอก</div><div class="preview">' + esc(V.text) + '</div>';
-    h += '<div class="section-h">📦 การรับของ (' + V.receipts.length + ')</div>';
-    h += V.receipts.length ? '<div class="list">' + V.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มีใครกดรับ</p>';
+    if (!V.receipts) h += '<div class="section-h">📦 การรับของ</div><p class="muted"><span class="spin-sm"></span>กำลังโหลดใบรับ…</p>';
+    else {
+      h += '<div class="section-h">📦 การรับของ (' + V.receipts.length + ')</div>';
+      h += V.receipts.length ? '<div class="list">' + V.receipts.map(receiptCard).join('') + '</div>' : '<p class="muted">ยังไม่มีใครกดรับ</p>';
+    }
     return h + '</div>';
   }
 
@@ -4075,13 +4117,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
     unknown: { th: 'ยังไม่รู้', c: '#c9c3bb', tag: '' }
   };
 
-  function loadDash() {
-    S.admin.dashErr = '';
-    return api('apiAdminDashboard', S.admin.pin).then(function (d) {
+  function loadDash(early) {
+    var A = S.admin, n = A.dashSeq = (A.dashSeq || 0) + 1;
+    A.dashErr = '';
+    return (early || api('apiAdminDashboard', A.pin)).then(function (d) {
+      if (S.admin !== A || n !== A.dashSeq) return;
       S.admin.dash = d;
       adminCacheSave();
       if (S.screen === 'admin' || S.screen === 'adash') rerenderKeepScroll();
-    }, function (e) { S.admin.dashErr = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
+    }, function (e) { if (S.admin !== A || n !== A.dashSeq) return; A.dashErr = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
   }
 
   function dashFiltered() {
@@ -4599,6 +4643,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
 
   // ---------- รายงานการนับย้อนหลัง ----------
+  // รายงานรายวัน: จำไว้ในเครื่องระหว่างใช้ (เปิดซ้ำทันที) · ซ้อนคำขอเดียวกันไม่ยิงซ้ำ
+  function repDayLoad(date) {
+    var A = S.admin;
+    A.repCache = A.repCache || {}; A.repReq = A.repReq || {};
+    if (A.repReq[date]) return A.repReq[date];
+    var p = A.repReq[date] = api('apiAdminReportDay', A.pin, date).then(function (d) { A.repCache[date] = d; delete A.repReq[date]; return d; },
+      function (e) { delete A.repReq[date]; throw e; });
+    return p;
+  }
   function loadReports(more) {
     var A = S.admin, R = A.rep || (A.rep = { list: [], more: false });
     R.loading = true;
@@ -4607,6 +4660,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return api('apiAdminReports', A.pin, before, 40).then(function (r) {
       R.list = more ? R.list.concat(r.list) : r.list; R.more = r.more; R.loading = false; R.err = '';
       if (!more) adminCacheSave();
+      // โหลดรายงานวันล่าสุดไว้ล่วงหน้า (ตามหลัง) — แตะเปิดแล้วขึ้นทันที
+      if (!more && R.list.length && !(A.repCache || {})[R.list[0].date]) repDayLoad(R.list[0].date).then(null, function () { /* ไว้โหลดตอนแตะ */ });
       if (S.screen === 'admin') rerenderKeepScroll();
     }, function (e) { R.loading = false; R.err = errMsg(e); if (S.screen === 'admin') rerenderKeepScroll(); });
   }
@@ -4767,7 +4822,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       [['boss', 'บอสคนเดียว'], ['group', 'กลุ่ม (บอสอยู่ในกลุ่มด้วย)'], ['both', 'กลุ่ม + แชทส่วนตัวบอส']].map(function (o) {
         return '<option value="' + o[0] + '"' + ((s.recvTo || 'boss') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
       }).join('') + '</select></div>' +
-      '<p class="muted" style="margin:0;font-size:13.5px">แจ้งด่วนส่งหาบอสคนเดียวเสมอ · ⚠️ ข้อความเข้ากลุ่มนับโควตาตามจำนวนคนในกลุ่ม (กลุ่ม 3 คน = 3 ข้อความ จากโควตาฟรี 300 ข้อความ/เดือน) — รับของวันละ 2 ครั้งเข้ากลุ่ม 3 คน ≈ 180 ข้อความ/เดือน รวมกับรายงานนับ ≈ 90 อาจเกินโควตาได้</p>' +
+      '<p class="muted" style="margin:0;font-size:13.5px">แจ้งของเสียส่งหาบอสคนเดียวเสมอ · ⚠️ ข้อความเข้ากลุ่มนับโควตาตามจำนวนคนในกลุ่ม (กลุ่ม 3 คน = 3 ข้อความ จากโควตาฟรี 300 ข้อความ/เดือน) — รับของวันละ 2 ครั้งเข้ากลุ่ม 3 คน ≈ 180 ข้อความ/เดือน รวมกับรายงานนับ ≈ 90 อาจเกินโควตาได้</p>' +
       (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
   }
 
@@ -5079,18 +5134,20 @@ if (typeof module !== 'undefined') module.exports = Logic;
     S.admin.data.settings = st;
     adminCacheSave();
   }
-  INPUT.aRecvTo = function (el) {
-    if (el.value === (S.admin.data.settings.recvTo || 'boss')) return;
-    api('apiAdminSaveSettings', S.admin.pin, { RECV_TO: el.value }).then(function (st) {
-      setSettings(st); toast('บันทึกแล้ว ✓');
-    }, function (e) { toast(errMsg(e)); });
-  };
-  INPUT.aReportTo = function (el) {
-    if (el.value === S.admin.data.settings.reportTo) return;
-    api('apiAdminSaveSettings', S.admin.pin, { REPORT_TO: el.value }).then(function (st) {
-      setSettings(st); toast('บันทึกแล้ว ✓');
-    }, function (e) { toast(errMsg(e)); });
-  };
+  // เลือกปลายทางแล้วถือว่าบันทึกเลย (เดิมรอหลังบ้าน 1.5–3 วิ) · ไม่สำเร็จ → คืนค่าเดิม
+  function saveSettingNow(el, key, prop, fallback) {
+    var A = S.admin, st = A.data.settings, prev = st[key] || fallback;
+    if (el.value === prev) return;
+    st[key] = el.value; adminCacheSave(); toast('บันทึกแล้ว ✓');
+    var p = {}; p[prop] = el.value;
+    api('apiAdminSaveSettings', A.pin, p).then(function (r) { if (S.admin === A) setSettings(r); }, function (e) {
+      if (S.admin !== A) return;
+      st[key] = prev; adminCacheSave(); el.value = prev; if (el.selectedIndex < 0) el.selectedIndex = 0;
+      toast('⚠️ บันทึกไม่สำเร็จ คืนค่าเดิมแล้ว — ' + errMsg(e));
+    });
+  }
+  INPUT.aRecvTo = function (el) { saveSettingNow(el, 'recvTo', 'RECV_TO', 'boss'); };
+  INPUT.aReportTo = function (el) { saveSettingNow(el, 'reportTo', 'REPORT_TO', ''); };
   // เบราว์เซอร์เก่าที่ไม่รองรับ :has() — สลับไฮไลต์เอง
   INPUT.eKind = function (el) {
     var box = el.closest('.seg');
@@ -5264,10 +5321,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     repOpen: function (el) {
       var A = S.admin;
       A.repScroll = window.scrollY; A.repF = 'all'; A.repQ = '';
-      A.repDay = { loading: true, date: el.dataset.v };
+      var date = el.dataset.v, hit = (A.repCache || {})[date];
+      A.repDate = date;
+      A.repDay = hit || { loading: true, date: date }; // เคยเปิด/โหลดล่วงหน้าแล้ว = ขึ้นทันที แล้วอัปเดตตามหลัง
       go('areport');
-      api('apiAdminReportDay', A.pin, el.dataset.v).then(function (d) { A.repDay = d; if (S.screen === 'areport') rerenderKeepScroll(); },
-        function (e) { A.repDay = null; go('admin'); toast(errMsg(e)); });
+      repDayLoad(date).then(function (d) { if (A.repDate === date) { A.repDay = d; if (S.screen === 'areport') rerenderKeepScroll(); } },
+        function (e) { if (!hit) { A.repDay = null; go('admin'); toast(errMsg(e)); } });
     },
     repBack: function () { go('admin'); window.scrollTo(0, S.admin.repScroll || 0); },
     repFilter: function (el) { S.admin.repF = el.dataset.v; rerenderKeepScroll(); },
@@ -5291,16 +5350,32 @@ if (typeof module !== 'undefined') module.exports = Logic;
         { key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: 'ใช้ค่านี้', cls: 'btn-primary' }
       ]).then(function (k) {
         if (k !== 'yes') return;
-        var x = JSON.parse(JSON.stringify(it));
+        var A = S.admin, x = JSON.parse(JSON.stringify(it)), was = { min: r.min, max: r.max, configured: r.configured };
         x.min = r.suggest.min; x.max = r.suggest.max;
         if (!L.validateItem(x).length) x.setup_note = '';
-        adminSaveItems([x]).then(function () { toast('ปรับ Min/Max ' + r.name_th + ' แล้ว ✓'); return loadDash(); }, function (e) { toast(errMsg(e)); });
+        // ใช้ค่าใหม่ในเครื่องทันที (เดิมรอหลังบ้าน ~2 วิ ค่อยขึ้น) แล้วบันทึก + คำนวณแดชบอร์ดใหม่ตามหลัง
+        var put = function (item, v, differs) {
+          var list = A.data.items, i = list.indexOf(item === x ? it : x);
+          if (i >= 0) list[i] = item;
+          if (S.boot) S.boot.items = list.filter(function (q) { return q.active !== false; });
+          r.min = v.min; r.max = v.max; r.configured = v.configured; r.suggest.differs = differs;
+          adminCacheSave();
+          if (S.screen === 'admin' || S.screen === 'adash') rerenderKeepScroll();
+        };
+        put(x, { min: x.min, max: x.max, configured: true }, false);
+        toast('ปรับ Min/Max ' + r.name_th + ' แล้ว ✓');
+        adminSaveItems([x]).then(function () { if (S.admin === A) return loadDash(); }, function (e) {
+          if (S.admin !== A) return;
+          put(it, was, true);
+          toast('⚠️ ปรับ Min/Max ' + r.name_th + ' ไม่สำเร็จ คืนค่าเดิมแล้ว — ' + errMsg(e));
+        });
       });
     },
-    dashSaveParams: function (el) {
-      el.disabled = true;
-      api('apiAdminSaveSettings', S.admin.pin, { DASH_LEAD_DAYS: document.getElementById('d-lead').value, DASH_CYCLE_DAYS: document.getElementById('d-cycle').value })
-        .then(function () { toast('บันทึกแล้ว — กำลังคำนวณใหม่'); S.admin.dash = null; rerenderKeepScroll(); return loadDash(); }, function (e) { el.disabled = false; toast(errMsg(e)); });
+    // ขึ้น "กำลังคำนวณใหม่" ทันที (เดิมรอบันทึกเสร็จก่อนค่อยขึ้น)
+    dashSaveParams: function () {
+      var p = { DASH_LEAD_DAYS: document.getElementById('d-lead').value, DASH_CYCLE_DAYS: document.getElementById('d-cycle').value };
+      toast('บันทึกแล้ว — กำลังคำนวณใหม่'); S.admin.dash = null; rerenderKeepScroll();
+      api('apiAdminSaveSettings', S.admin.pin, p).then(function () { return loadDash(); }, function (e) { toast('⚠️ บันทึกไม่สำเร็จ — ' + errMsg(e)); return loadDash(); });
     },
     aClearData: function (el) {
       var g = function (id) { var x = document.getElementById(id); return !!(x && x.checked); };
@@ -5610,12 +5685,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
         blocks.forEach(function (b) { if (b.supplier.indexOf('new:') === 0) { var x = rows.filter(function (r) { return r.name === b.supplier.slice(4); })[0]; b.supplier = x ? x.id : ''; } });
       }) : Promise.resolve();
       var results = [];
+      // ทุกใบในคำขอเดียว (เดิมรอหลังบ้านทีละใบ ใบละ 1.5–3 วิ)
       ready.then(function () {
-        return blocks.reduce(function (p, b) {
-          return p.then(function () {
-            return api('apiAdminPoSave', A.pin, { supplier_id: b.supplier, source_date: roundDate(), note: '', lines: b.lines }).then(function (r) { results.push(r); markOrdered(r.po); });
-          });
-        }, Promise.resolve());
+        var rd = roundDate();
+        return api('apiAdminPoSaveMany', A.pin, blocks.map(function (b) { return { supplier_id: b.supplier, source_date: rd, note: '', lines: b.lines }; })).then(function (rs) {
+          rs.forEach(function (r) { results.push(r); markOrdered(r.po); });
+        });
       }).then(function () {
         I.saving = false; I.results = results;
         toast('สร้างใบสั่ง ' + results.length + ' ใบแล้ว ✓');
@@ -5669,20 +5744,39 @@ if (typeof module !== 'undefined') module.exports = Logic;
         return { key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm, unit: l.unit, unit_mm: l.unit_mm, size: l.size, qty: Number(l.qty), factor: l.factor, count_unit: l.count_unit, order_name: l.order_name || '' };
       });
       if (!lines.length) return toast('ติ๊กและใส่จำนวนอย่างน้อย 1 รายการ');
-      E.saving = true; rerenderKeepScroll();
-      api('apiAdminPoSave', S.admin.pin, { id: E.id, supplier_id: E.supplier_id, source_date: E.source_date, note: E.note, lines: lines }).then(function (r) {
-        S.admin.poEdit = null;
+      // ขึ้นหน้าใบสั่งทันที (ปุ่มคัดลอกรอเลขใบจากหลังบ้าน ~2 วิ) · เดิมค้างที่ปุ่มบันทึกจนหลังบ้านตอบ
+      var A = S.admin, P = A.po || {}, old = E.id && A.poView && A.poView.po.id === E.id ? A.poView : null;
+      var sup = (P.suppliers || []).filter(function (x) { return x.id === E.supplier_id; })[0];
+      var prev = old ? old.po : null, got = {};
+      if (prev) prev.lines.forEach(function (l) { got[l.key] = l; });
+      var temp = { id: E.id || 0, supplier_id: E.supplier_id, supplier_name: sup ? sup.name : '', status: prev ? prev.status : 'open', created_at: prev ? prev.created_at : new Date().toISOString(),
+        source_date: E.source_date, note: E.note, lines: lines.map(function (l) { var g = got[l.key]; return Object.assign({}, l, { received: g ? g.received || 0 : 0, done: g ? g.done : false }); }) };
+      A.poEdit = null;
+      A.poView = { po: temp, receipts: old ? old.receipts : [], text: '', pending: true };
+      go('apodetail');
+      api('apiAdminPoSave', A.pin, { id: E.id, supplier_id: E.supplier_id, source_date: E.source_date, note: E.note, lines: lines }).then(function (r) {
+        if (S.admin !== A) return;
         markOrdered(r.po);
-        S.admin.poView = { po: r.po, receipts: [], text: r.text };
+        if (A.poView && A.poView.po === temp) { A.poView = { po: r.po, receipts: A.poView.receipts, text: r.text }; if (S.screen === 'apodetail') rerenderKeepScroll(); }
         toast('บันทึกใบสั่ง #' + r.po.id + ' แล้ว ✓');
-        go('apodetail');
         loadPoData();
-      }, function (e) { E.saving = false; rerenderKeepScroll(); toast(errMsg(e)); });
+      }, function (e) {
+        if (S.admin !== A) return;
+        E.saving = false; A.poEdit = E; if (A.poView && A.poView.po === temp) A.poView = old;
+        go('apoedit'); toast('⚠️ บันทึกใบสั่งไม่สำเร็จ (ข้อมูลยังอยู่ กดบันทึกอีกครั้ง) — ' + errMsg(e));
+      });
     },
+    // เปิดใบสั่งทันทีจากข้อมูลที่มีในเครื่อง · ใบรับของโหลดตามหลัง (เดิมรอหลังบ้าน 2–4 วิ ทุกครั้ง)
     poOpen: function (el) {
-      el.disabled = true;
-      api('apiAdminPoDetail', S.admin.pin, el.dataset.id).then(function (r) { S.admin.poView = r; go('apodetail'); },
-        function (e) { el.disabled = false; toast(errMsg(e)); });
+      var A = S.admin, id = Number(el.dataset.id), po = ((A.po && A.po.pos) || []).filter(function (p) { return p.id === id; })[0];
+      if (po) {
+        A.poView = { po: po, receipts: null, text: L.buildPoText(po, { date: String(po.created_at).slice(0, 10) }) };
+        go('apodetail');
+      } else el.disabled = true;
+      api('apiAdminPoDetail', A.pin, id).then(function (r) {
+        if (S.admin !== A) return;
+        if (!po || (A.poView && A.poView.po.id === id)) { A.poView = r; poSync(r.po); if (S.screen === 'apodetail' || !po) go('apodetail'); }
+      }, function (e) { el.disabled = false; if (!po) toast(errMsg(e)); else if (A.poView && !A.poView.receipts) { A.poView.receipts = []; if (S.screen === 'apodetail') rerenderKeepScroll(); } });
     },
     poDetailBack: function () { go('admin'); loadPoData(); },
     poCopy: function () {
@@ -5694,16 +5788,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
         lines: po.lines.filter(function (l) { return l.qty > 0; }).map(function (l) { var x = JSON.parse(JSON.stringify(l)); x.include = true; x.qty = String(l.qty); return x; }) };
       go('apoedit');
     },
-    poReopen: function (el) {
-      el.disabled = true;
-      api('apiAdminPoReopen', S.admin.pin, S.admin.poView.po.id).then(function (p2) { S.admin.poView.po = p2; toast('เปิดใบสั่งอีกครั้งแล้ว'); rerenderKeepScroll(); },
-        function (e) { el.disabled = false; toast(errMsg(e)); });
+    poReopen: function () {
+      poOptimistic(function (po) { po.status = 'open'; po.status = L.poStatus(po); }, 'apiAdminPoReopen', [], 'เปิดใบสั่งอีกครั้งแล้ว');
     },
     poLineDone: function (el) {
-      el.disabled = true;
-      api('apiAdminPoLineDone', S.admin.pin, S.admin.poView.po.id, el.dataset.k, el.dataset.v === '1').then(function (p2) {
-        S.admin.poView.po = p2; rerenderKeepScroll();
-      }, function (e) { el.disabled = false; toast(errMsg(e)); });
+      var k = el.dataset.k, on = el.dataset.v === '1';
+      poOptimistic(function (po) { po.lines.forEach(function (l) { if (l.key === k) l.done = on; }); po.status = L.poStatus(po); }, 'apiAdminPoLineDone', [k, on], '');
     },
     aRecvEdit: function (el) {
       el.disabled = true;
@@ -5718,7 +5808,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         { key: 'no', html: 'ยกเลิก' }, { key: 'yes', html: 'ปิดใบสั่ง', cls: 'btn-danger' }
       ]).then(function (k) {
         if (k !== 'yes') return;
-        api('apiAdminPoClose', S.admin.pin, po.id).then(function (p2) { S.admin.poView.po = p2; toast('ปิดใบสั่งแล้ว'); rerenderKeepScroll(); }, function (e) { toast(errMsg(e)); });
+        poOptimistic(function (p) { p.status = 'closed'; }, 'apiAdminPoClose', [], 'ปิดใบสั่งแล้ว');
       });
     },
     supToggle: function () {
@@ -5726,12 +5816,23 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
     },
     supAdd: function () { S.admin.supDraft.push({ id: '', name: '', note: '', active: true }); rerenderKeepScroll(); },
-    supSave: function (el) {
-      el.disabled = true;
-      api('apiAdminSaveSuppliers', S.admin.pin, S.admin.supDraft).then(function (rows) {
-        S.admin.po.suppliers = rows; S.admin.supDraft = null;
-        toast('บันทึกร้านค้าแล้ว ✓'); rerenderKeepScroll();
-      }, function (e) { el.disabled = false; toast(errMsg(e)); });
+    // บันทึกในเครื่องทันที แล้วส่งหลังบ้านตามหลัง (ตั้งรหัสร้านใหม่เองแบบเดียวกับหลังบ้าน) · ไม่สำเร็จ → คืนค่า + เปิดฟอร์มเดิม
+    supSave: function () {
+      var A = S.admin, draft = A.supDraft, prev = A.po.suppliers, used = {};
+      var rows = draft.map(function (x) {
+        var id = String(x.id || '').trim() || 'S' + Date.now().toString(36) + Math.floor(Math.random() * 100);
+        while (used[id]) id += 'x';
+        used[id] = true;
+        return { id: id, name: String(x.name || '').trim().slice(0, 60), note: String(x.note || '').slice(0, 120), active: x.active !== false };
+      }).filter(function (x) { return x.name; });
+      A.po.suppliers = rows; A.supDraft = null; adminCacheSave();
+      toast('บันทึกร้านค้าแล้ว ✓'); rerenderKeepScroll();
+      api('apiAdminSaveSuppliers', A.pin, rows).then(function (r) { if (S.admin === A && A.po) { A.po.suppliers = r; adminCacheSave(); } }, function (e) {
+        if (S.admin !== A) return;
+        A.po.suppliers = prev; A.supDraft = draft; adminCacheSave();
+        if (S.screen === 'admin') rerenderKeepScroll();
+        toast('⚠️ บันทึกร้านค้าไม่สำเร็จ คืนค่าเดิมแล้ว — ' + errMsg(e));
+      });
     },
     aTranslate: function () { translateName(true); },
     aCopyWebhook: function () {
@@ -5781,17 +5882,29 @@ if (typeof module !== 'undefined') module.exports = Logic;
         });
     },
     aSaveRecipe: function (el) {
-      var A = S.admin, it = A.edit, ls = recipeParse((document.getElementById('e-rc') || {}).value || '');
+      var A = S.admin, it = A.edit, raw = (document.getElementById('e-rc') || {}).value || '', yRaw = (document.getElementById('e-rc-y') || {}).value || '', ls = recipeParse(raw);
       var bad = ls.filter(function (l) { return !(l.qty > 0); });
       if (bad.length) return toast('อ่านจำนวนไม่ได้: ' + bad[0].raw);
       var y = Number((document.getElementById('e-rc-y') || {}).value);
-      el.disabled = true; el.textContent = 'กำลังบันทึก…';
       var buy = !!(document.getElementById('e-rc-buy') || {}).checked;
-      api('apiAdminSaveRecipe', A.pin, it.id, { yield: y > 0 ? y : null, buy: buy, lines: ls.map(function (l) { return { item_id: l.item ? l.item.id : '', name: l.item ? l.item.name_th : l.name, qty: l.qty, unit: l.unit }; }) })
-        .then(function (r) {
-          A.data.recipes = r; if (S.boot) S.boot.recipes = r; adminCacheSave();
-          toast(ls.length ? 'บันทึกสูตรแล้ว ✓' : 'ลบสูตรแล้ว'); rerenderKeepScroll();
-        }, function (e) { el.disabled = false; el.textContent = '💾 บันทึกสูตร'; toast(errMsg(e)); });
+      var lines = ls.map(function (l) { return { item_id: l.item ? l.item.id : '', name: l.item ? l.item.name_th : String(l.name || '').trim().slice(0, 60), qty: L.round2(l.qty), unit: String(l.unit || '').trim().slice(0, 12) }; })
+        .filter(function (l) { return l.name; });
+      // บันทึกในเครื่องทันที (รูปแบบเดียวกับหลังบ้าน) แล้วส่งตามหลัง · ไม่สำเร็จ → คืนสูตรเดิม
+      var prev = A.data.recipes || {}, next = Object.assign({}, prev);
+      if (lines.length) next[it.id] = { yield: y > 0 ? L.round2(y) : null, buy: buy, lines: lines }; else delete next[it.id];
+      var put = function (r) { A.data.recipes = r; if (S.boot) S.boot.recipes = r; adminCacheSave(); };
+      put(next);
+      toast(lines.length ? 'บันทึกสูตรแล้ว ✓' : 'ลบสูตรแล้ว'); rerenderKeepScroll();
+      api('apiAdminSaveRecipe', A.pin, it.id, { yield: y > 0 ? y : null, buy: buy, lines: lines }).then(function (r) { if (S.admin === A) put(r); }, function (e) {
+        if (S.admin !== A) return;
+        put(prev);
+        if (S.screen === 'aedit' && A.edit === it) { // คืนสูตรเดิม แต่ข้อความที่พิมพ์ไว้ยังอยู่ในช่อง กดบันทึกซ้ำได้
+          rerenderKeepScroll();
+          var ta = document.getElementById('e-rc'), yi = document.getElementById('e-rc-y'), bi = document.getElementById('e-rc-buy'), pv = document.getElementById('e-rc-pv');
+          if (ta) ta.value = raw; if (yi) yi.value = yRaw; if (bi) bi.checked = buy; if (pv) pv.innerHTML = recipePreview(raw);
+        }
+        toast('⚠️ บันทึกสูตรไม่สำเร็จ (ข้อความยังอยู่ กดบันทึกอีกครั้ง) — ' + errMsg(e));
+      });
     },
     aStaffAdd: function () { S.admin.staffDraft.push({ name: '', role: 'helper', active: true, sections: '' }); rerenderKeepScroll(); },
     aStaffSec: function (el) {
@@ -5813,13 +5926,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
         rerenderKeepScroll();
       });
     },
-    aStaffSave: function (el) {
-      el.disabled = true;
-      api('apiAdminSaveStaff', S.admin.pin, S.admin.staffDraft).then(function (rows) {
-        S.admin.data.staff = rows; S.admin.staffDraft = null;
-        if (S.boot) S.boot.staff = rows.filter(function (s) { return s.active !== false; });
-        toast('บันทึกทีมแล้ว ✓'); rerenderKeepScroll();
-      }, function (e) { el.disabled = false; toast(errMsg(e)); });
+    // ตรวจแบบเดียวกับหลังบ้าน → บันทึกในเครื่องทันที แล้วส่งตามหลัง · ไม่สำเร็จ → คืนค่า + เปิดฟอร์มเดิม
+    aStaffSave: function () {
+      var A = S.admin, draft = A.staffDraft, prev = A.data.staff;
+      var rows = draft.map(function (s) {
+        return { name: String(s.name || '').trim().slice(0, 30), role: s.role === 'lead' ? 'lead' : 'helper', active: s.active !== false, sections: L.staffSections({ sections: s.sections }).join(',') };
+      }).filter(function (s) { return s.name; });
+      if (!rows.some(function (s) { return s.role === 'lead' && s.active; })) return toast('ต้องมีหัวหน้าครัวอย่างน้อย 1 คน (คนกดส่ง)');
+      var put = function (list) { A.data.staff = list; if (S.boot) S.boot.staff = list.filter(function (s) { return s.active !== false; }); adminCacheSave(); };
+      put(rows); A.staffDraft = null;
+      toast('บันทึกทีมแล้ว ✓'); rerenderKeepScroll();
+      api('apiAdminSaveStaff', A.pin, rows).then(function (r) { if (S.admin === A) put(r); }, function (e) {
+        if (S.admin !== A) return;
+        put(prev); A.staffDraft = draft;
+        if (S.screen === 'admin') rerenderKeepScroll();
+        toast('⚠️ บันทึกทีมไม่สำเร็จ คืนค่าเดิมแล้ว — ' + errMsg(e));
+      });
     },
     aSaveLine: function (el) {
       var g = function (id) { var x = document.getElementById(id); return x ? x.value.trim() : ''; };
