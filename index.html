@@ -575,6 +575,7 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .kp-actions.three { grid-template-columns: 1fr 1fr 1.4fr; }
 .btn-warn { background: var(--warn-soft); color: var(--warn); }
 .lv-chips button { min-width: 72px; height: 36px; font-size: 13.5px; }
+.kp-grid .kp-plus { grid-column: 1 / -1; height: 44px; border-radius: 12px; background: var(--brand-soft, var(--bg)); color: var(--brand, var(--ink)); font-weight: 700; font-size: 15px; }
 
 </style>
 </head>
@@ -1227,9 +1228,10 @@ var Logic = (function () {
   // บรรทัดใบสั่งจากรายการต้องซื้อของรอบนับ
   function poLineFromNeed(r, unitsMm) {
     var it = r.item;
-    if (r.need === null || r.need === undefined) {
-      return { key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: it.unit, unit_mm: it.unit_mm || '', size: it.size || '',
-        qty: null, factor: 1, count_unit: it.unit, received: 0, left: r.qty, min: it.min, max: it.max, level: r.level || '' };
+    if (r.need === null || r.need === undefined) { // นับแบบระดับ: ไม่มีจำนวนสั่ง · มีหน่วยซื้อ (กระปุก 5 กก.) ก็สั่งเป็นหน่วยซื้อ
+      var cv = !!it.buy_unit && isNum(it.buy_factor) && it.buy_factor > 0;
+      return { key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: cv ? it.buy_unit : it.unit, unit_mm: cv ? ((unitsMm && unitsMm[it.buy_unit]) || '') : it.unit_mm || '',
+        size: cv ? '' : it.size || '', qty: null, factor: cv ? it.buy_factor : 1, count_unit: it.unit, received: 0, left: r.qty, min: it.min, max: it.max, level: r.level || '' };
     }
     var b = buyQty(it, r.need);
     return {
@@ -1830,6 +1832,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
   // ข้อความบรรทัดเดียว "ไทย · พม่า" (สโตร์ = ไทยอย่างเดียว)
   function ph(k) { var x = tr(k); return thOnly() ? x.th : x.th + ' · ' + x.mm; }
   // ชื่อที่เก็บในหน้าสโตร์ไม่ต้องมี "สโตร์ · " นำหน้า (หน้าบอสยังมี ไว้แยกจากที่เก็บครัว)
+  // "กก. (ฉั่วฮะเส็ง) · ซื้อเป็นกระปุก (1 = 5 กก.)" — นับเป็นหน่วยเล็ก ของมาหลายขนาดก็นับรวมได้
+  function storeUnitText(it) {
+    return L.unitText(it) + (it.buy_unit && it.buy_factor > 0 ? ' · ซื้อเป็น' + it.buy_unit + ' (1 = ' + L.fmtNum(it.buy_factor) + ' ' + it.unit + ')' : '');
+  }
   function zoneTh(z) { return isStore() ? String(z.th).replace(/^สโตร์ · /, '') : z.th; }
   function thOnly() { return isStore() && !/^a/.test(S.screen || ''); }
   function buzz() {
@@ -2777,9 +2783,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return true;
   }
   function receiptLoading(el) { el.disabled = true; var n = el.querySelector('.po-no') || el; n.insertAdjacentHTML('afterbegin', '<span class="spin-sm"></span>'); }
+  // ใส่แค่ "นับได้" (หน่วยนับ) ไม่ใส่จำนวนหน่วยสั่ง → คิดจำนวนหน่วยสั่งให้ (ของมาไม่ตรงขนาด เช่น สั่งกระปุก 5 กก. ได้ 1 กก. มา 3 ถุง = นับได้ 3 กก.)
+  function recvQtyOf(l) { return Number(l.qty) > 0 ? Number(l.qty) : Number(l.count) > 0 && l.factor > 0 && l.factor !== 1 ? L.round2(Number(l.count) / l.factor) : 0; }
   function recvPayloadLines(R) {
-    return R.lines.filter(function (l) { return Number(l.qty) > 0; }).map(function (l) {
-      return { key: l.key, item_id: l.item_id, name_th: l.name_th, unit: l.unit, qty: Number(l.qty), count: Number(l.count) > 0 ? Number(l.count) : null,
+    return R.lines.filter(function (l) { return recvQtyOf(l) > 0; }).map(function (l) {
+      return { key: l.key, item_id: l.item_id, name_th: l.name_th, unit: l.unit, qty: recvQtyOf(l), count: Number(l.count) > 0 ? Number(l.count) : null,
         done: recvIsShort(l) && !!l.done, price: Number(l.price) > 0 ? Number(l.price) : null, amount: Number(l.amount) > 0 ? Number(l.amount) : null };
     });
   }
@@ -2897,7 +2905,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     if (!done) {
       if (l.factor && l.factor !== 1 && !(l.g && L.gramsPer(l.count_unit))) {
-        h += '<div class="rqty"><span>' + bi1('countedIfAny') + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvCount" data-k="' + i + '" value="' + esc(l.count) + '" placeholder="≈' + L.fmtNum(L.round2((Number(l.qty) || l.remaining || 0) * l.factor)) + '"><span>' + esc(l.count_unit) + (UNITS[l.count_unit] ? ' <span class="mm">' + esc(UNITS[l.count_unit]) + '</span>' : '') + '</span></div>';
+        h += '<div class="rqty"><span>' + (isStore() ? 'นับได้จริง <small class="muted">(มาไม่ตรงขนาดที่สั่ง ใส่ช่องนี้ช่องเดียวพอ)</small>' : bi1('countedIfAny')) + '</span><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="recvCount" data-k="' + i + '" value="' + esc(l.count) + '" placeholder="≈' + L.fmtNum(L.round2((Number(l.qty) || l.remaining || 0) * l.factor)) + '"><span>' + esc(l.count_unit) + (UNITS[l.count_unit] ? ' <span class="mm">' + esc(UNITS[l.count_unit]) + '</span>' : '') + '</span></div>';
       }
       h += '<div id="rl-sh-' + i + '">' + recvShortHtml(l, i) + '</div>';
     }
@@ -3090,7 +3098,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var lvNum = !cfg && isStore();
     var hint = cfg
       ? '<span>Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) + '</span>'
-      : lvNum ? '<span>' + esc(L.unitText(it)) + '</span>' : '<span class="tag warn">⚠️ ' + bi1('notSetShort') + '</span>';
+      : lvNum ? '<span>' + esc(storeUnitText(it)) + '</span>' : '<span class="tag warn">⚠️ ' + bi1('notSetShort') + '</span>';
     if (has && se.by && se.by !== S.me) hint += ' <span class="tag">' + esc(tr('countedBy').th) + ' ' + esc(se.by) + '</span>';
     if (multi) hint += '<div class="multi">📍 ' + multiHint(it, e) + '</div>';
     var h = '<div class="' + cls + '" id="r-' + esc(it.id) + '"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
@@ -3293,7 +3301,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (!it) return '';
     var e = slotVal(it, S.kp.z), cfg = L.isConfigured(it), multi = isMulti(it);
     var h = '<div class="sheet-bg" id="kp-bg" data-act="kpClose"></div><div class="sheet" id="kp-sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
-      '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : isStore() ? esc(L.unitText(it)) : bi1('notSetUp')) + '</div>' +
+      '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : isStore() ? esc(storeUnitText(it)) : bi1('notSetUp')) + '</div>' +
       (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') +
       lastCountHtml(it) +
       (L.hasCount(e) ? '<button class="kp-clear" data-act="kpClear">🗑️ ' + bi1('clearCount') + '</button>' : '') + '</div>' +
@@ -3309,11 +3317,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var val = buf !== '' ? parseBuf(buf) : null;
     var dcls = buf === '' ? ' empty' : (val !== null && L.needQty(it, kpTotal(it, val)) > 0 ? ' below' : '');
     if (!cfg) { // สโตร์: นับเป็นตัวเลข แล้วบอกระดับถ้าใกล้หมด (หมด = 0)
-      return h + '<div class="kp-disp' + (buf === '' ? ' empty' : '') + (e && (e.lv === 'low' || e.lv === 'out') ? ' below' : '') + '" id="kp-disp">' + esc(shown) + ' <small>' + esc(it.unit) + '</small>' +
+      return h + '<div class="kp-disp' + (buf === '' ? ' empty' : '') + (e && (e.lv === 'low' || e.lv === 'out') ? ' below' : '') + '" id="kp-disp">' + esc(buf !== '' ? bufText(buf) : shown) + ' <small>' + esc(it.unit) + '</small>' +
         (e && e.lv === 'low' ? ' <small class="tag warn">ใกล้หมด</small>' : '') + '</div>' +
         '<div class="kp-grid">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
           return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
-        }).join('') + '</div><div class="kp-actions three">' +
+        }).join('') + '<button class="kp-plus" data-act="kpKey" data-k="+">＋ บวกอีกชิ้น (คนละขนาด)</button></div><div class="kp-actions three">' +
         '<button class="btn btn-danger" data-act="kpOut">หมด</button>' +
         '<button class="btn btn-warn" data-act="kpLow">ใกล้หมด</button>' +
         '<button class="btn btn-primary" data-act="kpNext">ถัดไป ›</button></div></div>';
@@ -3352,10 +3360,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return ok ? sum : Infinity;
   }
 
+  // "5+1+1" = รวม (สโตร์: ของชนิดเดียวกันหลายขนาด นับเป็น กก. แล้วบวกตามฉลาก)
   function parseBuf(buf) {
-    var n = Number(buf.replace(/\.$/, '') || 0);
-    return isFinite(n) ? n : 0;
+    var n = 0;
+    String(buf).split('+').forEach(function (x) { var v = Number(x.replace(/\.$/, '') || 0); if (isFinite(v)) n += v; });
+    return Math.round(n * 100) / 100;
   }
+  function bufText(b) { return b.indexOf('+') < 0 ? b : b.split('+').join(' + ') + (/\+$/.test(b) ? '' : ' = ' + L.fmtNum(parseBuf(b))); }
 
   // แป้นนับ: เปิด/ปิด/เปลี่ยนรายการ วาดใหม่เฉพาะแผ่นแป้น + แถวที่เกี่ยวข้อง — ไม่วาดทั้งหน้า
   // (หน้ายาวที่มีอักษรพม่าเยอะ วาดใหม่ทั้งหน้าช้ามากบนมือถือ — บอสเจอที่หน้าตรวจก่อนส่ง)
@@ -3721,18 +3732,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     kpKey: function (el) {
       var k = el.dataset.k, b = S.kp.buf;
-      var dot = b.indexOf('.');
+      var head = b.slice(0, b.lastIndexOf('+') + 1), seg = b.slice(head.length), dot = seg.indexOf('.'); // แต่ละจำนวนใน 5+1 คิดแยกกัน
       if (k === '⌫') b = b.slice(0, -1);
-      else if (k === '.') { if (dot < 0) b = (b === '' ? '0' : b) + '.'; }
-      else if (dot >= 0) { if (b.length - dot - 1 < 2) b += k; }   // ทศนิยมได้ 2 ตำแหน่ง
-      else if (b.replace(/^0+/, '').length < 5) b = (b === '0' ? '' : b) + k;
+      else if (k === '+') { if (/\d$/.test(b) && b.split('+').length < 10) b = b + '+'; else if (/\.$/.test(b)) b = b.slice(0, -1) + '+'; }
+      else if (k === '.') { if (dot < 0) b = head + (seg === '' ? '0' : seg) + '.'; }
+      else if (dot >= 0) { if (seg.length - dot - 1 < 2) b += k; }   // ทศนิยมได้ 2 ตำแหน่ง
+      else if (seg.replace(/^0+/, '').length < 5) b = head + (seg === '0' ? '' : seg) + k;
       S.kp.buf = b;
       buzz();
       var it = itemById(S.kp.id), disp = document.getElementById('kp-disp');
       if (disp) {
         var v = b !== '' ? parseBuf(b) : null, e = slotVal(it, S.kp.z);
         disp.className = 'kp-disp' + (b === '' ? ' empty' : (L.needQty(it, kpTotal(it, v)) > 0 ? ' below' : ''));
-        disp.innerHTML = esc(b !== '' ? b : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + unitTag(it) + '</small>';
+        disp.innerHTML = esc(b !== '' ? bufText(b) : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + unitTag(it) + '</small>';
       }
     },
     kpNext: function () {
