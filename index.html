@@ -1234,7 +1234,10 @@ var Logic = (function () {
     if (meta.issues && meta.issues.length) {
       L.push('');
       L.push('📤 เบิกออกจากสโตร์' + (meta.issuesSince ? ' ตั้งแต่ ' + meta.issuesSince : '') + ' (' + meta.issues.length + ' รายการ)');
-      meta.issues.slice(0, 25).forEach(function (x) { L.push('• ' + x.name_th + ' ' + fmtNum(x.qty) + ' ' + x.unit + (x.n > 1 ? ' (' + x.n + ' ครั้ง)' : '')); });
+      meta.issues.slice(0, 25).forEach(function (x) {
+        L.push('• ' + x.name_th + ' ' + fmtNum(x.qty) + ' ' + x.unit + (x.n > 1 ? ' (' + x.n + ' ครั้ง)' : '') +
+          (x.back && x.back.length ? ' · บันทึกย้อนหลังของวันที่ ' + x.back.map(function (d) { return thaiDate(d); }).join(', ') : ''));
+      });
       if (meta.issues.length > 25) L.push('   +อีก ' + (meta.issues.length - 25) + ' รายการ (ดูในแอพ)');
     }
     if (sum.attention.length) {
@@ -2674,6 +2677,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var h = top({ th: '📤 เบิกของ', back: 'toHome' }) + '<div class="wrap screen">';
       if (w.sent.length) h += '<div class="note ok">✅ บันทึกเบิกแล้ววันนี้<br>' + w.sent.map(esc).join('<br>') + '</div>';
       h += '<div class="note info">เลือกของที่เบิกออกจากสโตร์ ใส่จำนวน แล้วกดบันทึก · เบิกหลายอย่างพร้อมกันได้ · ตัวเลขนี้ไปอยู่ในรายงานถึงบอส</div>';
+      // วันที่เบิก: วันนี้ หรือย้อนหลังไม่เกิน 7 วัน (ลืมจด มาบันทึกทีหลัง)
+      h += '<div class="field"><label>📅 วันที่เบิก</label><select data-input="issueDay">' + [0, 1, 2, 3, 4, 5, 6, 7].map(function (n) {
+        var d = L.addDays(S.boot.date, -n);
+        return '<option value="' + d + '"' + (w.day === d ? ' selected' : '') + '>' + (n === 0 ? 'วันนี้' : n === 1 ? 'เมื่อวาน' : n + ' วันก่อน') + ' · ' + esc(L.thaiDate(d)) + '</option>';
+      }).join('') + '</select>' + (w.day !== S.boot.date ? '<small class="warn-t">บันทึกย้อนหลัง — ลงเป็นของวันที่ ' + esc(L.thaiDate(w.day)) + ' (หลังนับของวันนั้น)</small>' : '') + '</div>';
       h += '<div class="field">' + w.lines.map(function (l, i) {
         var it = itemById(l.id) || { name_th: l.id, unit: '' };
         return '<div class="card waste-line"><div class="nm"><b>' + esc(it.name_th) + '</b></div>' +
@@ -3775,7 +3783,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     toWaste: function () { S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: [] }; go('waste'); },
     toIssue: function () {
       var today = S.boot.date, keep = S.issue && S.issue.date === today ? S.issue.sent : [];
-      S.issue = { q: '', lines: [], note: '', sent: keep, date: today };
+      S.issue = { q: '', lines: [], note: '', sent: keep, date: today, day: today };
       go('issue');
     },
     issuePick: function (el) {
@@ -3792,10 +3800,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (issueMissing()) return;
       var lines = w.lines.map(function (l) { return { item_id: l.id, qty: L.round2(Number(l.qty)) }; });
       var text = w.lines.map(function (l) { var it = itemById(l.id) || {}; return (it.name_th || l.id) + ' ' + L.fmtNum(Number(l.qty)) + ' ' + (it.unit || ''); }).join(' · ');
-      outboxAdd('apiIssue', [S.pin, S.me, { lines: lines, note: w.note }], '📤 เบิก ' + text);
+      var back = w.day && w.day !== S.boot.date;
+      outboxAdd('apiIssue', [S.pin, S.me, { lines: lines, note: w.note, date: w.day || S.boot.date }], '📤 เบิก' + (back ? ' (' + L.thaiDate(w.day) + ')' : '') + ' ' + text);
       buzz();
       toast('✅ บันทึกเบิกแล้ว');
-      S.issue = { q: '', lines: [], note: '', sent: w.sent.concat([text + (w.note ? ' (' + w.note + ')' : '')]), date: w.date };
+      S.issue = { q: '', lines: [], note: '', sent: w.sent.concat([(back ? '[' + L.thaiDate(w.day) + '] ' : '') + text + (w.note ? ' (' + w.note + ')' : '')]), date: w.date, day: w.day };
       render(); window.scrollTo(0, 0); // อยู่หน้าเดิม เผื่อเบิกอีก
     },
 
@@ -4146,6 +4155,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     issueQty: function (el) { S.issue.lines[+el.dataset.i].qty = el.value; issueBtnUpdate(); },
     issueNote: function (el) { S.issue.note = el.value; },
+    issueDay: function (el) { if (S.issue.day === el.value) return; S.issue.day = el.value; rerenderKeepScroll(); },
     recvQ: function (el) {
       S.recv.q = el.value;
       var p = document.getElementById('recv-picks');
