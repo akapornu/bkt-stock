@@ -1231,14 +1231,15 @@ var Logic = (function () {
     if (r.need === null || r.need === undefined) { // นับแบบระดับ: ไม่มีจำนวนสั่ง · มีหน่วยซื้อ (กระปุก 5 กก.) ก็สั่งเป็นหน่วยซื้อ
       var cv = !!it.buy_unit && isNum(it.buy_factor) && it.buy_factor > 0;
       return { key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '', unit: cv ? it.buy_unit : it.unit, unit_mm: cv ? ((unitsMm && unitsMm[it.buy_unit]) || '') : it.unit_mm || '',
-        size: cv ? '' : it.size || '', qty: null, factor: cv ? it.buy_factor : 1, count_unit: it.unit, received: 0, left: r.qty, min: it.min, max: it.max, level: r.level || '' };
+        size: cv ? '' : it.size || '', qty: null, factor: cv ? it.buy_factor : 1, count_unit: it.unit, received: 0, left: r.qty, min: it.min, max: it.max, level: r.level || '',
+        makro: it.makro || '', makro_name: it.makro ? it.makro_name || '' : '' };
     }
     var b = buyQty(it, r.need);
     return {
       key: it.id, item_id: it.id, name_th: it.name_th, name_mm: it.name_mm || '',
       unit: b.unit, unit_mm: b.approxCount !== null ? ((unitsMm && unitsMm[b.unit]) || '') : (it.unit_mm || ''),
       size: b.size, qty: b.qty, factor: b.factor, count_unit: it.unit, received: 0,
-      left: r.qty, min: it.min, max: it.max
+      left: r.qty, min: it.min, max: it.max, makro: it.makro || '', makro_name: it.makro ? it.makro_name || '' : ''
     };
   }
 
@@ -1350,12 +1351,16 @@ var Logic = (function () {
   }
 
   // ข้อความคัดลอกไปส่งร้าน/ซัพพลายเออร์
+  // ใบสั่ง Makro (หรือยังไม่ระบุร้าน): บอกรหัสสินค้า + ชื่อที่ Makro (มีขนาดแพ็ค) ใต้รายการ — ค้นในแอพ Makro ได้เลย
+  function isMakroShop(name) { return !name || /แม็คโคร|แมคโคร|แม็กโคร|makro/i.test(String(name)); }
+  function makroLine(l) { return l.makro ? '   รหัส ' + l.makro + (l.makro_name ? ' · ' + l.makro_name : '') : ''; }
   function buildPoText(po, meta) {
-    var L = ['สั่งของ ร้านบ้านขาวต้ม · ใบสั่ง #' + po.id, thaiDate(meta.date)];
+    var L = ['สั่งของ ร้านบ้านขาวต้ม · ใบสั่ง #' + po.id, thaiDate(meta.date)], mk = isMakroShop(po.supplier_name);
     if (po.supplier_name) L.push('ถึง: ' + po.supplier_name);
     L.push('');
     (po.lines || []).filter(function (l) { return l.qty > 0; }).forEach(function (l, i) {
       L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l));
+      if (mk && l.makro) L.push(makroLine(l));
     });
     if (po.note) { L.push(''); L.push('หมายเหตุ: ' + po.note); }
     L.push('');
@@ -1370,7 +1375,8 @@ var Logic = (function () {
       var lines = (po.lines || []).filter(function (l) { return l.qty > 0; });
       L.push('');
       L.push('🏪 ' + (po.supplier_name || 'ไม่ระบุร้าน') + ' · ใบสั่ง #' + po.id + ' (' + lines.length + ' รายการ)');
-      lines.forEach(function (l, i) { L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l)); });
+      var mk = isMakroShop(po.supplier_name);
+      lines.forEach(function (l, i) { L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l)); if (mk && l.makro) L.push(makroLine(l)); });
       if (po.note) L.push('หมายเหตุ: ' + po.note);
     });
     L.push('');
@@ -1724,7 +1730,7 @@ var Logic = (function () {
     businessDate: businessDate, bkkTime: bkkTime, dayOfWeek: dayOfWeek, thaiDate: thaiDate,
     isNum: isNum, isConfigured: isConfigured, needQty: needQty, zoneDue: zoneDue, hasCount: hasCount,
     mergeEntries: mergeEntries, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
-    buildBossMessage: buildBossMessage, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
+    buildBossMessage: buildBossMessage, isMakroShop: isMakroShop, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
     buildReceiveMessage: buildReceiveMessage, round2: round2, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, buildPoTextMulti: buildPoTextMulti, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
@@ -2748,7 +2754,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
           locked: !mine && L.lineDone(l), factor: l.factor || 1, count_unit: l.count_unit || l.unit,
           qty: mine ? String(mine.qty) : '', count: mine && mine.count ? String(mine.count) : '', ticked: !!mine,
           price: mine && mine.price ? mine.price : '', amount: mine && mine.amount ? mine.amount : '',
-          done: mine ? !!mine.done : L.isMeasured(l.unit), extra: false
+          done: mine ? !!mine.done : L.isMeasured(l.unit), extra: false, makro: l.makro || ''
         });
       })
     };
@@ -2885,6 +2891,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<span class="tick' + (l.ticked || done ? ' on' : '') + '" aria-hidden="true">' + (l.ticked || done ? '✓' : l.g ? '⚖️' : '') + '</span>' +
       '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>' +
       (l.order_name ? '<div class="hint">🧾 ' + esc(l.order_name) + '</div>' : '') +
+      (l.makro ? '<div class="hint">Makro ' + esc(l.makro) + '</div>' : '') +
       (l.fromBill ? '<div class="hint bill-tag' + (l.fromBill === 'low' ? ' low' : '') + '">🤖 ' + bi1(l.fromBill === 'low' ? 'billCheckThis' : 'billFromBill') +
         (Number(l.amount) > 0 ? ' · ฿' + L.fmtNum(Number(l.amount)) : '') + '</div>' : Number(l.amount) > 0 ? '<div class="hint bill-tag">🧾 ฿' + L.fmtNum(Number(l.amount)) + '</div>' : '');
     if (l.ordered > 0) {
@@ -4138,6 +4145,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adminCacheSave();
   }
 
+  // รหัส Makro ของบรรทัดใบสั่ง (ใบเก่า/ของที่เพิ่งเพิ่ม → ดูจากรายการ)
+  function makroTag(l) {
+    var it = !l.makro && l.item_id && S.admin && S.admin.data ? S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0] : null;
+    var code = l.makro || (it && it.makro), nm = l.makro ? l.makro_name : it && it.makro_name;
+    return code ? '<small class="muted">Makro ' + esc(code) + (nm ? ' · ' + esc(nm) : '') + '</small>' : '';
+  }
   var PO_TAG = { open: 'brand', partial: 'warn', received: 'ok', closed: '' };
   function poStatusTag(st) { return '<span class="tag ' + (PO_TAG[st] || '') + '">' + esc(L.PO_STATUS_TH[st] || st) + '</span>'; }
 
@@ -4284,7 +4297,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (L.gramsPer(l.unit) && !l.size) approx += '<small class="muted" id="pe-sp-' + i + '">' + esc(peSpoken(l)) + '</small>';
       var got = l.received > 0;
       return '<div class="card pe-line' + (l.include ? '' : ' off') + '"><label class="check"><input type="checkbox" data-input="peInc" data-i="' + i + '"' + (l.include ? ' checked' : '') + (got ? ' disabled' : '') + '></label>' +
-        '<div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.for_item ? '<small class="muted">🧾 สูตร ' + esc(l.for_item) + '</small>' : '') + (l.level ? '<small class="muted">' + (l.level === 'out' ? 'หมด' : 'ใกล้หมด' + (l.left > 0 ? ' · เหลือ ' + L.fmtNum(l.left) + ' ' + esc(l.count_unit || l.unit) : '')) + ' · ยังไม่ตั้ง Min/Max ใส่จำนวนเอง</small>' : '') + (!l.level && l.left !== undefined && l.left !== null ? '<small class="muted">เหลือ ' + L.fmtNum(l.left) + ' · Min ' + L.fmtNum(l.min) + ' · Max ' + L.fmtNum(l.max) + (l.factor !== 1 ? ' (' + esc(l.count_unit) + ')' : '') + '</small>' : '') +
+        '<div class="nm"><b>' + esc(l.name_th) + '</b>' + makroTag(l) + (l.for_item ? '<small class="muted">🧾 สูตร ' + esc(l.for_item) + '</small>' : '') + (l.level ? '<small class="muted">' + (l.level === 'out' ? 'หมด' : 'ใกล้หมด' + (l.left > 0 ? ' · เหลือ ' + L.fmtNum(l.left) + ' ' + esc(l.count_unit || l.unit) : '')) + ' · ยังไม่ตั้ง Min/Max ใส่จำนวนเอง</small>' : '') + (!l.level && l.left !== undefined && l.left !== null ? '<small class="muted">เหลือ ' + L.fmtNum(l.left) + ' · Min ' + L.fmtNum(l.min) + ' · Max ' + L.fmtNum(l.max) + (l.factor !== 1 ? ' (' + esc(l.count_unit) + ')' : '') + '</small>' : '') +
         (got ? '<small style="color:var(--ok)">รับแล้ว ' + L.fmtNum(l.received) + ' ' + esc(l.unit) + ' — เอาออกไม่ได้ (ถ้ารับผิดให้แก้ที่ใบรับ)</small>' : '') + '</div>' +
         '<div class="pe-q"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="peQty" data-i="' + i + '" value="' + esc(l.qty) + '">' +
         (l.item_id ? '<span>' + esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + '</span>' : '<input type="text" class="inp sm" style="width:64px" data-input="peUnit" data-i="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">') + approx + '</div>' +
@@ -4318,7 +4331,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var st = !l.qty ? '' : !done ? ' · <span style="color:var(--bad)">ค้าง ' + L.fmtNum(rem) + '</span>' : v ? ' · ' + esc(v) : ' ✓';
       var btn = closed || !l.qty ? '' : !done ? '<button class="mini-link" data-act="poLineDone" data-k="' + esc(l.key) + '" data-v="1">⛔ ไม่รอแล้ว</button>'
         : l.done && rem ? '<button class="mini-link" data-act="poLineDone" data-k="' + esc(l.key) + '" data-v="0">↩️ เปลี่ยนเป็นยังรอ</button>' : '';
-      return '<div class="sum-row"><div class="nm"><b>' + esc(l.name_th) + '</b>' + (l.order_name ? '<small class="muted">สั่งว่า: ' + esc(l.order_name) + '</small>' : '') + (l.extra ? '<small class="muted">มาเกินใบสั่ง</small>' : '') + '</div><div class="q">' +
+      return '<div class="sum-row"><div class="nm"><b>' + esc(l.name_th) + '</b>' + makroTag(l) + (l.order_name ? '<small class="muted">สั่งว่า: ' + esc(l.order_name) + '</small>' : '') + (l.extra ? '<small class="muted">มาเกินใบสั่ง</small>' : '') + '</div><div class="q">' +
         (l.qty ? '<small>สั่ง</small> <b>' + L.fmtNum(l.qty) + ' ' + esc(l.unit) + '</b>' : '') +
         '<small style="display:block">รับแล้ว ' + L.fmtNum(l.received || 0) + st + '</small>' + btn + '</div></div>';
     }).join('') + '</div>';
@@ -5257,6 +5270,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="sub-h">🛒 หน่วยซื้อ <span class="muted">(ใส่เมื่อซื้อคนละหน่วยกับที่นับ เช่น ซื้อกุ้งเป็น กก. แต่นับเป็นตัว)</span></div>' +
       '<div class="two"><div><label>หน่วยซื้อ</label><input type="text" id="e-bunit" list="unit-list" value="' + esc(it.buy_unit || '') + '" placeholder="ว่าง = หน่วยเดียวกับที่นับ"></div>' +
       '<div><label id="e-bf-label">1 หน่วยซื้อ ≈ กี่ ' + esc(it.unit || 'หน่วยนับ') + '</label><input type="number" id="e-bfactor" inputmode="decimal" step="any" min="0" value="' + num(it.buy_factor) + '" placeholder="เช่น 40"></div></div>' +
+      '<div class="two"><div><label>รหัสสินค้า Makro</label><input type="tel" id="e-makro" inputmode="numeric" maxlength="12" value="' + esc(it.makro || '') + '" placeholder="เช่น 24388"></div>' +
+      '<div><label>ชื่อที่ Makro (มีขนาดแพ็ค)</label><input type="text" id="e-makro-name" maxlength="120" value="' + esc(it.makro_name || '') + '" placeholder="เช่น คาร์เนชั่น 405 ก. x 6"></div></div>' +
       '<div><label>ปัดจำนวนสั่งขึ้นทีละ</label><input type="number" id="e-bstep" inputmode="decimal" step="any" min="0" value="' + num(it.buy_step) + '" placeholder="ว่าง = นับเป็นชิ้นปัดเป็นจำนวนเต็ม, น้ำหนักไม่ปัด"></div>' +
       '<label class="check"><input type="checkbox" id="e-active"' + (it.active !== false ? ' checked' : '') + '> ใช้งาน (เอาติ๊กออก = ซ่อนจากหน้านับ)</label>' +
       '<div id="e-msg" class="pin-msg"></div>' +
@@ -5314,6 +5329,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     it.min = n('e-min'); it.max = n('e-max'); it.unit = g('e-unit').value.trim(); it.unit_mm = g('e-umm').value.trim();
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
     it.buy_unit = g('e-bunit').value.trim(); it.buy_factor = it.buy_unit ? n('e-bfactor') : null; it.buy_step = n('e-bstep');
+    it.makro = g('e-makro').value.replace(/[^0-9]/g, ''); it.makro_name = it.makro ? g('e-makro-name').value.trim() : '';
     return it;
   }
 
