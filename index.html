@@ -590,6 +590,10 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .adv-row label { display: flex; gap: 6px; align-items: center; font-size: 14px; margin: 0; }
 .adv-row input { width: auto; }
 .pe-line small.adv { display: block; margin-top: 4px; font-size: 13px; line-height: 1.45; }
+/* ใครช่วยนับ (แท็บทีม) */
+.cs-list { padding: 4px 14px; }
+.cs-row { padding: 10px 0; border-bottom: 1px solid var(--line); display: grid; gap: 2px; font-size: 14.5px; }
+.cs-row:last-child { border-bottom: 0; }
 
 </style>
 </head>
@@ -1037,6 +1041,45 @@ var Logic = (function () {
     return missing.length ? { v: null, lv: null, partial: true, parts: parts, missing: missing, by: by, at: at }
       : { v: round2(sum), lv: null, parts: parts, by: by, at: at };
   }
+  // ================= ใครช่วยนับ (ประเมินทีม) =================
+  // นับ "ช่อง" ที่แต่ละคนลงตัวเลข/ระดับ (รายการ × ที่เก็บ — คนลงล่าสุดของช่องนั้น) ต่อวัน + ใครกดส่ง
+  // o = { drafts: [{ date, entries }], subs: [{ date, by, section }], staff: [ชื่อ], from, to }
+  // o.storeIds = รหัสรายการสโตร์ → แยกนับ "วันที่ครัวนับ" กับ "วันที่สโตร์นับ" (ตัวหารของแต่ละฝั่ง)
+  function countStats(o) {
+    var byDate = {}, per = {}, sids = o.storeIds || {};
+    var day = function (d) { return byDate[d] || (byDate[d] = { date: d, people: {}, sent: [], total: 0, k: false, s: false }); };
+    (o.drafts || []).forEach(function (dr) {
+      if (dr.date < o.from || dr.date > o.to) return;
+      Object.keys(dr.entries || {}).forEach(function (k) {
+        var e = dr.entries[k];
+        if (!e || e.del || !e.by || (!isNum(e.v) && !e.lv)) return;
+        var x = day(dr.date);
+        x.people[e.by] = (x.people[e.by] || 0) + 1; x.total++;
+        if (sids[k.split('@')[0]]) x.s = true; else x.k = true;
+      });
+    });
+    (o.subs || []).forEach(function (s) {
+      if (s.date < o.from || s.date > o.to || !byDate[s.date]) return;
+      var who = s.by + (s.section ? ' (' + s.section + ')' : '');
+      if (byDate[s.date].sent.indexOf(who) < 0) byDate[s.date].sent.push(who);
+    });
+    var days = Object.keys(byDate).sort().reverse().map(function (d) { return byDate[d]; }).filter(function (x) { return x.total > 0; });
+    days.forEach(function (x) {
+      Object.keys(x.people).forEach(function (n) {
+        var p = per[n] || (per[n] = { name: n, days: 0, slots: 0, last: '', first: '' });
+        p.days++; p.slots += x.people[n];
+        if (!p.last || x.date > p.last) p.last = x.date;
+        if (!p.first || x.date < p.first) p.first = x.date;
+      });
+    });
+    (o.staff || []).forEach(function (n) { if (!per[n]) per[n] = { name: n, days: 0, slots: 0, last: '', first: '' }; });
+    var people = Object.keys(per).map(function (n) { var p = per[n]; p.avg = p.days ? round2(p.slots / p.days) : 0; p.staff = (o.staff || []).indexOf(n) >= 0; return p; })
+      .sort(function (a, b) { return b.days - a.days || b.slots - a.slots || (a.name < b.name ? -1 : 1); });
+    var kDays = days.filter(function (x) { return x.k; }).length, sDays = days.filter(function (x) { return x.s; }).length;
+    days.forEach(function (x) { delete x.k; delete x.s; });
+    return { from: o.from, to: o.to, countDays: kDays, storeDays: sDays, days: days, people: people };
+  }
+
   // ================= คำแนะนำจำนวนสั่ง (ตอนสร้างใบสั่ง) =================
   // ของรอบนี้ต้องพอใช้ตั้งแต่พรุ่งนี้ จนถึงวันก่อนที่ของรอบหน้ามาถึง: (วันสั่งรอบหน้า − วันนี้) + วันรอของ − 1 วัน
   // ต้องสั่ง = ใช้คาดการณ์ในช่วงนั้น (ตามวันในสัปดาห์ถ้ามี ไม่งั้นเฉลี่ย) + เผื่อวันขายดี 1 วัน − ที่มีตอนนี้ − ที่สั่งไปแล้วยังไม่มา
@@ -1822,7 +1865,7 @@ var Logic = (function () {
   return {
     businessDate: businessDate, bkkTime: bkkTime, dayOfWeek: dayOfWeek, thaiDate: thaiDate,
     isNum: isNum, isConfigured: isConfigured, needQty: needQty, zoneDue: zoneDue, hasCount: hasCount,
-    mergeEntries: mergeEntries, bookBalances: bookBalances, bookDiffs: bookDiffs, orderAdvice: orderAdvice, adviceQty: adviceQty, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
+    mergeEntries: mergeEntries, countStats: countStats, bookBalances: bookBalances, bookDiffs: bookDiffs, orderAdvice: orderAdvice, adviceQty: adviceQty, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
     buildBossMessage: buildBossMessage, isMakroShop: isMakroShop, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
@@ -4280,6 +4323,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (S.admin.tab === 'po') loadPoData(false, early);
     if (S.admin.tab === 'dash') loadDash(early);
     if (S.admin.tab === 'history') loadReports();
+    if (S.admin.tab === 'staff') loadCountStats();
   }
   // ประวัติรับของ/แจ้งด่วน/ค่า Claude — ไม่ต้องรอตอนเข้าหน้า
   function loadExtras() {
@@ -4295,14 +4339,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var A = S.admin;
     if (!A || !store.get('apin')) return;
     store.set('adminCache', { at: Date.now(), d: { items: A.data.items, staff: A.data.staff, zones: A.data.zones, settings: A.data.settings, recipes: A.data.recipes, orders: A.data.orders }, dash: A.dash || null,
-      po: A.po || null, rep: A.rep && A.rep.list && A.rep.list.length ? { list: A.rep.list.slice(0, 40), more: A.rep.more } : null });
+      po: A.po || null, rep: A.rep && A.rep.list && A.rep.list.length ? { list: A.rep.list.slice(0, 40), more: A.rep.more } : null,
+      cstat: A.cstat && A.cstat.data ? { range: A.cstat.range, data: A.cstat.data } : null });
   }
   function adminFromCache(ap) {
     var c = store.get('adminCache');
     if (!c || !c.d || !c.d.items || Date.now() - (c.at || 0) > 3 * 86400000) return false;
     useZones(c.d.zones);
     S.admin = { pin: ap, data: c.d, tab: 'dash', zone: ZONES[0].id, edit: null, staffDraft: null, lineMsg: '', dash: c.dash || null, stale: true,
-      po: c.po || null, rep: c.rep ? { list: c.rep.list, more: c.rep.more } : undefined };
+      po: c.po || null, rep: c.rep ? { list: c.rep.list, more: c.rep.more } : undefined, cstat: c.cstat || null };
     go('admin');
     var A = S.admin;
     adminTabLoad(); // แดชบอร์ดยิงพร้อมกับ apiAdminLoad (เดิมรอกันทีละรอบ)
@@ -4352,6 +4397,51 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adminCacheSave();
   }
 
+  // ================= ใครช่วยนับ (แท็บทีม) — โหลดตามหลัง ไม่ถ่วงการเปิดแท็บ =================
+  function loadCountStats(range) {
+    var A = S.admin, C = A.cstat || (A.cstat = { range: 30 });
+    if (!range && C.data && C.at && Date.now() - C.at < 5 * 60000) return Promise.resolve(); // เพิ่งโหลด ไม่ต้องยิงซ้ำ
+    if (range && range !== C.range) { C.range = range; C.data = null; C.all = false; }
+    var want = C.range;
+    C.loading = true;
+    if (S.screen === 'admin' && A.tab === 'staff') refreshCountStats();
+    return api('apiAdminCountStats', A.pin, want).then(function (d) {
+      if (S.admin !== A || C.range !== want) return;
+      C.data = d; C.at = Date.now(); C.loading = false; C.err = ''; adminCacheSave();
+      refreshCountStats();
+    }, function (e) { C.loading = false; C.err = errMsg(e); refreshCountStats(); });
+  }
+  function refreshCountStats() { var el = document.getElementById('cstat'); if (el && S.screen === 'admin' && S.admin.tab === 'staff') el.outerHTML = countStatsHtml(); }
+  function countStatsHtml() {
+    var A = S.admin, C = A.cstat || {}, D = C.data, rng = C.range || 30;
+    var storeNames = (A.data.staff || []).filter(function (x) { var m = L.staffSections(x); return m.length === 1 && m[0] === L.STORE_SECTION; }).map(function (x) { return x.name; });
+    var h = '<div id="cstat"><div class="section-h">📊 ใครช่วยนับ <span class="n">(' + rng + ' วันล่าสุด' + (D && D.from ? ' · ครัวนับ ' + D.countDays + ' วัน' + (D.storeDays ? ' · สโตร์ ' + D.storeDays + ' วัน' : '') : '') + ')</span></div>' +
+      '<div class="tabs" style="margin-bottom:8px">' + [30, 90].map(function (n) { return '<button class="' + (rng === n ? 'on' : '') + '" data-act="cstatRange" data-v="' + n + '">' + n + ' วัน</button>'; }).join('') + '</div>';
+    if (!D) return h + (C.err ? '<div class="note bad">' + esc(C.err) + '</div>' : '<p class="muted"><span class="spin-sm"></span>กำลังรวบรวม…</p>') + '</div>';
+    // บ่อยสุด/น้อยสุด เทียบเฉพาะทีมครัว · เสมอกันได้ป้ายทุกคน · ถ้าทุกคนเท่ากันไม่ติดป้าย
+    var kitchen = D.people.filter(function (p) { return p.staff && storeNames.indexOf(p.name) < 0; });
+    var hi = kitchen.length ? kitchen[0].days : 0, lo = kitchen.reduce(function (m, p) { return Math.min(m, p.days); }, hi);
+    h += '<div class="card cs-list">' + D.people.map(function (p, i) {
+      var isStore = storeNames.indexOf(p.name) >= 0, k = p.staff && !isStore;
+      var tag = k && hi > lo && p.days === hi ? '<span class="tag ok">ช่วยบ่อยสุด</span>' : k && hi > lo && p.days === lo ? '<span class="tag warn">ช่วยน้อยสุด</span>' : '';
+      if (isStore) tag = '<span class="tag">สโตร์</span>';
+      if (!p.staff) tag += ' <span class="tag">ไม่อยู่ในทีมแล้ว</span>';
+      return '<div class="cs-row"><div><b>' + (i + 1) + '. ' + esc(p.name) + '</b> ' + tag + '</div>' +
+        (p.days ? '<div class="muted">ช่วยนับ <b>' + p.days + '/' + (isStore ? D.storeDays : D.countDays) + ' วัน</b> · ' + L.fmtNum(p.slots) + ' ช่อง (เฉลี่ย ' + L.fmtNum(p.avg) + '/วัน) · ล่าสุด ' + esc(L.thaiDate(p.last)) + '</div>'
+          : '<div class="muted">ยังไม่ได้ช่วยนับในช่วงนี้</div>') + '</div>';
+    }).join('') + '</div>';
+    h += '<p class="muted" style="font-size:13px;margin:6px 0 0">ช่อง = รายการ × ที่เก็บ ที่คนนั้นลงตัวเลขเป็นคนสุดท้าย (มีคนแก้ทีหลัง นับให้คนที่แก้) · ช่วยบ่อย/น้อยสุดเทียบเฉพาะทีมครัว · รวมวันที่นับแล้วยังไม่กดส่ง</p>';
+    if (D.days.length) {
+      var show = C.all ? D.days : D.days.slice(0, 14);
+      h += '<div class="section-h">🗓️ รายวัน</div><div class="card cs-list">' + show.map(function (x) {
+        var ppl = Object.keys(x.people).sort(function (a, b) { return x.people[b] - x.people[a]; });
+        return '<div class="cs-row"><div><b>' + esc(L.thaiDate(x.date)) + '</b> <span class="muted">· ' + x.total + ' ช่อง</span></div>' +
+          '<div>' + ppl.map(function (n) { return esc(n) + ' <b>' + x.people[n] + '</b>'; }).join(' · ') + '</div>' +
+          '<small class="muted">' + (x.sent.length ? 'กดส่ง: ' + esc(x.sent.join(', ')) : 'ยังไม่ได้กดส่ง') + '</small></div>';
+      }).join('') + '</div>' + (D.days.length > show.length ? '<button class="btn btn-ghost" data-act="cstatAll" style="margin-top:8px">ดูทุกวัน (' + D.days.length + ')</button>' : '');
+    }
+    return h + '</div>';
+  }
   // หารายการ/แถวแดชบอร์ดตามรหัส — ตารางค้นทำครั้งเดียวต่อชุดข้อมูล (หน้าแก้ใบสั่งเรียกหลายครั้งต่อบรรทัด)
   function idMap(list) {
     if (!list) return {};
@@ -5034,6 +5124,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
             '<button data-act="aStaffSecNew" data-i="' + i + '">＋ แผนกใหม่</button></div></div>';
         }).join('') + '</div><div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="aStaffAdd">＋ เพิ่มคน</button><button class="btn btn-primary" data-act="aStaffSave">บันทึกทีม</button></div>' +
         '<p class="muted" style="font-size:13px;margin-top:10px">แผนกใหม่ (เช่น หน้าร้าน) → เพิ่มที่เก็บของแผนกนั้นที่ 📋 รายการของ → 🗂️ จัดการที่เก็บ แล้วใส่ชื่อแผนกให้ตรงกัน</p>';
+      h += countStatsHtml();
     } else if (A.tab === 'history') {
       h += reportsSection();
       if (!d.receipts) h += '<p class="muted"><span class="spin-sm"></span>กำลังโหลดรับของ/ของเสีย…</p>';
@@ -5898,6 +5989,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         if (S.admin.tab === 'po') loadPoData();
         if (S.admin.tab === 'dash') loadDash();
         if (S.admin.tab === 'history') loadReports();
+        if (S.admin.tab === 'staff') loadCountStats();
       });
     },
     repMore: function () { loadReports(true); },
@@ -6250,6 +6342,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
       toast('ใส่ตามคำแนะนำ ' + set + ' รายการ' + (none ? ' · ไม่ต้องสั่ง ' + none + ' (เอาติ๊กออก)' : '') + (skip ? ' · ข้อมูลไม่พอ ' + skip + ' (คงเดิม)' : ''));
     },
+    cstatRange: function (el) { loadCountStats(Number(el.dataset.v)); },
+    cstatAll: function () { S.admin.cstat.all = true; refreshCountStats(); },
     poFromRound: function (el) {
       var P = S.admin.po, rnd = el && el.dataset.v === 'store' && P.sround ? P.sround : P.round;
       S.admin.poEdit = { id: 0, supplier_id: '', source_date: rnd.date, note: '', q: '',
