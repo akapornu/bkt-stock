@@ -576,6 +576,11 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .btn-warn { background: var(--warn-soft); color: var(--warn); }
 .lv-chips button { min-width: 72px; height: 36px; font-size: 13.5px; }
 .kp-grid .kp-plus { grid-column: 1 / -1; height: 44px; border-radius: 12px; background: var(--brand-soft, var(--bg)); color: var(--brand, var(--ink)); font-weight: 700; font-size: 15px; }
+/* สโตร์: สต็อคการ์ด — ปุ่มตรงตามยอด + ปุ่มแพ็ค */
+.kp-book { width: 100%; height: 48px; margin: 0 0 8px; background: var(--ok-soft, var(--brand-soft)); color: var(--ok, var(--brand)); font-weight: 700; font-size: 16px; border-radius: 14px; }
+.kp-note { margin: 0 0 8px; font-size: 14px; }
+.kp-packs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.kp-grid .kp-packs button { flex: 1 1 30%; height: 44px; font-size: 15px; background: var(--brand-soft); color: var(--brand); }
 
 </style>
 </head>
@@ -868,6 +873,7 @@ var Logic = (function () {
       var e = entries[id];
       if (e === null || (!isNum(e.v) && !e.lv)) { delete draft.entries[id]; return; }
       draft.entries[id] = { v: isNum(e.v) ? e.v : null, lv: e.lv || null, by: by, at: atIso };
+      if (e.bk && isNum(e.v)) draft.entries[id].bk = true; // กด "ตรงตามยอด" (ไม่ได้นับจริง) — สโตร์
     });
     draft.updated_at = atIso;
     return draft;
@@ -1022,6 +1028,39 @@ var Logic = (function () {
     return missing.length ? { v: null, lv: null, partial: true, parts: parts, missing: missing, by: by, at: at }
       : { v: round2(sum), lv: null, parts: parts, by: by, at: at };
   }
+  // ================= ยอดตามบัญชี (สต็อคการ์ด): ยอดยกมา + รับเข้า − เบิก − ของเสีย =================
+  // ยอดยกมา = ผลนับ (ตัวเลข) ครั้งล่าสุดก่อนวัน before · ของเข้า/ออกหลังเวลานับนั้น (หน่วยเดียวกับที่นับ)
+  // o = { items, counts: [{date, item_id, qty, unit, at}], moves: [{at, item_id, type, qty_count, count_unit}], before }
+  function bookBalances(o) {
+    var byItem = {}, out = {};
+    (o.items || []).forEach(function (it) { byItem[it.id] = it; });
+    (o.counts || []).forEach(function (c) {
+      var it = byItem[c.item_id], q = c.qty === '' || c.qty === null || c.qty === undefined ? NaN : Number(c.qty);
+      if (!it || !isFinite(q) || String(c.date) >= o.before || (c.unit && c.unit !== it.unit)) return;
+      var cur = out[it.id];
+      if (!cur || String(c.date) > cur.baseDate || (String(c.date) === cur.baseDate && String(c.at) > cur.baseAt)) out[it.id] = { base: q, baseDate: String(c.date), baseAt: String(c.at), inQty: 0, outQty: 0 };
+    });
+    (o.moves || []).forEach(function (m) {
+      var b = out[m.item_id], it = byItem[m.item_id];
+      if (!b || !it || (m.count_unit && m.count_unit !== it.unit) || !(String(m.at) > b.baseAt)) return;
+      var q = Number(m.qty_count) || 0;
+      if (m.type === 'issue' || m.type === 'waste') b.outQty = round2(b.outQty + q); else b.inQty = round2(b.inQty + q);
+    });
+    Object.keys(out).forEach(function (k) { var b = out[k]; b.bal = round2(Math.max(0, b.base + b.inQty - b.outQty)); });
+    return out;
+  }
+  // นับจริงแล้วไม่ตรงยอดตามบัญชี (ไม่นับที่กด "ตรงตามยอด") — เรียงต่างมากก่อน
+  function bookDiffs(items, entries, book) {
+    var rows = [];
+    (items || []).forEach(function (it) {
+      var e = entries[it.id], b = book && book[it.id];
+      if (!e || !b || e.bk || !isNum(e.v)) return;
+      var d = round2(e.v - b.bal);
+      if (Math.abs(d) >= 0.01) rows.push({ item: it, counted: e.v, bal: b.bal, diff: d });
+    });
+    return rows.sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); });
+  }
+
   function resolveEntries(items, entries) {
     var out = {};
     (items || []).forEach(function (it) { var e = itemEntry(it, entries || {}); if (e) out[it.id] = e; });
@@ -1178,6 +1217,19 @@ var Logic = (function () {
         L.push('• ' + nd.item.name_th + ' — ' + nd.rounds + ' รอบ' + (nd.yield ? ' (ได้ ~' + fmtNum(nd.yield * nd.rounds) + ' ' + nd.item.unit + ')' : ''));
         nd.lines.forEach(function (l) { L.push('   - ' + l.name + ' ' + (spokenWeight(l.qty, l.unit) || fmtNum(l.qty) + ' ' + l.unit) + (l.have ? ' (มี ' + l.have + ')' : '')); });
       });
+    }
+    if (meta.book) { // สโตร์: ยอดตามบัญชี — กดตามยอดกี่รายการ · นับจริงแล้วไม่ตรง (ของหาย / เบิกไม่ได้จด / นับผิด)
+      var bk = meta.book;
+      L.push('');
+      L.push('📒 ยอดตามบัญชี: นับจริง ' + bk.counted + ' · กดตรงตามยอด ' + bk.byBook + (bk.noBase ? ' · ยอดยกมาครั้งแรก ' + bk.noBase : '') + ' รายการ');
+      if (bk.diffs.length) {
+        L.push('🔎 นับไม่ตรงยอดตามบัญชี (' + bk.diffs.length + ')');
+        bk.diffs.slice(0, 20).forEach(function (x) {
+          var u = ' ' + x.item.unit;
+          L.push('• ' + x.item.name_th + ' ตามบัญชี ' + fmtNum(x.bal) + ' นับได้ ' + fmtNum(x.counted) + u + ' (' + (x.diff < 0 ? 'หาย ' + fmtNum(-x.diff) : 'เกิน ' + fmtNum(x.diff)) + u + ')');
+        });
+        if (bk.diffs.length > 20) L.push('   +อีก ' + (bk.diffs.length - 20) + ' รายการ (ดูในแอพ)');
+      } else if (bk.counted) L.push('✅ ที่นับจริงตรงยอดตามบัญชีทุกรายการ');
     }
     if (meta.issues && meta.issues.length) {
       L.push('');
@@ -1354,12 +1406,14 @@ var Logic = (function () {
   // ใบสั่ง Makro (หรือยังไม่ระบุร้าน): บอกรหัสสินค้า + ชื่อที่ Makro (มีขนาดแพ็ค) ใต้รายการ — ค้นในแอพ Makro ได้เลย
   function isMakroShop(name) { return !name || /แม็คโคร|แมคโคร|แม็กโคร|makro/i.test(String(name)); }
   function makroLine(l) { return l.makro ? '   รหัส ' + l.makro + (l.makro_name ? ' · ' + l.makro_name : '') : ''; }
+  // แพ็ค Makro: บอกว่าได้กี่หน่วยที่เรานับ (2 แพ็ค = 12 กระป๋อง)
+  function packEq(l) { return l.makro && l.factor > 1 && l.count_unit && l.count_unit !== l.unit ? ' (= ' + fmtNum(round2(l.qty * l.factor)) + ' ' + l.count_unit + ')' : ''; }
   function buildPoText(po, meta) {
     var L = ['สั่งของ ร้านบ้านขาวต้ม · ใบสั่ง #' + po.id, thaiDate(meta.date)], mk = isMakroShop(po.supplier_name);
     if (po.supplier_name) L.push('ถึง: ' + po.supplier_name);
     L.push('');
     (po.lines || []).filter(function (l) { return l.qty > 0; }).forEach(function (l, i) {
-      L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l));
+      L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l) + (mk ? packEq(l) : ''));
       if (mk && l.makro) L.push(makroLine(l));
     });
     if (po.note) { L.push(''); L.push('หมายเหตุ: ' + po.note); }
@@ -1376,7 +1430,7 @@ var Logic = (function () {
       L.push('');
       L.push('🏪 ' + (po.supplier_name || 'ไม่ระบุร้าน') + ' · ใบสั่ง #' + po.id + ' (' + lines.length + ' รายการ)');
       var mk = isMakroShop(po.supplier_name);
-      lines.forEach(function (l, i) { L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l)); if (mk && l.makro) L.push(makroLine(l)); });
+      lines.forEach(function (l, i) { L.push((i + 1) + '. ' + (l.order_name || l.name_th) + ' ' + orderQtyText(l.qty, l) + (mk ? packEq(l) : '')); if (mk && l.makro) L.push(makroLine(l)); });
       if (po.note) L.push('หมายเหตุ: ' + po.note);
     });
     L.push('');
@@ -1729,7 +1783,7 @@ var Logic = (function () {
   return {
     businessDate: businessDate, bkkTime: bkkTime, dayOfWeek: dayOfWeek, thaiDate: thaiDate,
     isNum: isNum, isConfigured: isConfigured, needQty: needQty, zoneDue: zoneDue, hasCount: hasCount,
-    mergeEntries: mergeEntries, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
+    mergeEntries: mergeEntries, bookBalances: bookBalances, bookDiffs: bookDiffs, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
     buildBossMessage: buildBossMessage, isMakroShop: isMakroShop, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
@@ -1948,7 +2002,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       // รายการของ/ทีม/ใบสั่ง/ใบรับล่าสุด — อ่านจาก Firebase ตรง (บอสแก้ปุ๊บ เครื่องน้องเห็นปั๊บ ไม่ต้องรอ Apps Script)
       my.pubRef = my.db.ref('bkt/' + b.fb.secret + '/pub');
       my.onPub = {};
-      ['boot', 'pos', 'recv', 'last'].forEach(function (k) {
+      ['boot', 'pos', 'recv', 'last'].concat(b.scope === 'store' ? ['book'] : []).forEach(function (k) {
         my.onPub[k] = function (snap) { if (S.fb === my) pubApply(k, snap.val()); };
         my.pubRef.child(k).on('value', my.onPub[k]);
       });
@@ -1981,7 +2035,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     // เวอร์ชันแยกแต่ละส่วน: ใช้เมื่อใหม่กว่าทั้งที่เคยใช้ และใหม่กว่าเวลาที่ apiBootstrap ตอบ
     var ver = S.boot.pubV || (S.boot.pubV = {});
-    if ((ver[k] && v.v <= ver[k]) || (k !== 'recv' && k !== 'last' && S.boot.bootV && v.v <= S.boot.bootV)) { S.pubLive = true; return; }
+    if ((ver[k] && v.v <= ver[k]) || (k !== 'recv' && k !== 'last' && k !== 'book' && S.boot.bootV && v.v <= S.boot.bootV)) { S.pubLive = true; return; }
     var d;
     try { d = JSON.parse(v.json); } catch (e) { return; }
     ver[k] = v.v;
@@ -1993,6 +2047,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       mmReapply();
     } else if (k === 'pos') {
       S.boot.pos = d; S.recvList = d;
+    } else if (k === 'book') {
+      S.boot.book = d;
+      if (S.kp) return store.set('boot', { at: Date.now(), b: S.boot }); // แป้นเปิดอยู่ ไม่ต้องวาดใหม่
     } else if (k === 'last') {
       S.boot.lastCounts = d;
       if (S.kp) return store.set('boot', { at: Date.now(), b: S.boot }); // แป้นเปิดอยู่ ไม่ต้องวาดใหม่
@@ -2004,7 +2061,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     store.set('boot', { at: Date.now(), b: S.boot });
     pubRerender();
   }
-  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai', 'recipes', 'orders'];
+  var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai', 'recipes', 'orders', 'storeFullDay'];
   // apiBootstrap ตอบช้ากว่าสำเนาบน Firebase ที่เพิ่งเปลี่ยน → เก็บส่วนที่ใหม่กว่าไว้
   function keepNewerPub(b) {
     var o = S.boot, pv = o && o.pubV;
@@ -2012,6 +2069,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (pv.boot && pv.boot > b.bootV) BOOT_FIELDS.forEach(function (f) { b[f] = o[f]; });
     if (pv.pos && pv.pos > b.bootV) b.pos = o.pos;
     if (o.lastCounts) b.lastCounts = o.lastCounts; // มาจาก Firebase อย่างเดียว
+    if (pv.book && pv.book > b.bootV && o.book) b.book = o.book;
     b.orders = L.mergeOrders(o.orders, b.orders);
     b.pubV = pv;
   }
@@ -2068,6 +2126,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function setEntry(id, val) {
     var e = val === null ? null : { v: L.isNum(val.v) ? val.v : null, lv: val.lv || null, by: S.me, at: new Date().toISOString() };
+    if (e && val.bk && L.isNum(val.v)) e.bk = true; // สโตร์: กดตรงตามยอด
     if (e) S.draft.entries[id] = e; else delete S.draft.entries[id];
     if (S.fb) {
       var w = e || { del: true, by: S.me, at: new Date().toISOString() };
@@ -2473,6 +2532,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
             var lvKey = r.level === 'out' ? 'out' : 'low';
             return sumRow(r.item, '<span class="tag ' + (r.level === 'out' ? 'bad' : 'warn') + '">' + bi1(lvKey) + '</span>', '');
           }).join('') + '</div>';
+      }
+      if (st && S.boot.book) {
+        var ents = sum.entries, nBk = 0, nCt = 0;
+        items().forEach(function (it) { var e = ents[it.id]; if (e && L.isNum(e.v)) { if (e.bk) nBk++; else nCt++; } });
+        var diffs = L.bookDiffs(items(), ents, S.boot.book);
+        h += '<div class="section-h">📒 ยอดตามบัญชี <span class="n">(นับจริง ' + nCt + ' · ตามยอด ' + nBk + ')</span></div>';
+        h += diffs.length ? '<div class="note warn" style="margin-bottom:8px">นับไม่ตรงยอดตามบัญชี ' + diffs.length + ' รายการ — นับซ้ำอีกที ถ้าตรงแล้วส่งได้เลย (บอสจะเห็นว่าหาย/เกิน)</div><div class="card sum-list">' +
+          diffs.map(function (x) {
+            var u = ' ' + esc(x.item.unit);
+            return '<div class="rep-row' + (x.diff < 0 ? ' out' : '') + '" data-act="kp" data-id="' + esc(x.item.id) + '"><div><b>' + esc(x.item.name_th) + '</b> — ตามบัญชี ' + L.fmtNum(x.bal) + ' นับได้ ' + L.fmtNum(x.counted) + u +
+              ' (' + (x.diff < 0 ? 'หาย ' + L.fmtNum(-x.diff) : 'เกิน ' + L.fmtNum(x.diff)) + u + ')</div></div>';
+          }).join('') + '</div>' : (nCt ? '<div class="note ok">✅ ที่นับจริงตรงยอดตามบัญชีทุกรายการ</div>' : '');
       }
       if (!st) {
         h += '<div class="section-h">🔪 ' + bi1('toMake') + ' <span class="n">(' + sum.prep.length + ')</span></div>';
@@ -3107,6 +3178,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       ? '<span>Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) + '</span>'
       : lvNum ? '<span>' + esc(storeUnitText(it)) + '</span>' : '<span class="tag warn">⚠️ ' + bi1('notSetShort') + '</span>';
     if (has && se.by && se.by !== S.me) hint += ' <span class="tag">' + esc(tr('countedBy').th) + ' ' + esc(se.by) + '</span>';
+    if (isStore()) { // สต็อคการ์ด: ยอดตามบัญชี + ที่กดตามยอด
+      var bk = bookOf(it);
+      if (bk) hint += ' <span class="muted">· ตามบัญชี ' + L.fmtNum(bk.bal) + '</span>';
+      if (has && se.bk) hint += ' <span class="tag ok">✓ ตามยอด</span>';
+    }
     if (multi) hint += '<div class="multi">📍 ' + multiHint(it, e) + '</div>';
     var h = '<div class="' + cls + '" id="r-' + esc(it.id) + '"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + hint + '</div>';
@@ -3310,7 +3386,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var h = '<div class="sheet-bg" id="kp-bg" data-act="kpClose"></div><div class="sheet" id="kp-sheet" role="dialog"><div class="kp-head"><div class="nm"><b>' + esc(it.name_th) + '</b><span class="mm">' + esc(it.name_mm) + '</span>' +
       '<div class="hint">' + (cfg ? 'Min ' + L.fmtNum(it.min) + ' · Max ' + L.fmtNum(it.max) + ' ' + unitBi(it) : isStore() ? esc(storeUnitText(it)) : bi1('notSetUp')) + '</div>' +
       (multi ? '<div class="multi">📍 ' + esc(zoneOf(S.kp.z).icon + ' ' + zoneOf(S.kp.z).th) + ' — ' + bi1('countHere') + '</div>' : '') +
-      lastCountHtml(it) +
+      (isStore() ? bookHtml(it) : lastCountHtml(it)) +
       (L.hasCount(e) ? '<button class="kp-clear" data-act="kpClear">🗑️ ' + bi1('clearCount') + '</button>' : '') + '</div>' +
       '<button class="iconbtn" data-act="kpClose" aria-label="ปิด">✕</button></div>';
     if (!cfg && !isStore()) {
@@ -3323,16 +3399,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var shown = buf !== '' ? buf : (L.hasCount(e) ? L.fmtNum(e.v) : '–');
     var val = buf !== '' ? parseBuf(buf) : null;
     var dcls = buf === '' ? ' empty' : (val !== null && L.needQty(it, kpTotal(it, val)) > 0 ? ' below' : '');
-    if (!cfg) { // สโตร์: นับเป็นตัวเลข แล้วบอกระดับถ้าใกล้หมด (หมด = 0)
-      return h + '<div class="kp-disp' + (buf === '' ? ' empty' : '') + (e && (e.lv === 'low' || e.lv === 'out') ? ' below' : '') + '" id="kp-disp">' + esc(buf !== '' ? bufText(buf) : shown) + ' <small>' + esc(it.unit) + '</small>' +
-        (e && e.lv === 'low' ? ' <small class="tag warn">ใกล้หมด</small>' : '') + '</div>' +
-        '<div class="kp-grid">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
-          return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
-        }).join('') + '<button class="kp-plus" data-act="kpKey" data-k="+">＋ บวกอีกชิ้น (คนละขนาด)</button></div><div class="kp-actions three">' +
-        '<button class="btn btn-danger" data-act="kpOut">หมด</button>' +
-        '<button class="btn btn-warn" data-act="kpLow">ใกล้หมด</button>' +
-        '<button class="btn btn-primary" data-act="kpNext">ถัดไป ›</button></div></div>';
-    }
+    if (isStore()) return h + storeKeypad(it, e, buf, shown);
     var keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
       return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
     }).join('');
@@ -3340,6 +3407,42 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="kp-grid">' + keys + '</div><div class="kp-actions">' +
       '<button class="btn btn-danger stack" data-act="kpOut">' + bi('out') + '</button>' +
       '<button class="btn btn-primary stack" data-act="kpNext">' + bi('next') + '</button></div></div>';
+  }
+
+  // ================= สโตร์: สต็อคการ์ด + แพ็ค =================
+  // ยอดตามบัญชี = ยอดยกมา (นับล่าสุดก่อนวันนี้) + รับเข้า − เบิก − ของเสีย (หลังบ้านคิด ส่งมาทาง Firebase)
+  function bookOf(it) { return S.boot && S.boot.book ? S.boot.book[it.id] || null : null; }
+  function fullDay() { var d = S.boot && S.boot.storeFullDay; return isStore() && d !== null && d !== undefined && L.dayOfWeek(S.boot.date) === Number(d); }
+  function bookHtml(it) {
+    var b = bookOf(it), u = ' ' + esc(it.unit);
+    if (!b) return '<div class="hint last-count">📒 ยังไม่มียอดยกมา — ใส่ยอดคงเหลือตอนนี้ (จากใบเดิมหรือนับจริง)</div>';
+    return '<div class="hint last-count">📒 ตามบัญชี <b>' + L.fmtNum(b.bal) + u + '</b> <small class="muted">= ยกมา ' + L.fmtNum(b.base) + (b.inQty ? ' + รับ ' + L.fmtNum(b.inQty) : '') +
+      (b.outQty ? ' − เบิก/เสีย ' + L.fmtNum(b.outQty) : '') + ' (' + esc(shortDateTh(b.baseDate)) + ')</small></div>';
+  }
+  function shortDateTh(d) { var n = L.dayDiff(d, S.boot.date); return n === 1 ? 'นับเมื่อวาน' : 'นับ ' + n + ' วันก่อน'; }
+  // แพ็คที่ซื้อ: แพ็คหลัก (หน่วยซื้อ) + แพ็คอื่น — ปุ่มบวกบนแป้น
+  function packsOf(it) {
+    var out = [];
+    if (it.buy_unit && it.buy_factor > 0 && it.buy_factor !== 1) out.push({ label: it.buy_unit + ' ×' + L.fmtNum(it.buy_factor), per: it.buy_factor });
+    var alt = [];
+    try { alt = it.packs ? JSON.parse(it.packs) : []; } catch (e) { alt = []; }
+    alt.forEach(function (p) { if (p.per > 0) out.push({ label: (p.name || 'แพ็ค') + ' ×' + L.fmtNum(p.per), per: p.per }); });
+    return out;
+  }
+  function storeKeypad(it, e, buf, shown) {
+    var b = bookOf(it), fd = fullDay(), packs = packsOf(it);
+    var h = '';
+    if (fd) h += '<div class="note warn kp-note">📅 วันนี้วันนับจริง — นับทุกรายการ (ไม่มีปุ่มตามยอด)</div>';
+    else if (b) h += '<button class="btn kp-book" data-act="kpBook">✓ ตรงตามยอด <b>' + L.fmtNum(b.bal) + '</b> ' + esc(it.unit) + '</button>';
+    h += '<div class="kp-disp' + (buf === '' ? ' empty' : '') + (e && (e.lv === 'low' || e.lv === 'out') ? ' below' : '') + '" id="kp-disp">' + esc(buf !== '' ? bufText(buf) : shown) + ' <small>' + esc(it.unit) + '</small>' +
+      (e && e.bk && buf === '' ? ' <small class="tag ok">ตามยอด</small>' : '') + (e && e.lv === 'low' ? ' <small class="tag warn">ใกล้หมด</small>' : '') + '</div>';
+    h += '<div class="kp-grid">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
+      return '<button data-act="kpKey" data-k="' + k + '"' + (k === '⌫' ? ' class="fn"' : k === '.' ? ' class="dot" aria-label="จุดทศนิยม"' : '') + '>' + k + '</button>';
+    }).join('') + '<div class="kp-packs">' + packs.map(function (p) {
+      return '<button data-act="kpPack" data-v="' + p.per + '">＋ ' + esc(p.label) + '</button>';
+    }).join('') + '<button data-act="kpKey" data-k="+">＋ บวกอีก</button></div></div>';
+    return h + '<div class="kp-actions three"><button class="btn btn-danger" data-act="kpOut">หมด</button>' +
+      '<button class="btn btn-warn" data-act="kpLow">ใกล้หมด</button><button class="btn btn-primary" data-act="kpNext">ถัดไป ›</button></div></div>';
   }
 
   // จำนวนที่นับครั้งก่อน (รอบที่ส่งรายงานแล้ว ก่อนวันนี้) — มาพร้อมข้อมูลบน Firebase ไม่ต้องเรียกหลังบ้าน
@@ -3373,10 +3476,21 @@ if (typeof module !== 'undefined') module.exports = Logic;
     String(buf).split('+').forEach(function (x) { var v = Number(x.replace(/\.$/, '') || 0); if (isFinite(v)) n += v; });
     return Math.round(n * 100) / 100;
   }
-  function bufText(b) { return b.indexOf('+') < 0 ? b : b.split('+').join(' + ') + (/\+$/.test(b) ? '' : ' = ' + L.fmtNum(parseBuf(b))); }
+  function bufText(b) {
+    if (b.indexOf('+') < 0) return b;
+    var segs = b.split('+').filter(function (x) { return x !== ''; });
+    return segs.join(' + ') + (/\+$/.test(b) ? ' +' : '') + (segs.length > 1 ? ' = ' + L.fmtNum(parseBuf(b)) : '');
+  }
 
   // แป้นนับ: เปิด/ปิด/เปลี่ยนรายการ วาดใหม่เฉพาะแผ่นแป้น + แถวที่เกี่ยวข้อง — ไม่วาดทั้งหน้า
   // (หน้ายาวที่มีอักษรพม่าเยอะ วาดใหม่ทั้งหน้าช้ามากบนมือถือ — บอสเจอที่หน้าตรวจก่อนส่ง)
+  function kpDispUpdate() {
+    var b = S.kp.buf, it = itemById(S.kp.id), disp = document.getElementById('kp-disp');
+    if (!disp) return;
+    var v = b !== '' ? parseBuf(b) : null, e = slotVal(it, S.kp.z);
+    disp.className = 'kp-disp' + (b === '' ? ' empty' : (L.needQty(it, kpTotal(it, v)) > 0 ? ' below' : ''));
+    disp.innerHTML = esc(b !== '' ? bufText(b) : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + (isStore() ? esc(it.unit) : unitTag(it)) + '</small>';
+  }
   function kpDraw() {
     ['kp-bg', 'kp-sheet'].forEach(function (x) { var el = document.getElementById(x); if (el) el.remove(); });
     if (S.kp) $app.insertAdjacentHTML('beforeend', keypadHtml());
@@ -3747,12 +3861,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       else if (seg.replace(/^0+/, '').length < 5) b = head + (seg === '0' ? '' : seg) + k;
       S.kp.buf = b;
       buzz();
-      var it = itemById(S.kp.id), disp = document.getElementById('kp-disp');
-      if (disp) {
-        var v = b !== '' ? parseBuf(b) : null, e = slotVal(it, S.kp.z);
-        disp.className = 'kp-disp' + (b === '' ? ' empty' : (L.needQty(it, kpTotal(it, v)) > 0 ? ' below' : ''));
-        disp.innerHTML = esc(b !== '' ? bufText(b) : (L.hasCount(e) ? L.fmtNum(e.v) : '–')) + ' <small>' + unitTag(it) + '</small>';
-      }
+      kpDispUpdate();
     },
     kpNext: function () {
       var id = S.kp.id;
@@ -3768,6 +3877,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (S.screen !== 'zone') setTimeout(function () { if (S.kp) rerenderKeepScroll(); }, 0); // รายงานข้างหลังเปลี่ยน
     },
     kpOut: function () { setEntry(kpKey(), { v: 0 }); afterKp(S.kp.id); },
+    // สโตร์: ตรงตามยอดตามบัญชี (ไม่ได้นับจริง — รายงานบอกแยก)
+    kpBook: function () {
+      var b = bookOf(itemById(S.kp.id));
+      if (!b || fullDay()) return;
+      setEntry(kpKey(), { v: b.bal, bk: true });
+      afterKp(S.kp.id);
+    },
+    // สโตร์: บวกทีละแพ็ค (แพ็ค ×6 = +6) แล้วพิมพ์ชิ้นที่แกะแล้วต่อได้
+    kpPack: function (el) {
+      var b = S.kp.buf, per = el.dataset.v;
+      if (b.split('+').length >= 10) return;
+      b = b === '' ? per + '+' : (/\+$/.test(b) ? b : b.replace(/\.$/, '') + '+') + per + '+';
+      S.kp.buf = b;
+      buzz();
+      kpDispUpdate();
+    },
     // สโตร์: ตัวเลขที่พิมพ์ (หรือที่นับไว้) + ติดว่าใกล้หมด แล้วไปรายการถัดไป
     kpLow: function () {
       var kp = S.kp, it = itemById(kp.id), key = kpKey(), e = S.draft.entries[key];
@@ -3989,6 +4114,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var p = document.getElementById('prep-picks');
       if (p) p.innerHTML = prepPicks();
     },
+    pePack: function (el) {
+      var E = S.admin.poEdit, l = E.lines[+el.dataset.i], it = S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0];
+      var p = poPacks(it)[+el.value];
+      if (!p) return;
+      var had = Number(l.qty) > 0 ? Number(l.qty) * (l.factor || 1) : 0; // ปริมาณเดิมเป็นหน่วยนับ
+      l.unit = p.unit; l.factor = p.factor; l.size = p.size; l.makro = p.makro; l.makro_name = p.makro_name; l.count_unit = it.unit;
+      if (had) l.qty = String(Math.ceil(had / p.factor - 1e-9));
+      rerenderKeepScroll();
+    },
     wasteQ: function (el) {
       S.waste.q = el.value;
       var p = document.getElementById('waste-picks');
@@ -4145,6 +4279,40 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adminCacheSave();
   }
 
+  // ใบสั่ง: เลือกแพ็คที่จะซื้อ (แพ็คหลักหมด → แพ็คอื่น) — จำนวนแปลงให้ตามปริมาณเดิม
+  function poPacks(it) {
+    var out = [{ unit: it.buy_unit || it.unit, factor: it.buy_unit && it.buy_factor > 0 ? it.buy_factor : 1, size: it.buy_unit ? '' : it.size || '', makro: it.makro || '', makro_name: it.makro ? it.makro_name || '' : '',
+      label: (it.buy_unit || it.unit) + (it.makro_name ? ' · ' + it.makro_name : '') }];
+    var alt = [];
+    try { alt = it.packs ? JSON.parse(it.packs) : []; } catch (e) { alt = []; }
+    alt.forEach(function (p) { out.push({ unit: 'แพ็ค', factor: p.per, size: p.name || '', makro: p.code || '', makro_name: p.name || '', label: (p.name || 'แพ็คอื่น') + ' (= ' + L.fmtNum(p.per) + ' ' + it.unit + ')' }); });
+    return out;
+  }
+  function pePackSelect(l, i) {
+    var it = l.item_id && S.admin && S.admin.data ? S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0] : null;
+    if (!it || l.received > 0) return '';
+    var ps = poPacks(it);
+    if (ps.length < 2) return '';
+    var cur = ps.map(function (p) { return p.makro + '|' + p.factor; }).indexOf((l.makro || '') + '|' + (l.factor || 1));
+    return '<select class="inp sm" data-input="pePack" data-i="' + i + '" style="margin-top:6px;width:100%">' + ps.map(function (p, k) {
+      return '<option value="' + k + '"' + (k === (cur < 0 ? 0 : cur) ? ' selected' : '') + '>' + esc(p.label) + '</option>';
+    }).join('') + '</select>';
+  }
+  // แพ็คอื่น: "รหัส | ชื่อ | เท่ากับกี่หน่วยนับ" ทีละบรรทัด ↔ JSON ในรายการ
+  function packsText(v) {
+    var a = [];
+    try { a = v ? JSON.parse(v) : []; } catch (e) { a = []; }
+    return a.map(function (p) { return [p.code || '', p.name || '', L.fmtNum(p.per)].join(' | '); }).join('\n');
+  }
+  function parsePacks(t) {
+    var a = String(t || '').split('\n').map(function (ln) {
+      var x = ln.split('|').map(function (y) { return y.trim(); });
+      if (x.length < 3) return null;
+      var per = Number(x[2].replace(/,/g, ''));
+      return per > 0 ? { code: x[0].replace(/[^0-9]/g, ''), name: x[1], per: per } : null;
+    }).filter(Boolean);
+    return a.length ? JSON.stringify(a) : '';
+  }
   // รหัส Makro ของบรรทัดใบสั่ง (ใบเก่า/ของที่เพิ่งเพิ่ม → ดูจากรายการ)
   function makroTag(l) {
     var it = !l.makro && l.item_id && S.admin && S.admin.data ? S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0] : null;
@@ -4300,7 +4468,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<div class="nm"><b>' + esc(l.name_th) + '</b>' + makroTag(l) + (l.for_item ? '<small class="muted">🧾 สูตร ' + esc(l.for_item) + '</small>' : '') + (l.level ? '<small class="muted">' + (l.level === 'out' ? 'หมด' : 'ใกล้หมด' + (l.left > 0 ? ' · เหลือ ' + L.fmtNum(l.left) + ' ' + esc(l.count_unit || l.unit) : '')) + ' · ยังไม่ตั้ง Min/Max ใส่จำนวนเอง</small>' : '') + (!l.level && l.left !== undefined && l.left !== null ? '<small class="muted">เหลือ ' + L.fmtNum(l.left) + ' · Min ' + L.fmtNum(l.min) + ' · Max ' + L.fmtNum(l.max) + (l.factor !== 1 ? ' (' + esc(l.count_unit) + ')' : '') + '</small>' : '') +
         (got ? '<small style="color:var(--ok)">รับแล้ว ' + L.fmtNum(l.received) + ' ' + esc(l.unit) + ' — เอาออกไม่ได้ (ถ้ารับผิดให้แก้ที่ใบรับ)</small>' : '') + '</div>' +
         '<div class="pe-q"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="peQty" data-i="' + i + '" value="' + esc(l.qty) + '">' +
-        (l.item_id ? '<span>' + esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + '</span>' : '<input type="text" class="inp sm" style="width:64px" data-input="peUnit" data-i="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">') + approx + '</div>' +
+        (l.item_id ? '<span>' + esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + '</span>' + pePackSelect(l, i) : '<input type="text" class="inp sm" style="width:64px" data-input="peUnit" data-i="' + i + '" value="' + esc(l.unit) + '" placeholder="หน่วย">') + approx + '</div>' +
         (l.added ? '<button class="mini-x" data-act="peDel" data-i="' + i + '" aria-label="ลบ">✕</button>' : '') + '</div>';
     }).join('') + '</div>';
     h += '<div class="field"><label>＋ เพิ่มรายการ</label><input class="inp" id="pe-q" data-input="peQ" autocomplete="off" placeholder="🔍 ค้นหาของ" value="' + esc(E.q || '') + '"><div class="picks" id="pe-picks">' + pePicks() + '</div></div>';
@@ -5049,6 +5217,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<input type="tel" id="s-stpin" maxlength="4" inputmode="numeric" placeholder="' + (s.storePin ? 'ว่างไว้ = ไม่เปลี่ยน' : 'ตัวเลข 4 หลัก ไม่ซ้ำรหัสร้าน') + '"></div>' +
       '<p class="muted" style="margin:0;font-size:14px">ใส่รหัสสโตร์ที่หน้าแรกของแอพ (ช่องเดียวกับรหัสร้าน) = เห็นเฉพาะสโตร์ · รหัสร้านเห็นเฉพาะครัว</p>' +
       (s.storePin ? '<label class="check"><input type="checkbox" id="s-stclear"> ยกเลิกรหัสสโตร์ (ปิดการเข้าสโตร์)</label>' : '') +
+      '<div><label>📅 วันนับจริงสโตร์ (วันนั้นไม่มีปุ่ม "ตรงตามยอด" ต้องนับทุกรายการ)</label><select id="s-stday"><option value="">ไม่กำหนด</option>' +
+      days.map(function (n, i) { return '<option value="' + i + '"' + (s.storeFullDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' +
       (ZONES.some(function (z) { return z.weekly; }) ? '<div><label>วันนับเต็มรอบ (ที่เก็บที่นับสัปดาห์ละครั้ง: ' + esc(ZONES.filter(function (z) { return z.weekly; }).map(function (z) { return z.th; }).join(', ')) + ')</label><select id="s-day">' +
       days.map(function (n, i) { return '<option value="' + i + '"' + (s.fullCountDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' : '') +
       '<button class="btn btn-primary" data-act="aSaveCodes">บันทึก</button>' +
@@ -5272,6 +5442,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div><label id="e-bf-label">1 หน่วยซื้อ ≈ กี่ ' + esc(it.unit || 'หน่วยนับ') + '</label><input type="number" id="e-bfactor" inputmode="decimal" step="any" min="0" value="' + num(it.buy_factor) + '" placeholder="เช่น 40"></div></div>' +
       '<div class="two"><div><label>รหัสสินค้า Makro</label><input type="tel" id="e-makro" inputmode="numeric" maxlength="12" value="' + esc(it.makro || '') + '" placeholder="เช่น 24388"></div>' +
       '<div><label>ชื่อที่ Makro (มีขนาดแพ็ค)</label><input type="text" id="e-makro-name" maxlength="120" value="' + esc(it.makro_name || '') + '" placeholder="เช่น คาร์เนชั่น 405 ก. x 6"></div></div>' +
+      '<div><label>แพ็คอื่นที่ซื้อแทนได้ (ถ้ามี) — บรรทัดละ 1: รหัส Makro | ชื่อ | เท่ากับกี่' + esc(it.unit || 'หน่วยนับ') + '</label><textarea id="e-packs" rows="2" placeholder="เช่น 822433 | รสดี 800 ก. | 0.8">' + esc(packsText(it.packs)) + '</textarea>' +
+      '<small class="muted">แพ็คหลัก = หน่วยซื้อ + รหัส Makro ข้างบน · ทุกแพ็คขึ้นเป็นปุ่มบวกบนแป้นนับ และเลือกตอนสร้างใบสั่งได้</small></div>' +
       '<div><label>ปัดจำนวนสั่งขึ้นทีละ</label><input type="number" id="e-bstep" inputmode="decimal" step="any" min="0" value="' + num(it.buy_step) + '" placeholder="ว่าง = นับเป็นชิ้นปัดเป็นจำนวนเต็ม, น้ำหนักไม่ปัด"></div>' +
       '<label class="check"><input type="checkbox" id="e-active"' + (it.active !== false ? ' checked' : '') + '> ใช้งาน (เอาติ๊กออก = ซ่อนจากหน้านับ)</label>' +
       '<div id="e-msg" class="pin-msg"></div>' +
@@ -5330,6 +5502,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     it.size = g('e-size').value.trim(); it.step = n('e-step'); it.active = g('e-active').checked;
     it.buy_unit = g('e-bunit').value.trim(); it.buy_factor = it.buy_unit ? n('e-bfactor') : null; it.buy_step = n('e-bstep');
     it.makro = g('e-makro').value.replace(/[^0-9]/g, ''); it.makro_name = it.makro ? g('e-makro-name').value.trim() : '';
+    it.packs = parsePacks(g('e-packs').value);
     return it;
   }
 
@@ -6018,7 +6191,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     peSave: function () {
       var E = S.admin.poEdit;
       var lines = E.lines.filter(function (l) { return l.include && Number(l.qty) > 0; }).map(function (l) {
-        return { key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm, unit: l.unit, unit_mm: l.unit_mm, size: l.size, qty: Number(l.qty), factor: l.factor, count_unit: l.count_unit, order_name: l.order_name || '' };
+        return { key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm, unit: l.unit, unit_mm: l.unit_mm, size: l.size, qty: Number(l.qty), factor: l.factor, count_unit: l.count_unit, makro: l.makro || '', makro_name: l.makro_name || '' /* แพ็คที่เลือก */, order_name: l.order_name || '' };
       });
       if (!lines.length) return toast('ติ๊กและใส่จำนวนอย่างน้อย 1 รายการ');
       // ขึ้นหน้าใบสั่งทันที (ปุ่มคัดลอกรอเลขใบจากหลังบ้าน ~2 วิ) · เดิมค้างที่ปุ่มบันทึกจนหลังบ้านตอบ
@@ -6330,7 +6503,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       el.disabled = true;
       var day = document.getElementById('s-day');
       var stClr = document.getElementById('s-stclear');
-      api('apiAdminSaveSettings', S.admin.pin, { STAFF_PIN: g('s-spin'), ADMIN_PIN: newAdmin, STORE_PIN: g('s-stpin'), clearStorePin: !!(stClr && stClr.checked), FULL_COUNT_DAY: day ? day.value : '' }).then(function (st) {
+      var stDay = document.getElementById('s-stday');
+      api('apiAdminSaveSettings', S.admin.pin, { STAFF_PIN: g('s-spin'), ADMIN_PIN: newAdmin, STORE_PIN: g('s-stpin'), clearStorePin: !!(stClr && stClr.checked), FULL_COUNT_DAY: day ? day.value : '',
+        STORE_FULL_DAY: stDay ? stDay.value : undefined }).then(function (st) {
         if (newAdmin) S.admin.pin = newAdmin;
         if (S.boot) S.boot.fullCountDay = st.fullCountDay;
         setSettings(st); toast('บันทึกแล้ว ✓'); rerenderKeepScroll();
