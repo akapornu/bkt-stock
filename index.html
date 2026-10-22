@@ -2456,7 +2456,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
           return '<button class="card" data-act="pickMe" data-name="' + esc(s.name) + '">' +
             '<span class="av' + (s.role === 'lead' ? ' lead' : '') + '">' + esc((s.name.replace(/[^A-Za-z0-9ก-๙]/g, '') || s.name).slice(0, 2)) + '</span>' +
             '<span><b>' + esc(s.name) + '</b><span class="muted">' + roleText(s) + '</span></span></button>';
-        }).join('') + '</div>' + bossLink() + '</div>';
+        }).join('') + '</div>' +
+        // เครื่องจำรหัสไว้ → เปลี่ยนไปใช้รหัสอื่นได้ (เช่น รหัสร้าน ↔ รหัสสโตร์ของ BEAM)
+        '<p class="center" style="margin-top:22px"><button class="muted" data-act="switchPin" style="text-decoration:underline;font-size:14px">🔑 ' +
+        (isStore() ? 'ออกจากสโตร์ ใช้รหัสร้าน' : 'ใช้รหัสอื่น (เช่น รหัสสโตร์)') + '</button></p>' + bossLink() + '</div>';
     },
 
     home: function () {
@@ -3718,6 +3721,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     who: function () { go('who'); },
+    switchPin: function () {
+      if (Object.keys(S.pending || {}).length || S.inflight) { flush(); return toast('⏳ กำลังบันทึกตัวเลขที่นับ รอสักครู่แล้วกดอีกครั้ง'); }
+      logout();
+      store.del('me'); S.me = null; S.pinMsg = '';
+      render();
+    },
     pickMe: function (el) { S.me = el.dataset.name; store.set('me', S.me); go('home'); },
     toHome: function () { flush(); go('home'); },
     openZone: function (el) { S.zone = el.dataset.z; S.onlyUncounted = false; S.zoneQ = ''; go('zone'); pollNow(); },
