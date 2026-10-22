@@ -581,6 +581,9 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .kp-note { margin: 0 0 8px; font-size: 14px; }
 .kp-packs { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
 .kp-grid .kp-packs button { flex: 1 1 30%; height: 44px; font-size: 15px; background: var(--brand-soft); color: var(--brand); }
+.issue-day { display: flex; gap: 8px; align-items: center; }
+.issue-day input { flex: 1; min-width: 0; }
+.issue-day .btn { flex: none; width: auto; padding: 0 16px; }
 
 </style>
 </head>
@@ -2677,11 +2680,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var h = top({ th: '📤 เบิกของ', back: 'toHome' }) + '<div class="wrap screen">';
       if (w.sent.length) h += '<div class="note ok">✅ บันทึกเบิกแล้ววันนี้<br>' + w.sent.map(esc).join('<br>') + '</div>';
       h += '<div class="note info">เลือกของที่เบิกออกจากสโตร์ ใส่จำนวน แล้วกดบันทึก · เบิกหลายอย่างพร้อมกันได้ · ตัวเลขนี้ไปอยู่ในรายงานถึงบอส</div>';
-      // วันที่เบิก: วันนี้ หรือย้อนหลังไม่เกิน 7 วัน (ลืมจด มาบันทึกทีหลัง)
-      h += '<div class="field"><label>📅 วันที่เบิก</label><select data-input="issueDay">' + [0, 1, 2, 3, 4, 5, 6, 7].map(function (n) {
-        var d = L.addDays(S.boot.date, -n);
-        return '<option value="' + d + '"' + (w.day === d ? ' selected' : '') + '>' + (n === 0 ? 'วันนี้' : n === 1 ? 'เมื่อวาน' : n + ' วันก่อน') + ' · ' + esc(L.thaiDate(d)) + '</option>';
-      }).join('') + '</select>' + (w.day !== S.boot.date ? '<small class="warn-t">บันทึกย้อนหลัง — ลงเป็นของวันที่ ' + esc(L.thaiDate(w.day)) + ' (หลังนับของวันนั้น)</small>' : '') + '</div>';
+      // วันที่เบิก: วันนี้ หรือย้อนหลังไม่เกิน ISSUE_BACK วัน (ลืมจด มาบันทึกทีหลัง) — ปฏิทินของมือถือ
+      var back = w.day !== S.boot.date, ago = L.dayDiff(w.day, S.boot.date);
+      h += '<div class="field"><label>📅 วันที่เบิก</label><div class="issue-day"><input type="date" class="inp" data-input="issueDay" value="' + esc(w.day) + '" min="' + L.addDays(S.boot.date, -ISSUE_BACK) + '" max="' + S.boot.date + '">' +
+        (back ? '<button class="btn btn-ghost" data-act="issueToday">วันนี้</button>' : '') + '</div>' +
+        '<small class="' + (back ? 'warn-t' : 'muted') + '">' + esc(L.thaiDate(w.day)) + (back ? ' · ' + (ago === 1 ? 'เมื่อวาน' : ago + ' วันก่อน') + ' — บันทึกย้อนหลัง ลงเป็นของวันนั้น (หลังนับของวันนั้น)' : ' · วันนี้') +
+        ' · ย้อนหลังได้ไม่เกิน ' + ISSUE_BACK + ' วัน</small></div>';
       h += '<div class="field">' + w.lines.map(function (l, i) {
         var it = itemById(l.id) || { name_th: l.id, unit: '' };
         return '<div class="card waste-line"><div class="nm"><b>' + esc(it.name_th) + '</b></div>' +
@@ -3315,6 +3319,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return '<button data-act="wastePick" data-id="' + esc(it.id) + '">' + esc(it.name_th) + '<span class="mm">' + esc(it.name_mm) + '</span></button>';
     }).join('');
   }
+  var ISSUE_BACK = 30; // เบิกย้อนหลังได้กี่วัน (ต้องตรงกับหลังบ้าน ISSUE_BACK_DAYS)
   function issuePicks() {
     var w = S.issue, q = (w.q || '').trim().toLowerCase();
     if (!q) return '';
@@ -3795,6 +3800,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (n) n.focus();
     },
     issueDel: function (el) { S.issue.lines.splice(+el.dataset.i, 1); rerenderKeepScroll(); },
+    issueToday: function () { S.issue.day = S.boot.date; rerenderKeepScroll(); },
     issueSend: function () {
       var w = S.issue;
       if (issueMissing()) return;
@@ -4155,7 +4161,13 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     issueQty: function (el) { S.issue.lines[+el.dataset.i].qty = el.value; issueBtnUpdate(); },
     issueNote: function (el) { S.issue.note = el.value; },
-    issueDay: function (el) { if (S.issue.day === el.value) return; S.issue.day = el.value; rerenderKeepScroll(); },
+    issueDay: function (el) {
+      var d = el.value, min = L.addDays(S.boot.date, -ISSUE_BACK);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return; // กำลังเลือกในปฏิทิน
+      if (d > S.boot.date || d < min) { toast('เลือกได้ตั้งแต่วันนี้ย้อนหลังไม่เกิน ' + ISSUE_BACK + ' วัน'); el.value = S.issue.day; return; }
+      if (S.issue.day === d) return;
+      S.issue.day = d; rerenderKeepScroll();
+    },
     recvQ: function (el) {
       S.recv.q = el.value;
       var p = document.getElementById('recv-picks');
@@ -5685,7 +5697,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   INPUT.aStaffActive = function (el) { S.admin.staffDraft[+el.dataset.i].active = el.checked; };
   document.addEventListener('change', function (ev) {
     var el = ev.target.closest('[data-input]');
-    if (el && (el.tagName === 'SELECT' || el.type === 'file' || el.type === 'checkbox') && INPUT[el.dataset.input]) INPUT[el.dataset.input](el);
+    if (el && (el.tagName === 'SELECT' || el.type === 'file' || el.type === 'checkbox' || el.type === 'date') && INPUT[el.dataset.input]) INPUT[el.dataset.input](el); // ปฏิทินบางเครื่องส่งแต่ change
   });
 
   // ออกจากโหมดจัดลำดับโดยยังไม่บันทึก → ถามก่อน
