@@ -4181,7 +4181,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       refreshAdvice();
     },
     pePack: function (el) {
-      var E = S.admin.poEdit, l = E.lines[+el.dataset.i], it = S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0];
+      var E = S.admin.poEdit, l = E.lines[+el.dataset.i], it = admItem(l.item_id);
       var p = poPacks(it)[+el.value];
       if (!p) return;
       var had = Number(l.qty) > 0 ? Number(l.qty) * (l.factor || 1) : 0; // ปริมาณเดิมเป็นหน่วยนับ
@@ -4352,6 +4352,19 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adminCacheSave();
   }
 
+  // หารายการ/แถวแดชบอร์ดตามรหัส — ตารางค้นทำครั้งเดียวต่อชุดข้อมูล (หน้าแก้ใบสั่งเรียกหลายครั้งต่อบรรทัด)
+  function idMap(list) {
+    if (!list) return {};
+    if (list.__byId && list.__n === list.length) return list.__byId;
+    var m = {};
+    list.forEach(function (x) { m[x.id] = x; });
+    Object.defineProperty(list, '__byId', { value: m, configurable: true, writable: true });
+    Object.defineProperty(list, '__n', { value: list.length, configurable: true, writable: true });
+    return m;
+  }
+  function idMapReset(list) { if (list && list.__byId) list.__n = -1; } // แก้รายการในอาร์เรย์เดิม → ตารางค้นต้องทำใหม่
+  function admItem(id) { return S.admin && S.admin.data ? idMap(S.admin.data.items)[id] || null : null; }
+  function dashOf(id) { return S.admin && S.admin.dash ? idMap(S.admin.dash.items)[id] || null : null; }
   // ================= คำแนะนำจำนวนสั่ง (หน้าแก้ใบสั่ง) — คิดในเครื่องจากข้อมูลแดชบอร์ด ไม่ต้องรอหลังบ้าน =================
   // ต้องพอใช้ถึงก่อนของรอบหน้ามา: บอสเลือกวันสั่งรอบหน้า (จำไว้เป็น "อีกกี่วัน") · วันรอของ = ค่าในแดชบอร์ด
   function poNextDate() {
@@ -4361,12 +4374,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adviceFor(l) {
     var A = S.admin, D = A.dash;
     if (!D || !D.items) return null;
-    var r = D.items.filter(function (x) { return x.id === l.item_id; })[0];
+    var r = dashOf(l.item_id);
     var adj = A.poEdit && A.poEdit.orig ? A.poEdit.orig[l.key] || 0 : 0;
     return L.orderAdvice(r, { today: L.businessDate(), nextDate: poNextDate(), leadDays: D.leadDays, minDays: D.minDays, onOrderAdj: adj });
   }
   function adviceHtml(l, i) {
-    var it = S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0];
+    var it = admItem(l.item_id);
     if (!it) return '';
     if (!S.admin.dash) return '<span class="muted">🤖 กำลังโหลดข้อมูลการใช้…</span>';
     var a = adviceFor(l), u = ' ' + esc(it.unit);
@@ -4407,7 +4420,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return out;
   }
   function pePackSelect(l, i) {
-    var it = l.item_id && S.admin && S.admin.data ? S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0] : null;
+    var it = l.item_id && S.admin && S.admin.data ? admItem(l.item_id) : null;
     if (!it || l.received > 0) return '';
     var ps = poPacks(it);
     if (ps.length < 2) return '';
@@ -4433,7 +4446,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   // รหัส Makro ของบรรทัดใบสั่ง (ใบเก่า/ของที่เพิ่งเพิ่ม → ดูจากรายการ)
   function makroTag(l) {
-    var it = !l.makro && l.item_id && S.admin && S.admin.data ? S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0] : null;
+    var it = !l.makro && l.item_id && S.admin && S.admin.data ? admItem(l.item_id) : null;
     var code = l.makro || (it && it.makro), nm = l.makro ? l.makro_name : it && it.makro_name;
     return code ? '<small class="muted">Makro ' + esc(code) + (nm ? ' · ' + esc(nm) : '') + '</small>' : '';
   }
@@ -5926,7 +5939,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         // ใช้ค่าใหม่ในเครื่องทันที (เดิมรอหลังบ้าน ~2 วิ ค่อยขึ้น) แล้วบันทึก + คำนวณแดชบอร์ดใหม่ตามหลัง
         var put = function (item, v, differs) {
           var list = A.data.items, i = list.indexOf(item === x ? it : x);
-          if (i >= 0) list[i] = item;
+          if (i >= 0) { list[i] = item; idMapReset(list); }
           if (S.boot) S.boot.items = list.filter(function (q) { return q.active !== false; });
           r.min = v.min; r.max = v.max; r.configured = v.configured; r.suggest.differs = differs;
           adminCacheSave();
@@ -6208,6 +6221,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var local = JSON.parse(JSON.stringify(it));
       if (!L.hasBurmese(local.name_mm)) local.mm_auto = local.mm_auto || 'google';
       if (i >= 0) list[i] = Object.assign({}, list[i], local); else list.push(local);
+      idMapReset(list);
       if (S.boot) S.boot.items = list.filter(function (x) { return x.active !== false; });
       if (A.tab === 'items') A.zone = it.zone;
       toast('บันทึกแล้ว ✓');
@@ -6218,7 +6232,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     peUseAdvice: function (el) {
-      var l = S.admin.poEdit.lines[+el.dataset.i], it = S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0], a = adviceFor(l);
+      var l = S.admin.poEdit.lines[+el.dataset.i], it = admItem(l.item_id), a = adviceFor(l);
       if (!it || !a || !a.ok) return;
       l.qty = String(L.adviceQty(it, l, a.need)); l.include = a.need > 0;
       rerenderKeepScroll();
@@ -6227,7 +6241,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var E = S.admin.poEdit, set = 0, none = 0, skip = 0;
       if (!S.admin.dash) return toast('กำลังโหลดข้อมูลการใช้ รอสักครู่');
       E.lines.forEach(function (l) {
-        var it = l.item_id && S.admin.data.items.filter(function (x) { return x.id === l.item_id; })[0], a = it ? adviceFor(l) : null;
+        var it = l.item_id && admItem(l.item_id), a = it ? adviceFor(l) : null;
         if (!a || !a.ok || l.received > 0) { skip++; return; }
         var q = L.adviceQty(it, l, a.need);
         l.qty = String(q); l.include = q > 0;
