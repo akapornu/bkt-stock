@@ -1169,15 +1169,35 @@ var Logic = (function () {
     return round2(Math.max(0, t));
   }
   // นับจริงแล้วไม่ตรงยอดตามบัญชี (ไม่นับที่กด "ตรงตามยอด") — เรียงต่างมากก่อน
-  function bookDiffs(items, entries, book) {
+  function bookDiffs(items, entries, book, skip) {
     var rows = [];
     (items || []).forEach(function (it) {
       var e = entries[it.id], b = book && book[it.id];
-      if (!e || !b || e.bk || !isNum(e.v)) return;
+      if (!e || !b || e.bk || !isNum(e.v) || (skip && skip[it.id])) return;
       var bal = bookAt(b, e.at), d = round2(e.v - bal);
       if (Math.abs(d) >= 0.01) rows.push({ item: it, counted: e.v, bal: bal, diff: d });
     });
     return rows.sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); });
+  }
+  // ที่เก็บ "ขายหน้าร้าน" (เครื่องดื่ม — บอส 24 ต.ค.69: ไม่เบิก ขายหน้าร้านเลย นับสัปดาห์ละครั้ง)
+  // ของที่หายไปจากยอดตามบัญชี = ขายไป: ยกมา (นับครั้งก่อน) + รับเข้า − นับได้ · ติดลบ = นับได้มากกว่าบัญชี (รับของไม่ได้บันทึก?)
+  function isSaleZone(z) { return !!z && (z.sale === true || String(z.sale).toUpperCase() === 'TRUE'); }
+  function saleIdsOf(items, zones) {
+    var zs = {}, out = {};
+    (zones || []).forEach(function (z) { if (isSaleZone(z)) zs[z.id] = true; });
+    (items || []).forEach(function (it) { if (zs[it.zone]) out[it.id] = true; });
+    return out;
+  }
+  function saleRows(items, entries, book, sale) {
+    var rows = [];
+    (items || []).forEach(function (it) {
+      var e = entries[it.id], b = book && book[it.id];
+      if (!sale || !sale[it.id] || !e || e.bk || !isNum(e.v) || !b) return;
+      var bal = bookAt(b, e.at), inQ = 0;
+      (b.mv || []).forEach(function (m) { if (m.q > 0 && m.at <= String(e.at || '9')) inQ += m.q; });
+      rows.push({ item: it, sold: round2(bal - e.v), base: b.base, baseDate: b.baseDate, inQty: round2(inQ), counted: e.v, bal: bal });
+    });
+    return rows.sort(function (a, b) { return b.sold - a.sold; });
   }
 
   function resolveEntries(items, entries) {
@@ -1350,6 +1370,16 @@ var Logic = (function () {
         });
         if (bk.diffs.length > 20) L.push('   +อีก ' + (bk.diffs.length - 20) + ' รายการ (ดูในแอพ)');
       } else if (bk.counted) L.push('✅ ที่นับจริงตรงยอดตามบัญชีทุกรายการ');
+      var sold = (bk.sales || []).filter(function (x) { return x.sold > 0; }), over = (bk.sales || []).filter(function (x) { return x.sold < 0; });
+      if (sold.length || over.length) {
+        L.push('');
+        L.push('🍺 ขายหน้าร้าน (คิดจากที่นับ: ยกมา + รับเข้า − นับได้)' + (sold.length ? ' · ' + sold.length + ' รายการ' : ''));
+        sold.forEach(function (x) {
+          var u = ' ' + x.item.unit;
+          L.push('• ' + x.item.name_th + ' ขายไป ' + fmtNum(x.sold) + u + ' (ยกมา ' + fmtNum(x.base) + (x.inQty ? ' + รับ ' + fmtNum(x.inQty) : '') + ' − เหลือ ' + fmtNum(x.counted) + ' · ตั้งแต่ ' + thaiDate(x.baseDate) + ')');
+        });
+        over.forEach(function (x) { L.push('⚠️ ' + x.item.name_th + ' นับได้มากกว่าบัญชี ' + fmtNum(-x.sold) + ' ' + x.item.unit + ' (รับของไม่ได้บันทึก?)'); });
+      }
     }
     if (meta.issues && meta.issues.length) {
       L.push('');
@@ -1913,7 +1943,7 @@ var Logic = (function () {
     buildReceiveMessage: buildReceiveMessage, round2: round2, bizDayEnd: bizDayEnd, bookAt: bookAt, isPartialHow: isPartialHow, partialCount: partialCount, buildWasteMessage: buildWasteMessage, lastUnitCost: lastUnitCost, lastSuppliers: lastSuppliers, buildPoTextMulti: buildPoTextMulti, spokenWeight: spokenWeight, orderQtyText: orderQtyText,
     LEVEL_TH: LEVEL_TH, PO_STATUS_TH: PO_STATUS_TH,
     isMeasured: isMeasured, itemLocs: itemLocs, slotKey: slotKey, itemEntry: itemEntry, resolveEntries: resolveEntries, lineDone: lineDone, varianceText: varianceText, buildReceiptEditMessage: buildReceiptEditMessage,
-    DEFAULT_SECTION: DEFAULT_SECTION, STORE_SECTION: STORE_SECTION, isStoreZone: isStoreZone, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
+    DEFAULT_SECTION: DEFAULT_SECTION, STORE_SECTION: STORE_SECTION, isStoreZone: isStoreZone, isSaleZone: isSaleZone, saleIdsOf: saleIdsOf, saleRows: saleRows, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
     scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, recipeRounds: recipeRounds, recipeNeeds: recipeNeeds, poLinesFromRecipes: poLinesFromRecipes, recipeText: recipeText, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine, placeSort: placeSort, mergeOrders: mergeOrders,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
     addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
@@ -2079,6 +2109,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function slotVal(it, z) { return S.draft.entries[L.slotKey(it, z)]; }
   function hereZone(it) { return S.screen === 'zone' && S.zone ? S.zone : it.zone; }
   function isMulti(it) { return L.itemLocs(it).length > 1; }
+  // ที่เก็บขายหน้าร้าน (เครื่องดื่ม): ยอดลดลงเพราะขายทุกวัน — ไม่มีปุ่ม "ตามยอด" · ส่วนต่างจากบัญชี = ขายไป
+  function isSaleItem(it) { return !!it && L.isSaleZone(zoneOf(it.zone)); }
   function summary() { return L.summarize(items(), myZones(), S.draft, { date: S.boot.date, fullCountDay: S.boot.fullCountDay, levelBuy: isStore() }); }
   function meStaff() { return S.boot && S.boot.staff.filter(function (s) { return s.name === S.me; })[0]; }
   function isLead() { var m = meStaff(); return !!m && m.role === 'lead'; }
@@ -2714,7 +2746,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (st && S.boot.book) {
         var ents = sum.entries, nBk = 0, nCt = 0;
         items().forEach(function (it) { var e = ents[it.id]; if (e && L.isNum(e.v)) { if (e.bk) nBk++; else nCt++; } });
-        var diffs = L.bookDiffs(items(), ents, S.boot.book);
+        var sale = L.saleIdsOf(items(), ZONES), diffs = L.bookDiffs(items(), ents, S.boot.book, sale);
+        var sales = L.saleRows(items(), ents, S.boot.book, sale);
         h += '<div class="section-h">📒 ยอดตามบัญชี <span class="n">(นับจริง ' + nCt + ' · ตามยอด ' + nBk + ')</span></div>';
         h += diffs.length ? '<div class="note warn" style="margin-bottom:8px">นับไม่ตรงยอดตามบัญชี ' + diffs.length + ' รายการ — นับซ้ำอีกที ถ้าตรงแล้วส่งได้เลย (บอสจะเห็นว่าหาย/เกิน)</div><div class="card sum-list">' +
           diffs.map(function (x) {
@@ -2722,6 +2755,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
             return '<div class="rep-row' + (x.diff < 0 ? ' out' : '') + '" data-act="kp" data-id="' + esc(x.item.id) + '"><div><b>' + esc(x.item.name_th) + '</b> — ตามบัญชี ' + L.fmtNum(x.bal) + ' นับได้ ' + L.fmtNum(x.counted) + u +
               ' (' + (x.diff < 0 ? 'หาย ' + L.fmtNum(-x.diff) : 'เกิน ' + L.fmtNum(x.diff)) + u + ')</div></div>';
           }).join('') + '</div>' : (nCt ? '<div class="note ok">✅ ที่นับจริงตรงยอดตามบัญชีทุกรายการ</div>' : '');
+        h += salesHtml(sales);
       }
       if (!st) {
         h += '<div class="section-h">🔪 ' + bi1('toMake') + ' <span class="n">(' + sum.prep.length + ')</span></div>';
@@ -3637,7 +3671,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var b = bookOf(it), fd = fullDay(), packs = packsOf(it);
     var h = '';
     if (fd) h += '<div class="note warn kp-note">📅 วันนี้วันนับจริง — นับทุกรายการ (ไม่มีปุ่มตามยอด)</div>';
-    else if (b && !isMulti(it)) h += '<button class="btn kp-book" data-act="kpBook">✓ ตรงตามยอด <b>' + L.fmtNum(b.bal) + '</b> ' + esc(it.unit) + '</button>';
+    else if (b && !isMulti(it) && !isSaleItem(it)) h += '<button class="btn kp-book" data-act="kpBook">✓ ตรงตามยอด <b>' + L.fmtNum(b.bal) + '</b> ' + esc(it.unit) + '</button>';
     h += '<div class="kp-disp' + (buf === '' ? ' empty' : '') + (e && (e.lv === 'low' || e.lv === 'out') ? ' below' : '') + '" id="kp-disp">' + esc(buf !== '' ? bufText(buf) : shown) + ' <small>' + esc(it.unit) + '</small>' +
       (e && e.bk && buf === '' ? ' <small class="tag ok">ตามยอด</small>' : '') + (e && e.lv === 'low' ? ' <small class="tag warn">ใกล้หมด</small>' : '') + '</div>';
     h += '<div class="kp-grid">' + ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'].map(function (k) {
@@ -4103,7 +4137,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     // สโตร์: ตรงตามยอดตามบัญชี (ไม่ได้นับจริง — รายงานบอกแยก)
     kpBook: function () {
       var b = bookOf(itemById(S.kp.id));
-      if (!b || fullDay() || kpJustOpened() || isMulti(itemById(S.kp.id))) return;
+      if (!b || fullDay() || kpJustOpened() || isMulti(itemById(S.kp.id)) || isSaleItem(itemById(S.kp.id))) return;
       setEntry(kpKey(), { v: b.bal, bk: true });
       afterKp(S.kp.id);
     },
@@ -5423,6 +5457,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div><label>แผนก (ใครนับ/ส่งรายงานที่นี่)</label><input type="text" id="z-sec" list="z-sec-list" value="' + esc(z.section || L.DEFAULT_SECTION) + '" maxlength="30" placeholder="ครัว">' +
       '<datalist id="z-sec-list">' + staffSecChoices(A.data.staff).map(function (x) { return '<option value="' + esc(x) + '">'; }).join('') + '</datalist>' +
       '<small class="muted">พิมพ์ชื่อใหม่ = สร้างแผนกใหม่ (เช่น หน้าร้าน) · พนักงานที่ตั้งแผนกนี้จะเห็นที่เก็บนี้</small></div>' +
+      '<label class="check" style="font-weight:500"><input type="checkbox" id="z-weekly"' + (z.weekly ? ' checked' : '') + '> 📅 นับสัปดาห์ละครั้ง (วันนับเต็มรอบ — ตั้งในหน้าตั้งค่า)</label>' +
+      '<label class="check" style="font-weight:500"><input type="checkbox" id="z-sale"' + (z.sale ? ' checked' : '') + '> 🍺 ขายหน้าร้าน (ไม่เบิก) — ที่หายไปจากยอดตามบัญชีคิดเป็น "ขายไป" ไม่ใช่ "หาย"</label>' +
       '<button class="btn btn-primary" data-act="zoneDone">ตกลง</button>' +
       (A.zoneDraft.length > 1 ? (n ? '<p class="muted center" style="margin:0;font-size:13.5px">ลบที่เก็บนี้ไม่ได้ ยังมี ' + n + ' รายการที่อยู่ที่นี่ที่เดียว — ย้ายไปที่อื่นก่อน (รายการของ → 🏷️ ติดแท็กหลายรายการ)</p>'
         : '<button class="btn btn-danger" data-act="zoneDel">🗑️ ลบที่เก็บนี้</button>') : '') +
@@ -5430,6 +5466,16 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
+  // สโตร์ หน้าตรวจ: เครื่องดื่มขายหน้าร้าน — ขายไปเท่าไหร่ (ยกมา + รับ − นับได้)
+  function salesHtml(sales) {
+    if (!sales.length) return '';
+    return '<div class="section-h">🍺 ขายหน้าร้าน <span class="n">(คิดจากที่นับ · ' + sales.length + ')</span></div><div class="card sum-list">' + sales.map(function (x) {
+      var u = ' ' + esc(x.item.unit);
+      return '<div class="rep-row' + (x.sold < 0 ? ' out' : '') + '" data-act="kp" data-id="' + esc(x.item.id) + '"><div><b>' + esc(x.item.name_th) + '</b> — ' +
+        (x.sold >= 0 ? 'ขายไป <b>' + L.fmtNum(x.sold) + '</b>' + u : 'นับได้มากกว่าบัญชี ' + L.fmtNum(-x.sold) + u + ' (รับของไม่ได้บันทึก?)') + '</div>' +
+        '<small class="muted">ยกมา ' + L.fmtNum(x.base) + (x.inQty ? ' + รับ ' + L.fmtNum(x.inQty) : '') + ' − เหลือ ' + L.fmtNum(x.counted) + ' · ตั้งแต่ ' + esc(L.thaiDate(x.baseDate)) + '</small></div>';
+    }).join('') + '</div>';
+  }
   // แผนกทั้งหมด = จากที่เก็บ + ที่ตั้งให้พนักงานไว้ก่อน (ยังไม่มีที่เก็บ)
   function staffSecChoices(st) {
     var out = L.sectionList(ZONES);
@@ -5442,6 +5488,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (th) z.th = th.value.trim();
     if (mm) z.mm = mm.value.trim();
     if (sec) z.section = L.cleanSection(sec.value) || L.DEFAULT_SECTION;
+    var wk = document.getElementById('z-weekly'), sl = document.getElementById('z-sale');
+    if (wk) z.weekly = wk.checked;
+    if (sl) z.sale = sl.checked;
   }
 
   function itemTags(it) {
@@ -5600,7 +5649,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<input type="tel" id="s-stpin" maxlength="4" inputmode="numeric" placeholder="' + (s.storePin ? 'ว่างไว้ = ไม่เปลี่ยน' : 'ตัวเลข 4 หลัก ไม่ซ้ำรหัสร้าน') + '"></div>' +
       '<p class="muted" style="margin:0;font-size:14px">ใส่รหัสสโตร์ที่หน้าแรกของแอพ (ช่องเดียวกับรหัสร้าน) = เห็นเฉพาะสโตร์ · รหัสร้านเห็นเฉพาะครัว</p>' +
       (s.storePin ? '<label class="check"><input type="checkbox" id="s-stclear"> ยกเลิกรหัสสโตร์ (ปิดการเข้าสโตร์)</label>' : '') +
-      '<div><label>📅 วันนับจริงสโตร์ (วันนั้นไม่มีปุ่ม "ตรงตามยอด" ต้องนับทุกรายการ)</label><select id="s-stday"><option value="">ไม่กำหนด</option>' +
+      '<div><label>📅 วันนับจริงสโตร์ (วันนั้นไม่มีปุ่ม "ตรงตามยอด" ต้องนับทุกรายการ · ที่เก็บสโตร์ที่นับสัปดาห์ละครั้ง เช่นเครื่องดื่ม นับวันนี้)</label><select id="s-stday"><option value="">ไม่กำหนด</option>' +
       days.map(function (n, i) { return '<option value="' + i + '"' + (s.storeFullDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' +
       (ZONES.some(function (z) { return z.weekly; }) ? '<div><label>วันนับเต็มรอบ (ที่เก็บที่นับสัปดาห์ละครั้ง: ' + esc(ZONES.filter(function (z) { return z.weekly; }).map(function (z) { return z.th; }).join(', ')) + ')</label><select id="s-day">' +
       days.map(function (n, i) { return '<option value="' + i + '"' + (s.fullCountDay === i ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></div>' : '') +
@@ -6331,7 +6380,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       promptBox('ชื่อที่เก็บใหม่', 'เช่น ตู้ฟรีซ 2').then(function (name) { if (name) tagNewPlaceAdd(el, name); });
     },
     zonesOpen: function () {
-      S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, section: L.sectionOf(z), th0: z.th, mm0: z.mm }; });
+      S.admin.zoneDraft = ZONES.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: !!z.weekly, sale: L.isSaleZone(z), section: L.sectionOf(z), th0: z.th, mm0: z.mm }; });
       S.admin.zoneDirty = false; S.admin.zoneSaving = false;
       go('azones');
     },
@@ -6380,7 +6429,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     zonesSave: function () {
       var A = S.admin;
       A.zoneSaving = true; rerenderKeepScroll();
-      saveZones(A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly, section: z.section || '' }; })).then(function (r) {
+      saveZones(A.pin, A.zoneDraft.map(function (z) { return { id: z.id, icon: z.icon, th: z.th, mm: z.mm, kind: z.kind, weekly: z.weekly, sale: !!z.sale, section: z.section || '' }; })).then(function (r) {
         useZones(r.zones);
         A.data.items = r.items;
         if (S.boot) { S.boot.zones = r.zones; S.boot.items = r.items.filter(function (i) { return i.active !== false; }); }
