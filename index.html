@@ -13,7 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="สต็อคครัว">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<script>window.BKT_API = "https://script.google.com/macros/s/AKfycbz4xm8RxxVZgKTjjk6MesQgBJsy4bQO4wobnCwDxLOweGKVmgIYzwuv7UdI9Jeir8wavQ/exec"; window.BKT_BUILD = "2026-11-06T04:52";</script>
+<script>window.BKT_API = "https://script.google.com/macros/s/AKfycbz4xm8RxxVZgKTjjk6MesQgBJsy4bQO4wobnCwDxLOweGKVmgIYzwuv7UdI9Jeir8wavQ/exec"; window.BKT_BUILD = "2026-11-11T09:33";</script>
 <script>
 // มือถือที่เปิดแล้วค้าง/โค้ดพัง → ส่งบันทึกเข้าหลังบ้าน (แท็บ "บันทึกปัญหาเครื่อง") ไว้ดูสาเหตุจริง · ทำงานเฉพาะตอนพัง ไม่ถ่วงแอพ
 // เขียนแบบเก่าสุด (ES3/5 + XMLHttpRequest) ให้รันได้แม้เบราว์เซอร์ที่โค้ดหลักรันไม่ได้
@@ -74,6 +74,9 @@
   --radius: 16px;
   --shadow: 0 1px 2px rgba(28, 25, 23, .06), 0 4px 14px rgba(28, 25, 23, .06);
   --font: 'Noto Sans Thai', 'Noto Sans Myanmar', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --led-recv: #2a78d6;
+  --led-out: #eb6834;
+  --led-waste: #1baf7a;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -663,13 +666,45 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .dr-sent:first-of-type { margin-top: 8px; }
 .dr-sent .btn { width: auto; min-height: 44px; padding: 0 14px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 
+/* ---------- สมุดรับ-เบิก ---------- */
+.led-link { margin-top: 14px; min-height: 48px; font-size: 15px; font-weight: 600; }
+.led-chart { padding: 10px 10px 8px; }
+.led-read { padding: 4px 6px 0; font-size: 13.5px; color: var(--muted); min-height: 24px; }
+.led-head, .led-row { display: grid; grid-template-columns: minmax(0, 1fr) repeat(var(--c, 3), 58px); gap: 4px; align-items: center; }
+.led-head { padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--muted); text-align: right; line-height: 1.3; }
+.led-head .mm { display: block; font-size: 11.5px; font-weight: 500; }
+.led-row { width: 100%; padding: 10px 12px; text-align: left; border-top: 1px solid var(--line); content-visibility: auto; contain-intrinsic-size: auto 62px; }
+.led-row .nm { min-width: 0; }
+.led-row .nm b { display: block; font-size: 15.5px; line-height: 1.35; }
+.led-row .nm small { display: block; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.led-row .v { text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.led-row .v.z, .led-tbl .z { color: var(--muted); font-weight: 500; }
+.led-stats { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.led-stats .card { padding: 10px 12px; display: flex; flex-direction: column; min-width: 0; }
+.led-stats span { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.led-stats i, .led-mv > i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.led-stats b { font-size: 22px; line-height: 1.25; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.led-stats small { font-size: 12.5px; color: var(--muted); }
+.led-tbl-wrap { padding: 4px 12px 6px; overflow-x: auto; }
+.led-tbl { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+.led-tbl th { padding: 7px 0; font-size: 12.5px; color: var(--muted); font-weight: 700; text-align: left; line-height: 1.3; }
+.led-tbl th .mm { display: block; font-size: 11.5px; font-weight: 500; }
+.led-tbl td { padding: 8px 0; border-top: 1px solid var(--line); white-space: nowrap; }
+.led-tbl .n { text-align: right; padding-left: 8px; font-variant-numeric: tabular-nums; }
+.led-tbl small { font-size: 12.5px; color: var(--muted); }
+.led-moves { padding: 2px 14px; }
+.led-mv { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); line-height: 1.4; }
+.led-mv:first-child { border-top: 0; }
+.led-mv > i { margin-top: 7px; }
+.led-mv b { font-size: 15px; }
+.led-mv small { font-size: 12.5px; color: var(--muted); }
+.led-mv div > small:last-child { display: block; }
+
 </style>
 </head>
 <body>
 <div id="app"><div class="spinner"></div></div>
 <script>
-// ข้อความบนหน้าจอพนักงาน: [ไทย, พม่า] — ฝั่งพม่าให้บรรณาธิการพม่าตรวจก่อนใช้จริง
-// หน้าบอส (ตั้งค่า) ใช้ภาษาไทยอย่างเดียว ไม่ต้องอยู่ในไฟล์นี้
 var I18N = {
   appTitle: ['เช็คสต็อคครัว', 'မီးဖိုချောင် စတော့စစ်'],
   enterPin: ['ใส่รหัสร้าน', 'ဆိုင်ကုဒ် ထည့်ပါ'],
@@ -739,7 +774,6 @@ var I18N = {
   spoiledPhotoHint: ['ของเสีย: ถ่ายรูปไว้ด้วยจะดีมาก', 'ပျက်သွားတဲ့ပစ္စည်း — ဓာတ်ပုံ ရိုက်ထားရင် ပိုကောင်းတယ်'],
   typeAnyLang: ['พิมพ์ไทยหรือพม่าก็ได้', 'ထိုင်းလိုဖြစ်ဖြစ် မြန်မာလိုဖြစ်ဖြစ် ရေးလို့ရတယ်'],
   autoTranslated: ['แอพแปลเป็นไทยให้บอสเอง', 'အက်ပ်က ဘော့စ်အတွက် ထိုင်းလို ဘာသာပြန်ပေးမယ်'],
-  // รับของ (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69 — ใช้ ပစ္စည်းအော်ဒါ กันสับสนกับออเดอร์อาหารลูกค้า)
   receive: ['รับของ', 'ပစ္စည်းလက်ခံ'],
   poLabel: ['ใบสั่ง', 'ပစ္စည်းအော်ဒါ'],
   receiveWaiting: ['มีของรอรับ {n} ใบสั่ง', 'လက်ခံစရာ ပစ္စည်းအော်ဒါ {n} ခု ရှိတယ်'],
@@ -761,12 +795,9 @@ var I18N = {
   partial: ['มาบางส่วน', 'တချို့ပဲ ရောက်'],
   countedIfAny: ['นับได้ (ถ้านับ)', 'ရေတွက်ပြီး (ရှိရင်)'],
   urgentSent: ['แจ้งบอสแล้ว', 'ဘော့စ်ကို ပြောပြီးပြီ'],
-  // ของมาขาด/เกิน + แก้ใบรับของ (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69 — ให้ MON ยืนยัน ထွက်တဲ့ အလေးချိန် และปุ่มคู่ ถือว่าครบ/รอ)
   shortBy: ['น้อยกว่าที่สั่ง {n} {u}', 'မှာထားတာထက် {n} {um} လျော့နေတယ်'],
   countAsDone: ['ถือว่าครบ', 'စုံပြီလို့ မှတ်မယ်'],
   waitMore: ['รอของมาเพิ่ม', 'ကျန်တာ စောင့်မယ်'],
-  // หน้ารับของแบบใส่ตัวเลข ไม่ต้องติ๊ก + ของชั่งใส่กรัม (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ကွက်တိပဲ, ချိန်/ရေတွက်, ချိန်လို့ ထွက်တာ, ဂဏန်း)
-  // ของต้องทำเพิ่ม + กันพิมพ์ผิด + แผนก (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน တာဝန်ခံ, ဌာန, ပြည့်အောင် လုပ်ပြီးပြီ, ဖြစ်သွားပြီ)
   prepToday: ['ต้องทำเพิ่มวันนี้', 'ဒီနေ့ ထပ်လုပ်ရန်'],
   prepCard: ['ต้องทำเพิ่ม {n} รายการ', 'ထပ်လုပ်စရာ {n} ခု ရှိတယ်'],
   prepMakeTo: ['ทำเพิ่ม {n} {u} → ให้ถึง {t}', '{n} {um} ထပ်လုပ်ပါ → {t} ပြည့်အောင်'],
@@ -784,9 +815,7 @@ var I18N = {
   roleLeadShort: ['หัวหน้า', 'တာဝန်ခံ'],
   roleHelperShort: ['ผู้ช่วย', 'အကူ'],
   roleManagerShort: ['ผู้จัดการร้าน', 'မန်နေဂျာ'],
-  // สูตรของที่ต้องผลิต (บรรณาธิการพม่าตรวจแล้ว 11 ต.ค. 69 — ให้ MON ยืนยัน သုတ်)
   recipeUse: ['วัตถุดิบที่ใช้ ({n} รอบ)', 'ပါဝင်ပစ္စည်း ({n} သုတ်)'],
-  // หัวหน้าตรวจชื่อพม่าเอง (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ခေါ်နေကျ (mmHint), zawgyiWarn) · 4 พ.ย. 69 แก้หน่วยได้ด้วย: ให้ MON ยืนยัน ယူနစ်
   mmCheckTitle: ['ตรวจชื่อ/หน่วยพม่า', 'မြန်မာ နာမည်/ယူနစ် စစ်မယ်'],
   mmHint: ['ชื่อหรือหน่วยไหนถูกกด ✓ · ผิดกด "แก้" แล้วพิมพ์ชื่อหรือหน่วยที่ทีมเรียกจริง', 'နာမည်/ယူနစ် မှန်ရင် ✓ နှိပ်ပါ · မှားရင် "ပြင်မယ်" ကို နှိပ်ပြီး ဆိုင်မှာ ခေါ်နေကျ နာမည်/ယူနစ် ရိုက်ပါ'],
   mmUnchecked: ['ยังไม่ได้ตรวจ ({n})', 'မစစ်ရသေး ({n})'],
@@ -801,12 +830,10 @@ var I18N = {
   mmUnitNeedBurmese: ['พิมพ์หน่วยภาษาพม่าก่อน', 'မြန်မာလို ယူနစ် အရင်ရိုက်ပါ'],
   mmNoThai: ['ห้ามมีตัวอักษรไทย — พิมพ์ภาษาพม่าอย่างเดียว', 'ထိုင်းစာလုံး မထည့်ပါနဲ့ — မြန်မာလိုပဲ ရိုက်ပါ'],
   mmSavedN: ['ชื่อ/หน่วยพม่าที่ตรวจ {n} รายการ', 'စစ်ထားတဲ့ မြန်မာ နာမည်/ယူနစ် {n} ခု'],
-  // จำนวนครั้งก่อนในแป้นนับ (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน လွန်ခဲ့တဲ့ {n} ရက်က, ခါ/ခေါက်)
   lastCount: ['ครั้งก่อน', 'အရင်တစ်ခါ'],
   yesterday: ['เมื่อวาน', 'မနေ့က'],
   daysAgo: ['{n} วันก่อน', 'လွန်ခဲ့တဲ့ {n} ရက်က'],
   bigVsLast: ['{n} {u} เยอะกว่าครั้งก่อนมาก (ครั้งก่อน {last} {u}) — ตัวเลขถูกไหม?', '{n} {um} က အရင်တစ်ခါထက် အများကြီး ပိုနေတယ် (အရင်တစ်ခါ {last} {um}) — ဂဏန်း မှန်ရဲ့လား?'],
-  // ส่งตามหลัง (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ထပ်ပို့ကြည့်မယ်, ပို့ဖို့ စောင့်နေတာ, ဖျက်ပစ်မယ်, poSending)
   savedSending: ['บันทึกแล้ว · กำลังส่งให้บอส', 'သိမ်းပြီးပြီ · ဘော့စ်ဆီ ပို့နေတယ်'],
   outboxWaiting: ['รอส่ง {n} รายการ — แอพส่งให้เองเมื่อเน็ตกลับมา', 'ပို့ဖို့ စောင့်နေတာ {n} ခု — အင်တာနက် ပြန်ရရင် အက်ပ်က အလိုလို ပို့ပေးမယ်'],
   poSending: ['ใบรับของรอบก่อนของใบนี้ยังส่งไม่เสร็จ — รอสักครู่', 'ဒီပစ္စည်းအော်ဒါအတွက် အရင်တစ်ခေါက် လက်ခံတာ ပို့နေဆဲ — ခဏစောင့်ပါ'],
@@ -815,7 +842,6 @@ var I18N = {
   retry: ['ลองส่งใหม่', 'ထပ်ပို့ကြည့်မယ်'],
   discard: ['ทิ้ง', 'ဖျက်ပစ်မယ်'],
   discardAsk: ['ทิ้งรายการนี้? บอสจะไม่ได้รับ', 'ဖျက်ပစ်မလား? ဖျက်ရင် ဘော့စ်ဆီ မရောက်တော့ဘူး'],
-  // อ่านบิลด้วย AI (บรรณาธิการพม่าตรวจแล้ว 10 ต.ค. 69 — ให้ MON ยืนยัน ယူနစ်, ကြည်ကြည်, တိုက်ကြည့်, ဘေလ်အတိုင်း, တကယ်ရောက်ရင်)
   readBill: ['อ่านบิลด้วย AI', 'ဘေလ်ကို AI နဲ့ ဖတ်မယ်'],
   readingBill: ['กำลังอ่านบิล… (10–40 วินาที)', 'ဘေလ် ဖတ်နေတယ်… (10–40 စက္ကန့်)'],
   needBillPhoto: ['ถ่ายรูปบิลก่อน', 'ဘေလ်ပုံ အရင်ရိုက်ပါ'],
@@ -839,14 +865,12 @@ var I18N = {
   voided: ['ยกเลิกแล้ว', 'ဖျက်ပြီးပြီ'],
   edited: ['แก้แล้ว', 'ပြင်ထားတယ်'],
   editOnlyRecent: ['แก้ได้เฉพาะของวันนี้และเมื่อวาน', 'ဒီနေ့နဲ့ မနေ့က စာရင်းပဲ ပြင်လို့ရတယ်'],
-  // ของชิ้นเดียวเก็บหลายที่ (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69 — ให้ MON ยืนยัน "{n} နေရာ" และ countHere)
   multiLoc: ['เก็บ {n} ที่ · นับให้ครบทุกที่', '{n} နေရာမှာ ထားတယ် · နေရာတိုင်းမှာ ရေတွက်ပါ'],
   countedAt: ['นับแล้ว {c}/{n} ที่', 'ရေတွက်ပြီး {c}/{n} နေရာ'],
   totalAll: ['รวมทุกที่ {total}', 'နေရာအားလုံးပေါင်း {total}'],
   stillAt: ['ยังไม่นับที่: {list}', 'မရေတွက်ရသေးတဲ့နေရာ: {list}'],
   countHere: ['นับเฉพาะที่นี่', 'ဒီမှာ ရှိတာပဲ ရေတွက်ပါ'],
   todayHere: ['มีของต้องนับวันนี้ {n}', 'ဒီနေ့ ရေတွက်စရာ {n} ခု ရှိတယ်'],
-  // บันทึกของเสีย (waste) แทนแจ้งด่วน — 11 ต.ค. 69 (บรรณาธิการพม่าตรวจแล้ว 11 ต.ค. 69 — ใช้ ပစ်လိုက်တဲ့ ပစ္စည်း แทน အလေအလွင့် ซึ่งเป็นคำหนังสือ/นามธรรม · ให้ MON ยืนยัน ပစ်လိုက်တဲ့ ပစ္စည်း vs အလေအလွင့်, ပစ်လိုက်တာ (ป้ายช่องจำนวน))
   waste: ['บันทึกของเสีย', 'ပစ်လိုက်တဲ့ ပစ္စည်း မှတ်မယ်'],
   wasteTitle: ['บันทึกของเสีย', 'ပစ်လိုက်တဲ့ ပစ္စည်း စာရင်း'],
   wasteHow: ['เลือกวัตถุดิบที่ทิ้ง ใส่จำนวน แล้วถ่ายรูป · ทิ้งหลายอย่างพร้อมกัน ใส่ได้หลายรายการ', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို ရွေးပြီး အရေအတွက် ထည့်ပါ၊ ပြီးရင် ဓာတ်ပုံ ရိုက်ပါ · တစ်ခါတည်း ပစ္စည်း အမျိုးမျိုး ပစ်ရရင် တစ်ခုပြီးတစ်ခု ထပ်ထည့်လို့ရတယ်'],
@@ -857,23 +881,45 @@ var I18N = {
   wasteNeedPhoto: ['ถ่ายรูปของที่ทิ้งอย่างน้อย 1 รูป', 'ပစ်လိုက်တဲ့ ပစ္စည်းကို ဓာတ်ပုံ အနည်းဆုံး 1 ပုံ ရိုက်ပါ'],
   wasteNote: ['สาเหตุ / รายละเอียด (ถ้ามี)', 'ဘာကြောင့် ပစ်ရလဲ / အသေးစိတ် (ရှိရင်)'],
   wasteSentList: ['ส่งแล้ว', 'ပို့ပြီးပြီ'],
-  // หน้าตรวจก่อนส่ง = รายงานสรุปภาษาพม่า ให้หัวหน้าครัวตรวจตัวเลขก่อนส่งบอส — 14 ต.ค. 69 (บรรณาธิการพม่าตรวจแล้ว 14 ต.ค. 69 — ให้ MON ยืนยัน မရှိဘူးလို့ တွက်ထားတယ် (skippedZero) และหน่วย ခိတ် ในบรรทัดพม่า)
   reviewHow: ['นี่คือรายงานที่บอสจะได้รับ · ตรวจตัวเลขก่อนส่ง · ผิดตรงไหน แตะรายการนั้นแล้วแก้', 'ဒါက ဘော့စ်ဆီ ရောက်မယ့် စာရင်းပါ · မပို့ခင် ဂဏန်းတွေ စစ်ပါ · မှားနေရင် အဲဒီပစ္စည်းကို နှိပ်ပြီး ပြင်ပါ'],
   skippedZero: ['ไม่ได้นับ {z} — คิดว่าไม่มี', '{zm} မှာ မရေတွက်ရသေးဘူး — မရှိဘူးလို့ တွက်ထားတယ်'],
-  // นับไม่ครบทุกที่ = ส่งไม่ได้ (บอสสั่ง 22 ต.ค. 69 · บรรณาธิการพม่าตรวจแล้ว 22 ต.ค. 69 — ให้ MON ยืนยัน ကုန်ပြီ = ที่นี้มี 0 (ปุ่มติดชื่อที่เก็บไว้ด้วย), မရေတွက်ရသေးတဲ့နေရာ ရှိသေးတယ်)
   partialHead: ['นับไม่ครบทุกที่ {n} รายการ — ต้องนับให้ครบก่อนส่ง', 'ပစ္စည်း {n} ခုမှာ မရေတွက်ရသေးတဲ့နေရာ ရှိသေးတယ် — မပို့ခင် စုံအောင် ရေတွက်ရမယ်'],
   partialHow: ['แตะรายการเพื่อนับที่ที่ยังไม่ได้นับ · ถ้าที่นั้นไม่มีของ กด "หมด"', 'ပစ္စည်းကို နှိပ်ပြီး မရေတွက်ရသေးတဲ့နေရာမှာ ရေတွက်ပါ · အဲဒီနေရာမှာ ပစ္စည်း မရှိရင် "ကုန်ပြီ" ကို နှိပ်ပါ'],
   partialBlock: ['ยังนับไม่ครบทุกที่ {n} รายการ — นับให้ครบ หรือกด "หมด" ถ้าไม่มีของ แล้วค่อยส่ง', 'ပစ္စည်း {n} ခုမှာ မရေတွက်ရသေးတဲ့နေရာ ရှိသေးတယ် — စုံအောင် ရေတွက်ပါ၊ ပစ္စည်း မရှိရင် "ကုန်ပြီ" ကို နှိပ်ပါ၊ ပြီးမှ ပို့လို့ရမယ်'],
   recipeBuy: ['วัตถุดิบตามสูตร (ซื้อเพิ่ม)', 'ချက်နည်းအတွက် ထပ်ဝယ်ရမယ့် ပါဝင်ပစ္စည်း'],
   showList: ['ดูรายการ', 'စာရင်း ကြည့်မယ်'],
-  // ค้นหา (บรรณาธิการพม่าตรวจแล้ว 9 ต.ค. 69)
   notFound: ['ไม่พบ "{q}"', '"{q}" ရှာမတွေ့ပါ'],
   searchHere: ['ค้นหาในที่นี้', 'ဒီနေရာမှာ ရှာရန်'],
+  ledTitle: ['สมุดรับ-เบิก', 'လက်ခံ-ထုတ်ယူ စာရင်း'],
+  ledIn: ['รับ', 'လက်ခံ'],
+  ledOut: ['เบิก', 'ထုတ်ယူ'],
+  ledWaste: ['เสีย', 'ပစ်တာ'],
+  ledCount: ['นับได้', 'ရေတွက်'],
+  ledDate: ['วันที่', 'ရက်စွဲ'],
+  ledProduce: ['ทำเพิ่ม', 'ထပ်လုပ်တာ'],
+  ledAdjust: ['แก้ใบรับ', 'လက်ခံစာရင်း ပြင်တာ'],
+  ledDays: ['{n} วัน', '{n} ရက်'],
+  ledAll: ['ทั้งหมด', 'အားလုံး'],
+  ledPerDay: ['บันทึกต่อวัน (จำนวนรายการ)', 'တစ်ရက်ကို မှတ်တဲ့ စာရင်း (ခု)'],
+  ledTapBar: ['แตะแท่งเพื่อดูตัวเลข', 'ဂဏန်း ကြည့်ဖို့ တိုင်ကို နှိပ်ပါ'],
+  ledByItem: ['แยกตามรายการ', 'ပစ္စည်း တစ်ခုချင်း'],
+  ledEmpty: ['ช่วงนี้ยังไม่มีบันทึกรับ-เบิก', 'ဒီရက်တွေမှာ လက်ခံ-ထုတ်ယူ စာရင်း မရှိသေးဘူး'],
+  ledLast: ['บันทึกล่าสุด {d}', 'နောက်ဆုံး မှတ်ထားတာ {d}'],
+  ledHowTo: ['กดรับของทุกครั้งที่ของมา ข้อมูลจะขึ้นที่นี่', 'ပစ္စည်းရောက်တိုင်း "ပစ္စည်းလက်ခံ" ကို နှိပ်ပါ၊ စာရင်း ဒီမှာ ပေါ်လာမယ်'],
+  ledNoMatch: ['ไม่พบรายการ', 'ပစ္စည်း ရှာမတွေ့ပါ'],
+  ledDayTable: ['รายวัน', 'တစ်ရက်ချင်း'],
+  ledWho: ['ใครทำอะไร', 'ဘယ်သူ ဘာလုပ်ထားလဲ'],
+  ledLevelChart: ['นับได้แต่ละวัน', 'တစ်ရက်ချင်း ရေတွက်ထားတာ'],
+  ledFlowChart: ['ของเข้า-ออกแต่ละวัน', 'တစ်ရက်ချင်း အဝင်အထွက်'],
+  ledOldUnit: ['มี {n} แถวเป็นหน่วยเก่า ไม่รวมในยอด', 'ယူနစ်ဟောင်းနဲ့ စာရင်း {n} ခု ရှိတယ်၊ စုစုပေါင်းထဲ မပါဘူး'],
+  ledNoMove: ['ไม่มีการเคลื่อนไหวในช่วงนี้', 'ဒီရက်တွေမှာ အဝင်အထွက် မရှိဘူး'],
+  ledLoadFail: ['โหลดไม่สำเร็จ', 'ဖွင့်လို့မရဘူး'],
+  ledRetry: ['ลองใหม่', 'ထပ်စမ်းကြည့်မယ်'],
+  ledLoading: ['กำลังโหลด', 'ဖွင့်နေတယ်'],
   tapPlace: ['แตะที่เก็บเพื่อไปนับ', 'ရေတွက်ဖို့ နေရာကို နှိပ်ပါ'],
   searchHint: ['พิมพ์ชื่อไทยหรือพม่าก็ได้', 'ထိုင်းလိုဖြစ်ဖြစ် မြန်မာလိုဖြစ်ဖြစ် ရိုက်ရှာလို့ရတယ်']
 };
 
-// โซนนับสต็อค (เรียงตามทางเดินในครัว) — weekly = นับเต็มรอบวันอาทิตย์
 var ZONES = [
   { id: 'fridge_raw',   icon: '🥬', th: 'ตู้เย็น · ของสด',      mm: 'ရေခဲသေတ္တာ · လတ်ဆတ်ပစ္စည်း',  kind: 'buy',  weekly: false },
   { id: 'fridge_prep',  icon: '🔪', th: 'ตู้เย็น · ของตัดแต่ง',  mm: 'ရေခဲသေတ္တာ · လှီးပြီးသား',    kind: 'prep', weekly: false },
@@ -883,12 +929,8 @@ var ZONES = [
   { id: 'dry',          icon: '📦', th: 'ของแห้ง',              mm: 'အခြောက်ပစ္စည်း',               kind: 'buy',  weekly: true }
 ];
 
-// ค่าตั้งต้นที่หลังบ้านใช้สร้างชีตหมวด — หน้าแอพเปลี่ยน ZONES เป็นของจริงจากหลังบ้าน (ตัวนี้ไม่เปลี่ยน)
 var DEFAULT_ZONES = ZONES;
 
-// หน่วยไทย → พม่า (หน้าตั้งค่าของบอสเติมให้อัตโนมัติ) — ပက်/ခိတ်/ဖရီဇာ รอ MON ยืนยันว่าในครัวเรียกแบบนี้
-// กล่อง = ဗူး (ဗ) ไม่ใช่ ဘူး (ဘ = "ไม่") — บรรณาธิการพม่าแก้ 9 ต.ค. 69 · หน่วยแถวท้าย (ลิตร…โหล) เพิ่ม 9 ต.ค. 69: ให้ MON ยืนยัน แผง/มล./ลัง
-// เสิร์ฟ/แท่ง/กิโลกรัม เพิ่ม 4 พ.ย. 69 (ไม่มีในตาราง → เปลี่ยนหน่วยไทยแล้วพม่าค้างคำเดิม) — บรรณาธิการพม่าตรวจแล้ว · ให้ MON ยืนยัน ပွဲ
 var UNITS = {
   'แพ็ค': 'ပက်', 'ถุง': 'အိတ်', 'กล่อง': 'ဗူး', 'กรัม': 'ဂရမ်', 'ขีด': 'ခိတ် (100 ဂရမ်)', 'กิโล': 'ကီလို',
   'ฟอง': 'လုံး', 'ลูก': 'လုံး', 'หัว': 'လုံး', 'จาน': 'ပန်းကန်', 'ถ้วย': 'ခွက်', 'ชิ้น': 'ခု', 'ตัว': 'ကောင်',
@@ -902,7 +944,6 @@ if (typeof module !== 'undefined') module.exports = { I18N: I18N, ZONES: ZONES, 
 
 </script>
 <script>
-// ตรรกะกลาง — ใช้ร่วมกันทั้งฝั่งมือถือ, ฝั่ง Apps Script และ test (ห้ามเรียก API ของ Google ในไฟล์นี้)
 var Logic = (function () {
   var TZ_OFFSET_MS = 7 * 3600 * 1000; // Asia/Bangkok ไม่มี DST
   var DAY_CUTOFF_HOUR = 5;            // นับหลังเที่ยงคืนก่อนตี 5 = ยังเป็นรอบของเมื่อวาน
@@ -912,7 +953,6 @@ var Logic = (function () {
 
   function pad(n) { return (n < 10 ? '0' : '') + n; }
 
-  // ท้ายวันทำการ (ก่อนตี 5 ของวันถัดไป) — ของที่บันทึกย้อนหลังลงเวลานี้ = หลังนับของวันนั้นแน่นอน (แม้นับหลังเที่ยงคืน)
   function bizDayEnd(date) {
     return new Date(addDays(date, 1) + 'T' + pad(DAY_CUTOFF_HOUR - 1) + ':59:00+07:00').toISOString();
   }
@@ -942,12 +982,10 @@ var Logic = (function () {
 
   function isNum(v) { return typeof v === 'number' && isFinite(v); }
 
-  // พร้อมคำนวณสั่งซื้อไหม: ต้องมี Min, Max, หน่วย และไม่มีโน้ต "ต้องตั้งค่า"
   function isConfigured(item) {
     return !item.setup_note && isNum(item.min) && isNum(item.max) && item.min <= item.max && !!item.unit;
   }
 
-  // กฎเดิมของร้าน: เหลือน้อยกว่า Min → เติมจนถึง Max · Min = 0 หมายถึง "หมดแล้วค่อยซื้อ"
   function needQty(item, qty) {
     if (!isConfigured(item) || !isNum(qty)) return null;
     var below = qty < item.min || (item.min === 0 && qty === 0);
@@ -960,7 +998,6 @@ var Logic = (function () {
   }
 
   function hasCount(e) { return !!e && (isNum(e.v) || !!e.lv); }
-  // ผลนับรายวัน (คอลัมน์ how): ของหลายที่ที่นับไม่ครบทุกที่ — บอสเห็นในประวัติ แต่ไม่เอาไปคิดอัตราใช้/พยากรณ์/ครั้งก่อน (ไม่รู้จริงว่าที่ที่ไม่ได้นับมีของไหม)
   var PARTIAL_HOW = 'ไม่ครบ';
   function isPartialHow(how) { return String(how || '').indexOf(PARTIAL_HOW) === 0; }
   function partialCount(e, zoneName) {
@@ -969,7 +1006,6 @@ var Logic = (function () {
     return { v: round2(tot), lv: null, by: e.by, at: e.at, how: PARTIAL_HOW + ': ไม่ได้นับ ' + (e.missing || []).map(function (z) { return zoneName ? zoneName(z) : z; }).join(', ') + ' (ยอดนี้รวมเฉพาะที่นับ)' };
   }
 
-  // รวมผลนับของคนอื่นเข้ามา — ทับเป็นรายชิ้น (คนกดทีหลังชนะ) · entry = null คือลบผลนับชิ้นนั้น
   function mergeEntries(draft, entries, by, atIso) {
     draft = draft || { entries: {} };
     draft.entries = draft.entries || {};
@@ -983,12 +1019,9 @@ var Logic = (function () {
     return draft;
   }
 
-  // ---------- แผนก (กลุ่มที่เก็บ) + พนักงานแต่ละคนดูแลแผนกไหน ----------
-  // ที่เก็บไม่ได้ระบุแผนก = ครัว · พนักงานไม่ได้ระบุแผนก = ดูแลทุกที่ (แบบเดิม)
   var DEFAULT_SECTION = 'ครัว';
   function cleanSection(s) { return String(s || '').replace(/[,.#$\[\]\/]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 30); }
   function sectionOf(z) { return cleanSection(z && z.section) || DEFAULT_SECTION; }
-  // สโตร์ (ของแห้ง/Package/ของใช้/เครื่องดื่ม) = แผนกที่ล็อกด้วยรหัสสโตร์ของผู้จัดการร้าน — มือถือครัวไม่ได้ข้อมูลส่วนนี้เลย
   var STORE_SECTION = 'สโตร์';
   function isStoreZone(z) { return sectionOf(z) === STORE_SECTION; }
   function sectionList(zones) {
@@ -999,13 +1032,11 @@ var Logic = (function () {
   function staffSections(st) {
     return String((st && st.sections) || '').split(',').map(cleanSection).filter(function (x, i, a) { return x && a.indexOf(x) === i; });
   }
-  // ที่เก็บที่คนนี้ต้องนับ
   function scopeZones(zones, st) {
     var mine = staffSections(st);
     if (!mine.length) return zones;
     return zones.filter(function (z) { return mine.indexOf(sectionOf(z)) >= 0; });
   }
-  // ชื่อรอบส่ง: '' = ทั้งร้าน · ไม่งั้น = ชื่อแผนก (ใช้หัวข้อความถึงบอส + แยกสถานะ "ส่งแล้ว" ของแต่ละแผนก)
   function scopeLabel(zones, st) {
     var all = sectionList(zones), mine = staffSections(st);
     if (all.length === 1 && all[0] !== DEFAULT_SECTION) return all[0]; // ทั้งชุดเป็นแผนกเดียวที่ไม่ใช่ครัว (สโตร์) → ใช้ชื่อแผนกเสมอ
@@ -1014,8 +1045,6 @@ var Logic = (function () {
   }
   function scopeKey(label) { return label ? 'S_' + label : 'ALL'; }
 
-  // แป้นพิมพ์ Zawgyi: สระ ေ ขึ้นหน้าคำ หรือใช้รหัสตัวซ้อน U+1060–1097 (Unicode พม่าไม่ใช้) → เครื่องอื่นอ่านไม่ออก
-  // กฎตามลำดับรหัส Unicode: ေ/medial ต้องตามหลังพยัญชนะ · ္ ต้องตามด้วยพยัญชนะ · ် ห้ามตามด้วยสระ/medial · รหัส Zawgyi เฉพาะ
   function looksZawgyi(s) {
     s = String(s || '');
     return /[\u1033\u1034\u1060-\u1097]/.test(s) ||
@@ -1024,16 +1053,11 @@ var Logic = (function () {
       /\u1039(?![\u1000-\u1021])/.test(s) ||
       /\u103A[\u102B-\u1032\u1036\u103B-\u103E]/.test(s);
   }
-  // ชื่อพม่าที่เครื่องแปล (ยังไม่มีคนยืนยัน) — 'mon' = หัวหน้าทีมยืนยันแล้ว
   function mmMachine(it) { return it && (it.mm_auto === 'google' || it.mm_auto === 'claude'); }
 
-  // ---------- ค้นหาแบบทนวิธีพิมพ์ต่างกัน ----------
-  // พม่า: คนพิมพ์คำเดียวกันได้หลายแบบ (ซ้อนตัว/ไม่ซ้อน เช่น သင်္ဘော / သင်ဘော / သဘော) และคีย์บอร์ด Zawgyi เก็บสระ/ตัวซ้อนคนละรหัส
-  //   → เทียบเฉพาะ "โครง" = พยัญชนะหลัก+สระลอย (ใช้รหัสเดียวกันทั้ง Unicode และ Zawgyi) · ไทย: ไม่สนวรรณยุกต์/การันต์/วงเล็บ
   function mmSkeleton(s) { return String(s || '').replace(/[^\u1000-\u102A\u103F\u104C-\u104F]/g, ''); }
   function thFold(s) { return String(s || '').toLowerCase().replace(/[\s\u0E48-\u0E4C()（）.\-·]/g, ''); }
   function isSubseq(q, s) { var i = 0; for (var j = 0; j < s.length && i < q.length; j++) if (s.charAt(j) === q.charAt(i)) i++; return i === q.length; }
-  // 3 = ตรงตามที่พิมพ์ · 2 = ตรงเมื่อไม่สนวรรณยุกต์/วิธีพิมพ์พม่า · 1 = พยัญชนะพม่าเรียงตรงกัน (พิมพ์ตกบางตัว) · 0 = ไม่ใช่
   function searchScore(it, q) {
     var raw = String(q || '').trim();
     if (!raw) return 1;
@@ -1051,13 +1075,10 @@ var Logic = (function () {
     return 0;
   }
 
-  // ---------- สูตรของที่ต้องผลิต (วัตถุดิบต่อ 1 รอบ) ----------
-  // recipe = { yield: 1 รอบได้กี่หน่วยนับ (ไม่ใส่ = ต่ำกว่า Min ทำ 1 รอบ), lines: [{ item_id, name, qty, unit }] }
   function recipeRounds(recipe, need) {
     if (!recipe || !recipe.lines || !recipe.lines.length || !(need > 0)) return 0;
     return isNum(recipe.yield) && recipe.yield > 0 ? Math.max(1, Math.ceil(need / recipe.yield - 1e-9)) : 1;
   }
-  // ของที่ต้องทำเพิ่ม → วัตถุดิบตามจำนวนรอบ + ที่นับได้ตอนนี้ (ไว้ดูประกอบ ไม่หักให้)
   function recipeNeeds(prepRows, recipes, entries, itemsById) {
     var out = [];
     (prepRows || []).forEach(function (r) {
@@ -1071,7 +1092,6 @@ var Logic = (function () {
     });
     return out;
   }
-  // วัตถุดิบในสูตร → บรรทัดใบสั่ง (key แยกต่อของที่ทำ ไม่ปนกับบรรทัดซื้อเติมของรายการเดียวกัน)
   function poLinesFromRecipes(needs, itemsById, unitsMm) {
     var out = [];
     (needs || []).forEach(function (nd) {
@@ -1087,8 +1107,6 @@ var Logic = (function () {
   }
   function recipeText(nd) { return nd.lines.map(function (l) { return l.name + ' ' + fmtNum(l.qty) + ' ' + l.unit + (l.have ? ' (มี ' + l.have + ')' : ''); }).join(' · '); }
 
-  // ---------- จำนวนที่นับครั้งก่อน (แป้นนับโชว์ + เตือนตัวเลขกระโดด) ----------
-  // rows = ผลนับรายวัน (เรียงอย่างไรก็ได้) → { itemId: { c: [จำนวน, ระดับ, วันที่] ล่าสุด, p: [...] วันก่อนหน้านั้น } }
   function lastCountsFrom(rows) {
     var map = {};
     (rows || []).forEach(function (r) {
@@ -1101,7 +1119,6 @@ var Logic = (function () {
     });
     return map;
   }
-  // ครั้งก่อนของวันนี้ = รอบที่วันที่ก่อนวันนี้ (วันนี้ส่งไปแล้วก็ยังโชว์ของเมื่อวาน)
   function prevCount(map, id, today) {
     var m = map && map[id];
     if (!m) return null;
@@ -1109,16 +1126,12 @@ var Logic = (function () {
     return r ? { v: r[0], lv: r[1], date: r[2] } : null;
   }
 
-  // ---------- ของชิ้นเดียวเก็บหลายที่ ----------
-  // ที่เก็บของรายการ: ที่หลัก (zone) + ที่เพิ่ม (more_zones) — นับแยกแต่ละที่แล้วรวม (เฉพาะรายการที่นับเป็นตัวเลข)
   function itemLocs(it) {
     var out = [it.zone];
     if (isConfigured(it)) String(it.more_zones || '').split(',').forEach(function (z) { z = z.trim(); if (z && out.indexOf(z) < 0) out.push(z); });
     return out;
   }
-  // ช่องเก็บผลนับในร่าง: ที่หลักใช้ id รายการ (เหมือนเดิม) · ที่เพิ่มใช้ id@หมวด
   function slotKey(it, zid) { return !zid || zid === it.zone ? it.id : it.id + '@' + zid; }
-  // ผลนับรวมของรายการ: ครบทุกที่ = {v: ผลรวม, parts} · นับไม่ครบ = {partial, parts, missing} (ยังไม่ถือว่านับแล้ว — ตอนสรุปรายงาน summarize คิดที่ที่ข้ามเป็น 0)
   function itemEntry(it, entries) {
     var ls = itemLocs(it);
     if (ls.length === 1) return entries[it.id];
@@ -1132,10 +1145,6 @@ var Logic = (function () {
     return missing.length ? { v: null, lv: null, partial: true, parts: parts, missing: missing, by: by, at: at }
       : { v: round2(sum), lv: null, parts: parts, by: by, at: at };
   }
-  // ================= ใครช่วยนับ (ประเมินทีม) =================
-  // นับ "ช่อง" ที่แต่ละคนลงตัวเลข/ระดับ (รายการ × ที่เก็บ — คนลงล่าสุดของช่องนั้น) ต่อวัน + ใครกดส่ง
-  // o = { drafts: [{ date, entries }], subs: [{ date, by, section }], staff: [ชื่อ], from, to }
-  // o.storeIds = รหัสรายการสโตร์ → แยกนับ "วันที่ครัวนับ" กับ "วันที่สโตร์นับ" (ตัวหารของแต่ละฝั่ง)
   function countStats(o) {
     var byDate = {}, per = {}, sids = o.storeIds || {};
     var day = function (d) { return byDate[d] || (byDate[d] = { date: d, people: {}, sent: [], total: 0, k: false, s: false }); };
@@ -1171,10 +1180,6 @@ var Logic = (function () {
     return { from: o.from, to: o.to, countDays: kDays, storeDays: sDays, days: days, people: people };
   }
 
-  // ================= คำแนะนำจำนวนสั่ง (ตอนสร้างใบสั่ง) =================
-  // ของรอบนี้ต้องพอใช้ตั้งแต่พรุ่งนี้ จนถึงวันก่อนที่ของรอบหน้ามาถึง: (วันสั่งรอบหน้า − วันนี้) + วันรอของ − 1 วัน
-  // ต้องสั่ง = ใช้คาดการณ์ในช่วงนั้น (ตามวันในสัปดาห์ถ้ามี ไม่งั้นเฉลี่ย) + เผื่อวันขายดี 1 วัน − ที่มีตอนนี้ − ที่สั่งไปแล้วยังไม่มา
-  // r = แถวจากแดชบอร์ด (stockAnalytics) · o = { today, nextDate, leadDays, minDays, onOrderAdj }
   function orderAdvice(r, o) {
     if (!r || r.avgDaily === null || r.avgDaily === undefined || !(r.days >= 3)) return { ok: false, why: 'few', days: r ? r.days || 0 : 0 };
     if (r.estNow === null || r.estNow === undefined) return { ok: false, why: 'nocount', days: r.days };
@@ -1191,7 +1196,6 @@ var Logic = (function () {
     return { ok: true, need: need, demand: round2(demand), safety: round2(safety), have: round2(r.estNow), onOrder: round2(onOrder), days: win,
       daily: r.avgDaily, lowData: r.days < (o.minDays || 7), dataDays: r.days, lastDay: addDays(o.today, win) };
   }
-  // จำนวนตามคำแนะนำ เป็นหน่วยของบรรทัดใบสั่ง (หน่วยซื้อ/แพ็คที่เลือก) — ปัดขึ้นแบบเดียวกับรายการต้องซื้อ
   function adviceQty(it, line, needCount) {
     if (!(needCount > 0)) return 0;
     var f = line.factor > 0 ? line.factor : 1;
@@ -1199,12 +1203,6 @@ var Logic = (function () {
     return Math.ceil(needCount / f - 1e-9);
   }
 
-  // ================= ยอดตามบัญชี (สต็อคการ์ด): ยอดยกมา + รับเข้า − เบิก − ของเสีย =================
-  // ยอดยกมา = ผลนับ (ตัวเลข) ครั้งล่าสุดก่อนวัน before · ของเข้า/ออกหลังเวลานับนั้น (หน่วยเดียวกับที่นับ)
-  // o = { items, counts: [{date, item_id, qty, unit, at}], moves: [{at, item_id, type, qty_count, count_unit}], before }
-  // ยอดยกมา = ผลนับล่าสุดก่อนวันนี้ · นับจริง = ของที่เกิดก่อนนับสะท้อนในตัวเลขแล้ว (นับเฉพาะที่เกิดหลังนับ)
-  // ยกมาจาก "ตามยอด" (ไม่ได้นับจริง) = ยอดบัญชีตอนกด → ของที่บันทึกหลังกด (rec_at) ต้องนับด้วย แม้ลงวันย้อนหลัง — ยกเว้นที่เกิดก่อนนับจริงครั้งก่อน
-  // mv = รายการเคลื่อนไหวหลังยอดยกมา (เวลาที่เกิดจริง) ไว้คิดยอด ณ เวลาที่นับ (bookDiffs)
   function bookBalances(o) {
     var byItem = {}, out = {}, realAt = {};
     (o.items || []).forEach(function (it) { byItem[it.id] = it; });
@@ -1227,7 +1225,6 @@ var Logic = (function () {
     Object.keys(out).forEach(function (k) { var b = out[k]; b.bal = round2(Math.max(0, b.base + b.inQty - b.outQty)); });
     return out;
   }
-  // ยอดตามบัญชี ณ เวลาที่นับ (ของที่เข้า/ออกหลังน้องลงตัวเลข ยังไม่อยู่ในตัวเลขนั้น)
   function bookAt(b, atIso) {
     if (!b) return null;
     if (!atIso || !b.mv || !b.mv.length) return b.bal;
@@ -1235,7 +1232,6 @@ var Logic = (function () {
     b.mv.forEach(function (m) { if (m.at <= String(atIso)) t += m.q; });
     return round2(Math.max(0, t));
   }
-  // นับจริงแล้วไม่ตรงยอดตามบัญชี (ไม่นับที่กด "ตรงตามยอด") — เรียงต่างมากก่อน
   function bookDiffs(items, entries, book, skip) {
     var rows = [];
     (items || []).forEach(function (it) {
@@ -1246,8 +1242,6 @@ var Logic = (function () {
     });
     return rows.sort(function (a, b) { return Math.abs(b.diff) - Math.abs(a.diff); });
   }
-  // ที่เก็บ "ขายหน้าร้าน" (เครื่องดื่ม — บอส 24 ต.ค.69: ไม่เบิก ขายหน้าร้านเลย นับสัปดาห์ละครั้ง)
-  // ของที่หายไปจากยอดตามบัญชี = ขายไป: ยกมา (นับครั้งก่อน) + รับเข้า − นับได้ · ติดลบ = นับได้มากกว่าบัญชี (รับของไม่ได้บันทึก?)
   function isSaleZone(z) { return !!z && (z.sale === true || String(z.sale).toUpperCase() === 'TRUE'); }
   function saleIdsOf(items, zones) {
     var zs = {}, out = {};
@@ -1273,8 +1267,6 @@ var Logic = (function () {
     return out;
   }
 
-  // สรุปทั้งรอบ: ของต้องซื้อ / ต้องทำเพิ่ม / รายการที่ต้องดู / ที่ยังไม่นับ
-  // หมวดนับเป็นช่อง (รายการ × ที่เก็บ) · ยอดรายการ = รวมทุกที่ · ต้องนับวันนี้ ถ้าที่เก็บใดที่หนึ่งถึงรอบนับ
   function summarize(items, zones, draft, opts) {
     var raw = (draft && draft.entries) || {};
     var zoneById = {};
@@ -1294,8 +1286,6 @@ var Logic = (function () {
       .forEach(function (it) {
         var home = out.zones[it.zone], e = entries[it.id], locs = locsOf[it.id];
         var due = locs.some(function (z) { return out.zones[z].due || started[z]; });
-        // ของหลายที่ นับแล้วบางที่: ที่ที่ข้ามไป (ถึงรอบนับวันนี้) = ไม่มีของ — น้องเปิดดูไม่เจอก็มักกดข้าม
-        // ที่เก็บรายสัปดาห์ที่ยังไม่ถึงรอบ = ไม่รู้จริง → ยังนับว่า "ยังไม่นับ" แบบเดิม
         if (e && e.partial && e.missing.every(function (z) { return !out.zones[z] || out.zones[z].due || started[z]; })) {
           out.partial.push({ item: it, parts: e.parts, missing: e.missing.filter(function (z) { return out.zones[z]; }) }); // หน้าตรวจ: ต้องนับให้ครบ/กดหมด ก่อนส่ง
           var tot = 0;
@@ -1335,8 +1325,6 @@ var Logic = (function () {
     return out;
   }
 
-  // แสดงเลขแบบเดียวกับที่พิมพ์ในแป้น: 0.5, 1.25, 1,500
-  // ใส่ลูกน้ำเอง (2000 → 2,000) — toLocaleString สร้างตัวจัดรูปแบบใหม่ทุกครั้ง ช้ามากบนมือถือ (เปิดตู้ครั้งแรกเสีย ~0.15 วิ แค่ตรงนี้)
   function fmtNum(n) {
     if (!isNum(n)) return '–';
     var r = Math.round(n * 100) / 100;
@@ -1348,7 +1336,6 @@ var Logic = (function () {
 
   function unitText(item) { return item.unit + (item.size ? ' (' + item.size + ')' : ''); }
 
-  // ร้านที่สั่งของแต่ละรายการครั้งล่าสุด (จากใบสั่ง) — ไว้จัดกลุ่มรายงานตามร้าน · ใบที่ไม่ระบุร้านไม่นับ
   function lastSuppliers(pos) {
     var out = {}, at = {};
     (pos || []).forEach(function (po) {
@@ -1362,13 +1349,9 @@ var Logic = (function () {
     return out;
   }
 
-  // ตำแหน่งที่นับ + กดส่งรายงานได้: หัวหน้า (lead) · ผู้จัดการร้าน (manager — บอส 28 ต.ค.69: BEAM) · ผู้ช่วย (helper) นับอย่างเดียว
   function canSend(role) { return role === 'lead' || role === 'manager'; }
   function cleanRole(role) { return role === 'lead' || role === 'manager' ? role : 'helper'; }
 
-  // ================= ร่างใบสั่งอัตโนมัติ (หลังส่งรายงาน บอสกดอนุมัติครั้งเดียว) =================
-  // บรรทัดที่ยังไม่สั่ง/ไม่ได้ข้ามของรอบนับล่าสุด → จัดเป็นใบตามร้านประจำ (l.sup) · ed = ที่บอสแก้ในร่าง {key: {qty, inc, sup}}
-  // ของนับแบบระดับ (ยังไม่มี Max) ไม่มีจำนวนสั่ง → ใส่ 1 หน่วยซื้อไว้ก่อน (guess) ให้บอสแก้ · ร้านที่มีของมากขึ้นก่อน ยังไม่มีร้านไว้ท้าย
   function poDrafts(lines, ed) {
     ed = ed || {};
     var groups = {}, order = [];
@@ -1383,8 +1366,6 @@ var Logic = (function () {
     return order.map(function (sup) { return { sup: sup, lines: groups[sup] }; });
   }
 
-  // ข้อความ LINE ถึงบอส (ภาษาไทย) — 1 รายการ = 1 บรรทัด · ของซื้อจัดตามร้านประจำ · หมดขึ้นก่อน
-  // meta: { date, by, at, note, note_th, appUrl, resend, section, recipeNeeds, supplierOf:{item_id: ร้าน} }
   function buildBossMessage(sum, zones, meta) {
     var L = [], zoneById = {};
     zones.forEach(function (z) { zoneById[z.id] = z; });
@@ -1394,7 +1375,6 @@ var Logic = (function () {
     var skipped = function (r) { return r.assumed && r.assumed.length ? ' (ไม่ได้นับ ' + r.assumed.map(zName).join(', ') + ' — คิดว่าไม่มี)' : ''; };
     var isOut = function (r) { return r.level ? r.level === 'out' : !(r.qty > 0); };
     var outFirst = function (rows) { return rows.slice().sort(function (a, b) { return isOut(b) - isOut(a); }); };
-    // ของนับแบบระดับ (ยังไม่ตั้ง Min/Max): บอกระดับ + ที่เหลือ แทนจำนวนสั่ง
     var levelLeft = function (r) { return isOut(r) ? 'หมด' : 'ใกล้หมด' + (r.qty > 0 ? ' (เหลือ ' + fmtNum(r.qty) + ' ' + r.item.unit + ')' : ''); };
     L.push('🛒 ของที่ต้องซื้อ — บ้านขาวต้ม' + (meta.section ? ' · ' + meta.section : '') + (meta.resend ? ' (ฉบับแก้ไข)' : ''));
     L.push(thaiDate(meta.date) + ' · ' + meta.by + ' ส่ง ' + bkkTime(meta.at));
@@ -1478,7 +1458,6 @@ var Logic = (function () {
       });
       if (meta.issues.length > 25) L.push('   +อีก ' + (meta.issues.length - 25) + ' รายการ (ดูในแอพ)');
     }
-    // ผู้จัดการร้านเพิ่มรายการ/แก้หน่วยเอง — บอสไปตั้งร้านประจำ/แพ็คต่อ (หรือแก้กลับ) ในหน้าบอส
     [[(meta.added || []).filter(function (x) { return !x.edit; }), '🆕 รายการใหม่ที่เพิ่มในแอพ', ' — ตั้งร้านประจำ/แพ็คได้ในหน้าบอส'],
       [(meta.added || []).filter(function (x) { return x.edit; }), '✏️ แก้หน่วยในแอพ', ' — ยอดเดิมเป็นหน่วยเก่า นับใหม่เป็นยอดยกมา']].forEach(function (g) {
       if (!g[0].length) return;
@@ -1507,27 +1486,22 @@ var Logic = (function () {
     return text.length > 4900 ? text.slice(0, 4880) + '\n…(ตัดท้าย ดูต่อในแอพ)' : text;
   }
 
-  // ================= สั่งซื้อ / รับของ =================
-  // หน่วยที่นับเป็นชิ้น → จำนวนสั่งปัดขึ้นเป็นจำนวนเต็ม (น้ำหนักไม่ปัด เว้นแต่ตั้ง buy_step)
   var DISCRETE = ['แพ็ค', 'ถุง', 'กล่อง', 'ฟอง', 'ตัว', 'ชิ้น', 'ลูก', 'หัว', 'ก้อน', 'ถ้วย', 'จาน', 'หลอด', 'แผ่น', 'ขวด', 'กำ', 'เม็ด',
     'ห่อ', 'ซอง', 'กระป๋อง', 'กระปุก', 'มัด', 'แผง', 'ลัง', 'แกลลอน', 'ต้น', 'หวี', 'ใบ', 'โหล'];
   function round2(n) { return Math.round(n * 100) / 100; }
 
-  // จำนวนที่ต้องเติม (หน่วยนับ) → จำนวนสั่ง (หน่วยซื้อ) เช่น กุ้ง ต้องเติม 45 ตัว, 1 กก. ≈ 40 ตัว, ปัดทีละ 0.5 → สั่ง 1.5 กก. (≈60 ตัว)
   function buyQty(item, needCount) {
     var conv = !!item.buy_unit && isNum(item.buy_factor) && item.buy_factor > 0;
     var f = conv ? item.buy_factor : 1;
     var unit = conv ? item.buy_unit : item.unit;
     var step = isNum(item.buy_step) && item.buy_step > 0 ? item.buy_step : (DISCRETE.indexOf(unit) >= 0 ? 1 : 0);
     var q = needCount / f, g = gramsPer(unit);
-    // ของชั่ง (ไม่ได้ตั้งปัดเอง): ปัดขึ้นให้สั่งเป็นคำพูดได้ — ต่ำกว่า 1 กก. ทีละครึ่งขีด (50 กรัม) · 1 กก. ขึ้นไป ทีละขีด (100 กรัม)
     if (!step && g && q > 0) step = (q * g >= 950 ? 100 : 50) / g;
     if (step) q = Math.ceil(q / step - 1e-9) * step;
     q = round2(q);
     return { qty: q, unit: unit, size: conv ? '' : (item.size || ''), factor: f, approxCount: conv ? round2(q * f) : null };
   }
 
-  // บรรทัดใบสั่งจากรายการต้องซื้อของรอบนับ
   function poLineFromNeed(r, unitsMm) {
     var it = r.item;
     if (r.need === null || r.need === undefined) { // นับแบบระดับ: ไม่มีจำนวนสั่ง · มีหน่วยซื้อ (กระปุก 5 กก.) ก็สั่งเป็นหน่วยซื้อ
@@ -1545,17 +1519,14 @@ var Logic = (function () {
     };
   }
 
-  // หน่วยชั่ง/ตวง (กก. ขีด ลิตร …) — ของมาขาด/เกินนิดหน่อยเป็นปกติ ต่างจากหน่วยนับเป็นชิ้น
   var MEASURED = ['กก.', 'กิโล', 'กิโลกรัม', 'กรัม', 'ขีด', 'ลิตร', 'มล.', 'kg', 'g', 'ml'];
   function isMeasured(unit) { return MEASURED.indexOf(String(unit || '').trim()) >= 0; }
 
-  // บรรทัดใบสั่งถือว่าจบ: รับได้ ≥ ที่สั่ง หรือมีคนกด "ถือว่าครบ" / บอสกด "ไม่รอแล้ว" (done)
   function lineDone(l) {
     if (!(l.qty > 0)) return true;
     return l.done === true || (l.received || 0) >= l.qty - 1e-9;
   }
 
-  // สถานะใบสั่ง: ปิด > รับครบ > รับบางส่วน > รอรับ
   function poStatus(po) {
     if (po.status === 'closed') return 'closed';
     var lines = (po.lines || []).filter(function (l) { return l.qty > 0; });
@@ -1564,7 +1535,6 @@ var Logic = (function () {
     return got ? 'partial' : 'open';
   }
 
-  // ส่วนต่างจากที่สั่ง (บรรทัดที่จบแล้ว) เช่น "ขาด 0.2 · ถือว่าครบ" / "เกิน 0.3"
   function varianceText(pl) {
     if (!pl || !(pl.qty > 0) || !lineDone(pl)) return '';
     var d = round2((pl.received || 0) - pl.qty);
@@ -1574,8 +1544,6 @@ var Logic = (function () {
   var PO_STATUS_TH = { open: 'รอรับ', partial: 'รับบางส่วน', received: 'รับครบ', closed: 'ปิดแล้ว' };
 
   function lineQtyText(qty, l) { return fmtNum(qty) + ' ' + l.unit + (l.size ? ' (' + l.size + ')' : ''); }
-  // น้ำหนักแบบที่พูดตอนสั่งร้าน: 1 กก. ขึ้นไป → กก. (1500 กรัม = 1.5 กก.) · 1–9.5 ขีด → ขีด (600 กรัม = 6 ขีด) · ต่ำกว่า 1 ขีด → กรัม
-  // ไม่ใช่หน่วยน้ำหนัก = '' (ใช้หน่วยเดิม)
   function spokenWeight(qty, unit) {
     var g = gramsPer(unit);
     if (!g || !(qty > 0)) return '';
@@ -1584,11 +1552,8 @@ var Logic = (function () {
     if (grams >= 100) return fmtNum(round2(grams / 100)) + ' ขีด';
     return fmtNum(grams) + ' กรัม';
   }
-  // จำนวนในข้อความสั่งของ (ส่งร้าน / รายงานบอส) — ของชั่งเป็นคำพูด ที่เหลือเหมือนเดิม
   function orderQtyText(qty, l) { return (!l.size && spokenWeight(qty, l.unit)) || lineQtyText(qty, l); }
 
-  // ---------- วางรายการสั่งซื้อเป็นข้อความ → แยกเป็นใบสั่งตามผู้ขาย ----------
-  // "ผู้ขาย: พี่แหลม" ขึ้นใบใหม่ · บรรทัด "ชื่อ จำนวน หน่วย" เช่น "กระเทียมจีน 1.5 กก." · ก่อนมีหัวผู้ขาย = ไม่ระบุร้าน
   function parseOrderText(text) {
     var blocks = [], cur = null;
     String(text || '').split(/\r?\n/).forEach(function (raw) {
@@ -1603,7 +1568,6 @@ var Logic = (function () {
     });
     return blocks.filter(function (b) { return b.lines.length; });
   }
-  // เทียบชื่อแบบไม่สนวรรณยุกต์/ช่องว่าง/วงเล็บ (กุ้ยช่าย = กุยช่าย, เห็ดต้มยำ(ชิเมจิ) ≈ เห็ดชิเมจิ (ต้มยำ))
   function normName(t) { return String(t || '').toLowerCase().replace(/[\u0E48-\u0E4C]/g, '').replace(/[^\u0E00-\u0E7Fa-z0-9]/g, ''); }
   function bigrams(t) { var o = {}; for (var i = 0; i < t.length - 1; i++) o[t.substr(i, 2)] = (o[t.substr(i, 2)] || 0) + 1; return o; }
   function nameScore(a, b) {
@@ -1615,10 +1579,8 @@ var Logic = (function () {
     Object.keys(B).forEach(function (k) { nb += B[k]; });
     var dice = na + nb ? 2 * inter / (na + nb) : 0;
     var contain = a.indexOf(b) >= 0 || b.indexOf(a) >= 0 ? 0.6 + 0.4 * Math.min(a.length, b.length) / Math.max(a.length, b.length) : 0;
-    // ไม่มีชื่อไหนอยู่ในอีกชื่อ ต้องเหมือนกันมากจริง (กระเทียมไทย ≠ กระเทียมปั่น)
     return Math.max(contain, dice >= 0.8 ? dice : dice * 0.6);
   }
-  // หารายการที่ตรงที่สุด (ของซื้อได้เปรียบเล็กน้อย) — ต่ำกว่าเกณฑ์ = ของนอกรายการ
   function matchItemName(name, items) {
     var best = null, score = 0;
     (items || []).forEach(function (it) {
@@ -1628,7 +1590,6 @@ var Logic = (function () {
     });
     return score >= 0.5 ? { item: best, score: round2(score) } : { item: null, score: round2(score) };
   }
-  // แปลงหน่วย: น้ำหนัก/ปริมาตร คิดได้แน่นอน · แผง = 30 ฟอง (แผงไข่มาตรฐาน — แก้ได้ในใบสั่ง)
   var UNIT_BASE = { 'กรัม': ['g', 1], 'g': ['g', 1], 'ขีด': ['g', 100], 'กก.': ['g', 1000], 'กิโล': ['g', 1000], 'กิโลกรัม': ['g', 1000], 'kg': ['g', 1000],
     'มล.': ['ml', 1], 'ml': ['ml', 1], 'ลิตร': ['ml', 1000], 'ฟอง': ['egg', 1], 'แผง': ['egg', 30], 'โหล': ['pc12', 12] };
   function unitFactor(from, to) {
@@ -1637,12 +1598,10 @@ var Logic = (function () {
     var a = UNIT_BASE[from], b = UNIT_BASE[to];
     return a && b && a[0] === b[0] ? Math.round(a[1] / b[1] * 1e6) / 1e6 : null; // ไม่ปัด 2 ตำแหน่ง: กรัม→กก. = 0.001 (เคยเป็น 0)
   }
-  // หน่วยน้ำหนัก → 1 หน่วยกี่กรัม (กก. = 1000, ขีด = 100) · ไม่ใช่หน่วยน้ำหนัก = 0 — หน้ารับของให้น้องใส่กรัมตามตาชั่ง
   function gramsPer(unit) {
     var a = UNIT_BASE[String(unit || '').trim()];
     return a && a[0] === 'g' ? a[1] : 0;
   }
-  // บรรทัดใบสั่งจากรายการที่จับคู่ได้: หน่วยตามที่สั่ง · factor = 1 หน่วยสั่ง ได้กี่หน่วยนับ (ไม่รู้ = นับตามหน่วยที่สั่ง)
   function poLineFromOrder(line, it, unitsMm) {
     var unit = line.unit || (it ? (it.buy_unit || it.unit) : '');
     if (!it) return { key: 'c:' + line.name, item_id: '', name_th: line.name, name_mm: '', unit: unit, unit_mm: (unitsMm && unitsMm[unit]) || '', size: '', qty: line.qty, factor: 1, count_unit: unit };
@@ -1652,11 +1611,8 @@ var Logic = (function () {
       order_name: normName(line.name) !== normName(it.name_th) ? line.name : '' }; // ข้อความถึงร้านใช้ชื่อที่บอสพิมพ์
   }
 
-  // ข้อความคัดลอกไปส่งร้าน/ซัพพลายเออร์
-  // ใบสั่ง Makro (หรือยังไม่ระบุร้าน): บอกรหัสสินค้า + ชื่อที่ Makro (มีขนาดแพ็ค) ใต้รายการ — ค้นในแอพ Makro ได้เลย
   function isMakroShop(name) { return !name || /แม็คโคร|แมคโคร|แม็กโคร|makro/i.test(String(name)); }
   function makroLine(l) { return l.makro ? '   รหัส ' + l.makro + (l.makro_name ? ' · ' + l.makro_name : '') : ''; }
-  // แพ็ค Makro: บอกว่าได้กี่หน่วยที่เรานับ (2 แพ็ค = 12 กระป๋อง)
   function packEq(l) { return l.makro && l.factor > 1 && l.count_unit && l.count_unit !== l.unit ? ' (= ' + fmtNum(round2(l.qty * l.factor)) + ' ' + l.count_unit + ')' : ''; }
   function buildPoText(po, meta) {
     var L = ['สั่งของ ร้านบ้านขาวต้ม · ใบสั่ง #' + po.id, thaiDate(meta.date)], mk = isMakroShop(po.supplier_name);
@@ -1672,7 +1628,6 @@ var Logic = (function () {
     return L.join('\n');
   }
 
-  // หลายใบสั่งในข้อความเดียว (คัดลอกครั้งเดียววางไลน์ครั้งเดียว) — หัวเดียว แยกตามร้าน
   function buildPoTextMulti(pos, meta) {
     var L = ['สั่งของ ร้านบ้านขาวต้ม · ' + thaiDate(meta.date) + ' · ' + pos.length + ' ร้าน'];
     pos.forEach(function (po) {
@@ -1688,7 +1643,6 @@ var Logic = (function () {
     return L.join('\n');
   }
 
-  // ข้อความ LINE ถึงบอสเมื่อน้องกดรับของ
   function buildReceiveMessage(po, lines, meta) {
     var L = [];
     L.push('📦 รับของแล้ว · ' + (po ? 'ใบสั่ง #' + po.id : 'ไม่มีใบสั่ง') + (meta.supplier ? ' · ' + meta.supplier : ''));
@@ -1727,7 +1681,6 @@ var Logic = (function () {
     return text.length > 4900 ? text.slice(0, 4880) + '\n…(ตัดท้าย ดูต่อในแอพ)' : text;
   }
 
-  // ข้อความ LINE ถึงบอสเมื่อแก้/ยกเลิกใบรับของ — changes: [{name_th, unit, from, to}]
   function buildReceiptEditMessage(rc, changes, meta) {
     var L = [];
     L.push((meta.void ? '🗑️ ยกเลิกใบรับของ ' : '✏️ แก้ใบรับของ ') + rc.id + (rc.po_id ? ' · ใบสั่ง #' + rc.po_id : '') + (rc.supplier_name ? ' · ' + rc.supplier_name : ''));
@@ -1751,9 +1704,6 @@ var Logic = (function () {
     return L.join('\n');
   }
 
-  // ================= วิเคราะห์สต็อค (เฟส C: ใช้ไปเท่าไหร่ + เสนอ Min/Max · เฟส D: คาดการณ์วันหมด) =================
-  // ใช้ไป (ช่วงระหว่างนับ 2 ครั้ง) = นับครั้งก่อน + รับเข้าระหว่างนั้น − นับครั้งนี้
-  // หารด้วย "วันที่ร้านเปิด" ในช่วงนั้น (วันที่มีการส่งรอบนับ) → ใช้ต่อวัน
   function addDays(dateStr, n) {
     var d = parseDate(dateStr);
     d.setUTCDate(d.getUTCDate() + n);
@@ -1769,7 +1719,6 @@ var Logic = (function () {
   function tms(iso) { var t = Date.parse(iso); return isFinite(t) ? t : 0; }
   var DOW_SHORT = DAYS;
 
-  // ต้นทุนต่อ 1 หน่วยนับ = ยอดเงินบรรทัด ÷ จำนวน (หน่วยนับ) จากการรับของครั้งล่าสุดที่มีราคา · ไม่มี = null (ไม่เดา)
   function lastUnitCost(moves, it) {
     var best = null;
     (moves || []).forEach(function (m) {
@@ -1783,8 +1732,6 @@ var Logic = (function () {
     return best;
   }
 
-  // o: { items, zones, counts:[{date,item_id,qty,level,unit,at}], moves:[{date,at,item_id,qty_count,count_unit,type,amount}],
-  //      openDates:[วันที่มีส่งรอบนับ], onOrder:{item_id: จำนวนหน่วยนับที่สั่งแล้วรอรับ}, today, lookback, leadDays, cycleDays, minDays }
   function stockAnalytics(o) {
     var today = o.today, look = o.lookback || 28, from = addDays(today, -look);
     var lead = isNum(o.leadDays) ? o.leadDays : 1, cycle = isNum(o.cycleDays) ? o.cycleDays : 1, minDays = o.minDays || 7;
@@ -1807,7 +1754,6 @@ var Logic = (function () {
     var active = (o.items || []).filter(function (it) { return it.active !== false; });
     var from7 = addDays(today, -7), byIdAll = {};
     (o.items || []).forEach(function (it) { byIdAll[it.id] = it; });
-    // ใช้ตามสูตร 7 วัน: ทำเสร็จ (produce) ÷ ได้ต่อรอบ × วัตถุดิบต่อรอบ — สูตรที่ไม่ได้ใส่ "1 รอบทำได้" คิดไม่ได้ (บอกบอสให้ใส่)
     var theory = {}, noYield = {};
     (o.moves || []).forEach(function (m) {
       if (m.type !== 'produce' || m.date < from7) return;
@@ -1828,8 +1774,6 @@ var Logic = (function () {
       var cs = dates.map(function (d) { return cBy[it.id][d]; }).filter(function (c) { return !c.unit || c.unit === it.unit; });
       cs.forEach(function (c) { if (c.date >= from) cover[c.date] = (cover[c.date] || 0) + 1; });
       var allMv = (mBy[it.id] || []).filter(function (m) { return !m.count_unit || m.count_unit === it.unit; });
-      // ของเสีย (waste) ไม่ใช่ของเข้า: ไม่บวกเป็นรับเข้า → "ใช้ไป" รวมของเสียเหมือนเดิม · ทิ้งหลังนับล่าสุด = ตัดออกจากของที่มีตอนนี้
-      // เบิกของ (issue — สโตร์) ก็ไม่ใช่ของเข้า: หักออกจากที่มีอยู่เหมือนของเสีย · เทียบ "เบิก" กับ "ใช้ไปจริงจากการนับ" ได้
       var mv = allMv.filter(function (m) { return m.type !== 'waste' && m.type !== 'issue'; }), wv = allMv.filter(function (m) { return m.type === 'waste'; });
       var iv = allMv.filter(function (m) { return m.type === 'issue'; });
       var nums = cs.filter(function (c) { return isNum(c.qty); });
@@ -1854,12 +1798,10 @@ var Logic = (function () {
         intervals: [], anomalies: 0, days: 0, avgDaily: null, p90Daily: null, peakDaily: null, estNow: null, daysCover: null, runsOutIn: null, belowMinIn: null,
         weekday: null, forecast: [], suggest: null, status: 'unknown'
       };
-      // ไว้วาดกราฟ: ตัวเลขที่นับ + ของเข้าแต่ละวัน ในช่วงที่ดูย้อนหลัง
       r.series = nums.filter(function (c) { return c.date >= from; }).map(function (c) { return { d: c.date, q: c.qty }; });
       var rv = {};
       mv.forEach(function (m) { if (m.date >= from) rv[m.date] = round2((rv[m.date] || 0) + (m.qty_count || 0)); });
       r.recv = Object.keys(rv).sort().map(function (d) { return { d: d, q: rv[d] }; });
-      // ใช้ไปแต่ละช่วง — ของซื้อ: รับเข้า · ของทำเอง: ต้องมีบันทึกการผลิต (ปุ่ม "ทำเสร็จ") ไม่งั้นรู้ไม่ได้ว่าทำเพิ่มเท่าไหร่
       if (it.kind !== 'prep' || mv.some(function (m) { return m.type === 'produce'; })) {
         for (var i = 1; i < nums.length; i++) {
           var a = nums[i - 1], b = nums[i];
@@ -1873,24 +1815,19 @@ var Logic = (function () {
         var tot = 0, expanded = [];
         r.intervals.forEach(function (x) { tot += x.use; r.days += x.days; for (var k = 0; k < x.days; k++) expanded.push(x.use / x.days); });
         if (r.days) { r.avgDaily = round2(tot / r.days); r.p90Daily = round2(quantile(expanded, 0.9)); }
-        // ใช้ตามวันในสัปดาห์ (เฉพาะช่วงที่นับวันต่อวัน)
         var wk = [0, 1, 2, 3, 4, 5, 6].map(function () { return { sum: 0, n: 0 }; });
         r.intervals.forEach(function (x) { if (x.days === 1 && dayDiff(addDays(x.date, -1), x.date) === 1) { var w = wk[dayOfWeek(x.date)]; w.sum += x.use; w.n++; } });
         if (wk.filter(function (w) { return w.n >= 2; }).length >= 5) r.weekday = wk.map(function (w) { return w.n >= 2 ? round2(w.sum / w.n) : null; });
-        // วันขายดี = P90 หรือค่าเฉลี่ยของวันในสัปดาห์ที่ขายดีสุด (ถ้ามีข้อมูลพอ) — เอาค่าที่มากกว่า
         if (r.p90Daily !== null) r.peakDaily = round2(Math.max(r.p90Daily, Math.max.apply(null, (r.weekday || []).filter(isNum).concat([0]))));
       }
-      // 7 วันล่าสุด: ใช้ไปจากการนับ เทียบกับใช้ตามสูตร (ทำเสร็จ × สูตร)
       r.use7 = round2(r.intervals.filter(function (x) { return x.date > from7; }).reduce(function (t, x) { return t + x.use; }, 0));
       r.theory7 = round2(theory[it.id] || 0);
       r.issue7 = round2(iv.filter(function (m) { return m.date > from7; }).reduce(function (t, m) { return t + (m.qty_count || 0); }, 0));
-      // ตอนนี้ (ประมาณ) = นับล่าสุด + รับเข้า − ใช้ไปในวันที่ผ่านไปแล้วโดยไม่ได้นับ (เช่น ตู้ฟรีซนับวันอาทิตย์ วันนี้วันพุธ)
       if (r.onHand !== null) {
         var yest = addDays(today, -1);
         var gone = lastNum.date < yest && r.avgDaily ? r.avgDaily * openIn(lastNum.date, yest) : 0;
         r.estNow = round2(Math.max(0, r.onHand - gone));
       }
-      // คาดการณ์ 7 วัน เริ่มวันนี้ (ถือว่าร้านเปิดทุกวัน) + อีกกี่วันจะต่ำกว่า Min / หมด (0 = ภายในวันนี้)
       if (r.avgDaily !== null && r.days >= minDays && r.estNow !== null) {
         var stock = r.estNow;
         r.daysCover = r.avgDaily > 0 ? round2(r.estNow / r.avgDaily) : null;
@@ -1903,7 +1840,6 @@ var Logic = (function () {
           if (r.runsOutIn === null && stock <= 0) r.runsOutIn = d;
         }
       }
-      // เสนอ Min/Max: Min = ใช้วันขายดี × วันรอของ · Max = Min + ใช้เฉลี่ย × รอบสั่ง (โซนนับรายสัปดาห์ = 7 วัน)
       if (it.kind !== 'prep' && r.days >= minDays && r.avgDaily > 0) {
         var cyc = weekly[it.zone] ? 7 : cycle, st = it.step || 1;
         var sMin = roundUpStep(r.peakDaily * lead, st), sMax = roundUpStep(sMin + r.avgDaily * cyc, st);
@@ -1911,7 +1847,6 @@ var Logic = (function () {
         r.suggest = { min: sMin, max: sMax, cycle: cyc, lead: lead,
           differs: !isNum(it.min) || !isNum(it.max) || Math.abs(sMin - it.min) >= st || Math.abs(sMax - it.max) >= st };
       }
-      // สถานะเทียบ Min/Max
       var q = r.estNow;
       if (!r.configured || q === null) r.status = last && last.level ? (last.level === 'ok' ? 'ok' : 'low') : 'unknown';
       else if (q < it.min) r.status = 'low';
@@ -1921,7 +1856,6 @@ var Logic = (function () {
       return r;
     });
     var coverage = [];
-    // ควรนับกี่รายการในวันนั้น = ของโซนนับทุกวัน (+ โซนรายสัปดาห์ ถ้าเป็นวันนับเต็มรอบ)
     var fullDay = isNum(o.fullCountDay) ? o.fullCountDay : 0;
     for (var k = look - 1; k >= 0; k--) {
       var d2 = addDays(today, -k);
@@ -1947,7 +1881,6 @@ var Logic = (function () {
   }
 
   var ALERT_TH = { runout: '⏳ ของจะหมดก่อนพีค', spoiled: '🗑️ ของเสีย/หมดอายุ', other: '📣 แจ้งเรื่องอื่น', waste: '🗑️ ของเสีย (waste)' };
-  // w: { by, at, lines:[{name_th, qty, unit, value}], note, note_th, photoUrls }
   function buildWasteMessage(w) {
     var L = ['🗑️ ของเสีย (waste) จาก ' + w.by + ' · ' + bkkTime(w.at)], tot = 0, unpriced = 0;
     w.lines.forEach(function (l) {
@@ -1970,10 +1903,8 @@ var Logic = (function () {
 
   var MM_RE = /[\u1000-\u109F]/;
   function hasBurmese(s) { return MM_RE.test(String(s || '')); }
-  // เลขพม่า ၀-၉ → 0-9
   function mmDigits(s) { return String(s || '').replace(/[\u1040-\u1049]/g, function (d) { return String(d.charCodeAt(0) - 0x1040); }); }
 
-  // ช่องที่น้องพิมพ์เป็นพม่า: server แปลไทยใส่ *_th มาให้ → บอสเห็นคำแปลก่อน ตามด้วยต้นฉบับ
   function buildAlertMessage(a) {
     var L = ['🚨 แจ้งด่วนจาก ' + a.by + ' · ' + bkkTime(a.at), ALERT_TH[a.type] || ALERT_TH.other];
     var item = a.item_th ? a.item_th + ' (พม่า: ' + a.item + ')' : a.item;
@@ -1992,7 +1923,6 @@ var Logic = (function () {
     return L.join('\n');
   }
 
-  // ตรวจรายการที่บอสแก้ในหน้าตั้งค่า — คืนข้อความผิด (ว่าง = ผ่าน)
   function validateItem(it, opts) {
     var errs = [];
     if (!String(it.name_th || '').trim()) errs.push('ต้องมีชื่อไทย');
@@ -2007,8 +1937,6 @@ var Logic = (function () {
     return errs;
   }
 
-  // ลำดับรายการในที่เก็บหนึ่ง — แยกต่อที่ (ของที่อยู่หลายที่ จัดที่หนึ่งแล้วไม่กระโดดในอีกที่)
-  // orders = { zoneId: { at: เวลาที่จัด, ids: [...] } } · ที่ยังไม่เคยจัด (ของใหม่/ย้ายเข้ามา) ต่อท้ายตาม sort
   function placeSort(list, zid, orders) {
     var o = orders && orders[zid], pos = {};
     ((o && o.ids) || []).forEach(function (id, i) { if (pos[id] === undefined) pos[id] = i; });
@@ -2018,7 +1946,6 @@ var Logic = (function () {
       return (a.sort || 0) - (b.sort || 0);
     });
   }
-  // รวมลำดับสองชุด: แต่ละที่ใช้ชุดที่จัดล่าสุด (กันข้อมูลเก่าที่ตอบช้ามาทับที่เพิ่งจัด)
   function mergeOrders(a, b) {
     var out = {};
     [a, b].forEach(function (src) {
@@ -2028,6 +1955,53 @@ var Logic = (function () {
       });
     });
     return out;
+  }
+
+  var LEDGER_COL = { receive: 'recv', produce: 'recv', adjust: 'recv', issue: 'out', waste: 'waste' };
+  function ledgerDays(to, n) {
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) out.push({ d: addDays(to, -i), recv: 0, out: 0, waste: 0 });
+    return out;
+  }
+  function ledgerView(d, n, keep) {
+    var days = ledgerDays(d.today, n), dayOf = {}, byId = {}, list = [];
+    days.forEach(function (x) { dayOf[x.d] = x; });
+    (d.items || []).forEach(function (it) {
+      if (keep && !keep(it)) return;
+      var r = { id: it.id, name_th: it.name_th, name_mm: it.name_mm, unit: it.unit, unit_mm: it.unit_mm, st: it.st, off: it.off, recv: 0, out: 0, waste: 0, n: 0, old: 0, last: '' };
+      byId[it.id] = r; list.push(r);
+    });
+    (d.moves || []).forEach(function (m) {
+      var r = byId[m.id], col = LEDGER_COL[m.t];
+      if (!r || !col || !dayOf[m.d]) return;
+      r.n++;
+      if (m.at > r.last) r.last = m.at;
+      if (m.t !== 'adjust') dayOf[m.d][col]++; // แก้ใบรับไม่ใช่การรับเพิ่มอีกบรรทัด
+      if (m.u !== r.unit) r.old++; else r[col] = round2(r[col] + m.q);
+    });
+    list.sort(function (a, b) { return a.last < b.last ? 1 : a.last > b.last ? -1 : a.name_th < b.name_th ? -1 : 1; });
+    return { from: days[0].d, to: d.today, days: days, items: list };
+  }
+  function ledgerItem(d, id, n) {
+    var it = (d.items || []).filter(function (x) { return x.id === id; })[0];
+    if (!it) return null;
+    var days = ledgerDays(d.today, n), dayOf = {}, tot = { recv: 0, out: 0, waste: 0 }, old = 0, moves = [];
+    days.forEach(function (x) { x.count = null; x.oq = null; x.ou = ''; x.lv = ''; x.bk = false; x.has = false; dayOf[x.d] = x; });
+    (d.moves || []).forEach(function (m) {
+      var x = dayOf[m.d], col = LEDGER_COL[m.t];
+      if (m.id !== id || !x || !col) return;
+      moves.push(m); x.has = true;
+      if (m.u !== it.unit) { old++; return; }
+      x[col] = round2(x[col] + m.q); tot[col] = round2(tot[col] + m.q);
+    });
+    ((d.counts || {})[id] || []).forEach(function (c) {
+      var x = dayOf[c[0]];
+      if (!x) return;
+      x.has = true; x.lv = c[2] || ''; x.bk = !!c[4];
+      if (c[3] && c[3] !== it.unit) { x.oq = c[1]; x.ou = c[3]; } else x.count = c[1];
+    });
+    moves.sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; });
+    return { it: it, from: days[0].d, to: d.today, days: days, rows: days.filter(function (x) { return x.has; }).reverse(), moves: moves, tot: tot, old: old };
   }
 
   return {
@@ -2043,7 +2017,8 @@ var Logic = (function () {
     DEFAULT_SECTION: DEFAULT_SECTION, STORE_SECTION: STORE_SECTION, isStoreZone: isStoreZone, isSaleZone: isSaleZone, saleIdsOf: saleIdsOf, saleRows: saleRows, cleanSection: cleanSection, sectionOf: sectionOf, sectionList: sectionList, staffSections: staffSections,
     scopeZones: scopeZones, scopeLabel: scopeLabel, scopeKey: scopeKey, lastCountsFrom: lastCountsFrom, prevCount: prevCount, recipeRounds: recipeRounds, recipeNeeds: recipeNeeds, poLinesFromRecipes: poLinesFromRecipes, recipeText: recipeText, searchScore: searchScore, mmSkeleton: mmSkeleton, looksZawgyi: looksZawgyi, mmMachine: mmMachine, placeSort: placeSort, mergeOrders: mergeOrders,
     parseOrderText: parseOrderText, nameScore: nameScore, matchItemName: matchItemName, unitFactor: unitFactor, gramsPer: gramsPer, poLineFromOrder: poLineFromOrder,
-    addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS
+    addDays: addDays, dayDiff: dayDiff, quantile: quantile, stockAnalytics: stockAnalytics, DAYS: DAYS,
+    LEDGER_COL: LEDGER_COL, ledgerView: ledgerView, ledgerItem: ledgerItem
   };
 })();
 
@@ -2055,10 +2030,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
 (function () {
   'use strict';
 
-  // ---------- ต่อหลังบ้าน (Apps Script จริง หรือ mock ตอนพัฒนา) ----------
   var MOCK = window.__MOCK__;
-  // BKT_API มีค่า = หน้าแอพบน GitHub Pages → เรียกหลังบ้านด้วย POST (ไม่แนบคุกกี้ Google)
-  // ไม่มีค่า = เปิดจากลิงก์ script.google.com เดิม → ใช้ google.script.run
   var API_URL = window.BKT_API && window.BKT_API.indexOf('https://') === 0 ? window.BKT_API : '';
   function api(fn) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -2070,10 +2042,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       r[fn].apply(r, args);
     });
   }
-  // Google Apps Script ตอบช้าแบบสุ่ม (1–30 วินาที) และบางครั้งตอบ 404 ทั้งที่ทำสำเร็จแล้ว
-  // → ลองใหม่เองสูงสุด 3 ครั้ง ด้วย rid เดิม (หลังบ้านจำผลไว้ ไม่บันทึกซ้ำ)
   function newRid() { return (Date.now().toString(36) + Math.random().toString(36).slice(2, 10)).slice(0, 24); }
-  // rid เดิมทุกครั้งที่ลองใหม่ (ของที่ส่งตามหลัง) → หลังบ้านจำผล 6 ชม. ไม่บันทึกซ้ำ
   function apiRid(rid, fn, args) {
     S.lastApi = Date.now();
     if (MOCK) return MOCK.call(fn, args);
@@ -2131,18 +2100,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var f = function (s) { return String(s).replace(/\{(\w+)\}/g, function (_, v) { return vars && vars[v] !== undefined ? vars[v] : ''; }); };
     return { th: f(p[0]), mm: f(p[1]) };
   }
-  // ไทยบรรทัดบน พม่าบรรทัดล่าง
   function bi(k, vars) { var x = tr(k, vars); return '<span>' + esc(x.th) + '</span><span class="mm">' + esc(x.mm) + '</span>'; }
-  // ไทย · พม่า ในบรรทัดเดียว
-  // ปุ่มสองบรรทัดที่มีไอคอนอยู่บรรทัดไทย
   function biIcon(icon, k) { var x = tr(k); return '<span>' + icon + ' ' + esc(x.th) + '</span><span class="mm">' + esc(x.mm) + '</span>'; }
   function bi1(k, vars) { var x = tr(k, vars); return thOnly() ? esc(x.th) : esc(x.th) + ' · <span class="mm">' + esc(x.mm) + '</span>'; }
-  // สโตร์ (รหัสสโตร์ของผู้จัดการร้าน): ข้อมูลเฉพาะสโตร์ · หน้าทีมแสดงภาษาไทยอย่างเดียว (หน้าบอสเหมือนเดิม)
   function isStore() { return !!(S.boot && S.boot.scope === 'store'); }
-  // ข้อความบรรทัดเดียว "ไทย · พม่า" (สโตร์ = ไทยอย่างเดียว)
   function ph(k) { var x = tr(k); return thOnly() ? x.th : x.th + ' · ' + x.mm; }
-  // ชื่อที่เก็บในหน้าสโตร์ไม่ต้องมี "สโตร์ · " นำหน้า (หน้าบอสยังมี ไว้แยกจากที่เก็บครัว)
-  // "กก. (ฉั่วฮะเส็ง) · ซื้อเป็นกระปุก (1 = 5 กก.)" — นับเป็นหน่วยเล็ก ของมาหลายขนาดก็นับรวมได้
   function storeUnitText(it) {
     return L.unitText(it) + (it.buy_unit && it.buy_factor > 0 ? ' · ซื้อเป็น' + it.buy_unit + ' (1 = ' + L.fmtNum(it.buy_factor) + ' ' + it.unit + ')' : '');
   }
@@ -2152,8 +2114,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     try { if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate(8); } catch (e) { /* */ }
   }
 
-  // ---------- สถานะ ----------
-  // ค่าที่จำไว้ใช้ได้ 6 ชม. (เปิดจากแคชก่อนต่อเน็ต) — เก่ากว่านั้นถือว่านาฬิกาถูก รอวัดใหม่ตอนต่อหลังบ้าน
   function savedSkew() {
     var x = store.get('skew');
     if (!x || typeof x !== 'object' || !(Number(x.at) > 0)) return 0;
@@ -2166,12 +2126,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     pinBuf: '', pinMsg: '', waste: null, admin: null, error: '', skew: savedSkew()
   };
 
-  // ---------- เวลาเซิร์ฟเวอร์: มือถือบางเครื่องตั้งนาฬิกาผิด (เช่นเร็วไป 12 ชม.) → เวลาที่นับ/วันที่ใช้ของเซิร์ฟเวอร์ ----------
-  // วัดจากเวลาที่หลังบ้านตอบ (กลางทางไป-กลับ) · ต่างไม่ถึง 1 นาที = ถือว่านาฬิกาถูก · ตอบช้าเกิน 20 วิ วัดไม่แม่น ข้าม
   function nowMs() { return Date.now() + S.skew; }
   function nowIso() { return new Date(nowMs()).toISOString(); }
   function bizToday() { return L.businessDate(new Date(nowMs())); }
-  // ตอบช้า (>20 วิ) วัดคลาดได้ครึ่งรอบ — ยังรับถ้าต่างจากค่าเดิมมากกว่านั้น (เช่นมีคนแก้นาฬิกาเครื่องแล้ว)
   function clockFrom(iso, t0) {
     var t1 = Date.now(), srv = Date.parse(iso || ''), rtt = t1 - t0;
     if (!srv) return;
@@ -2181,7 +2138,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     store.set('skew', { v: S.skew, at: srv });
   }
 
-  // หมวด (โซน) มาจากหลังบ้าน (บอสแก้ได้) — ไม่มี (หลังบ้านรุ่นเก่า) ใช้ค่าตั้งต้นใน i18n.js
   function useZones(zs) { if (zs && zs.length) ZONES = zs; }
   function zoneOf(id) { return ZONES.filter(function (z) { return z.id === id; })[0] || { id: id, icon: '📦', th: id, mm: '', kind: 'buy', weekly: false }; }
   function items() {
@@ -2189,29 +2145,22 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return ZONES.indexOf(zoneOf(a.zone)) - ZONES.indexOf(zoneOf(b.zone)) || a.sort - b.sort;
     });
   }
-  // รายการในหมวด: ที่หลักอยู่หมวดนี้ก่อน ตามด้วยของที่เก็บหลายที่ซึ่งมีบางส่วนอยู่ที่นี่
   function zoneItems(zid) {
     return L.placeSort(items().filter(function (i) { return L.itemLocs(i).indexOf(zid) >= 0; }), zid, placeOrders());
   }
-  // ลำดับที่บอสจัดไว้แต่ละที่ — รวมของหน้าบอส+ของทีม เลือกชุดที่จัดล่าสุด
   function placeOrders() { return L.mergeOrders(S.boot && S.boot.orders, S.admin && S.admin.data && S.admin.data.orders); }
   function normQ(t) { return String(t || '').toLowerCase().replace(/\s+/g, ''); }
-  // ค้นหา: ทนวิธีพิมพ์พม่าต่างกัน/คีย์บอร์ด Zawgyi และวรรณยุกต์ไทย (Logic.searchScore) · ผลที่ตรงกว่าขึ้นก่อน
   function matchItem(it, q) { return !normQ(q) || L.searchScore(it, q) > 0; }
   function bySearch(q) { return function (a, b) { return L.searchScore(b, q) - L.searchScore(a, q); }; }
   function itemById(id) { return ((S.boot && S.boot.items) || []).filter(function (i) { return i.id === id; })[0]; }
-  // ผลนับรวมของรายการ (ของหลายที่ = รวมทุกที่ เมื่อนับครบ)
   function entry(id) { var it = itemById(id); return it ? L.itemEntry(it, S.draft.entries) : S.draft.entries[id]; }
-  // ผลนับเฉพาะที่เดียว (ช่องในหมวด z)
   function slotVal(it, z) { return S.draft.entries[L.slotKey(it, z)]; }
   function hereZone(it) { return S.screen === 'zone' && S.zone ? S.zone : it.zone; }
   function isMulti(it) { return L.itemLocs(it).length > 1; }
-  // ที่เก็บขายหน้าร้าน (เครื่องดื่ม): ยอดลดลงเพราะขายทุกวัน — ไม่มีปุ่ม "ตามยอด" · ส่วนต่างจากบัญชี = ขายไป
   function isSaleItem(it) { return !!it && L.isSaleZone(zoneOf(it.zone)); }
   function summary() { return L.summarize(items(), myZones(), S.draft, { date: S.boot.date, fullCountDay: S.boot.fullCountDay, levelBuy: isStore() }); }
   function meStaff() { return S.boot && S.boot.staff.filter(function (s) { return s.name === S.me; })[0]; }
   function isLead() { var m = meStaff(); return !!m && L.canSend(m.role); }
-  // แผนก: คนนี้นับเฉพาะที่เก็บในแผนกของตัวเอง (ไม่ได้ระบุ = ทุกที่) · ส่งรายงานแยกแผนก
   function myZones() { return L.scopeZones(ZONES, meStaff()); }
   function myLabel() { return L.scopeLabel(ZONES, meStaff()); }
   function multiSection() { return L.sectionList(ZONES).length > 1; }
@@ -2229,7 +2178,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return bi1(st.role === 'manager' ? 'roleManagerShort' : st.role === 'lead' ? 'roleLeadShort' : 'roleHelperShort') + ' · ' + esc(secs.length ? secs.join(', ') : 'ทุกแผนก');
   }
 
-  // ---------- Firebase: นับพร้อมกันหลายเครื่อง เห็นกันทันที (ถ้าบอสตั้งไว้ ไม่งั้นใช้ Apps Script แบบเดิม) ----------
   var FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   function loadScript(src) {
     return new Promise(function (res, rej) {
@@ -2255,7 +2203,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       my.ref = my.db.ref(base);
       my.onValue = function (snap) {
         var v = snap.val() || {}, next = v.e || {}, shown = (S.draft && S.draft.entries) || {};
-        // ช่องที่เปลี่ยนจริง — ไม่นับเสียงสะท้อนของที่เครื่องนี้เพิ่งบันทึกเอง (ค่าตรงกับที่โชว์อยู่แล้ว) ไม่งั้นนับ 1 ครั้ง = วาดใหม่ 2 รอบ
         var num = function (x) { return L.isNum(x) ? x : null; };
         var changed = Object.keys(next).concat(Object.keys(my.entries)).filter(function (k, i, a) {
           if (a.indexOf(k) !== i) return false;
@@ -2272,7 +2219,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         if (first || changed.length || JSON.stringify([my.submitted, my.subs]) !== subBefore) refreshLive(first ? null : changed);
       };
       my.ref.on('value', my.onValue);
-      // รายการของ/ทีม/ใบสั่ง/ใบรับล่าสุด — อ่านจาก Firebase ตรง (บอสแก้ปุ๊บ เครื่องน้องเห็นปั๊บ ไม่ต้องรอ Apps Script)
       my.pubRef = my.db.ref('bkt/' + b.fb.secret + '/pub');
       my.onPub = {};
       ['boot', 'pos', 'recv', 'last'].concat(b.scope === 'store' ? ['book'] : []).forEach(function (k) {
@@ -2299,14 +2245,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   function fbOn() { return !!(S.fb && S.fb.ref); }
 
-  // สำเนาบน Firebase ใหม่กว่าที่เครื่องมี → ใช้เลย (เทียบเวลาที่หลังบ้านเขียน กับเวลาของ apiBootstrap ล่าสุด)
   function pubApply(k, v) {
     if (!S.boot) return;
     if (!v || !v.json) {
       if (k === 'boot' && !S.pubAsked) { S.pubAsked = true; api('apiPubInit', S.pin).then(null, function () { /* ไว้รอบหน้า */ }); }
       return;
     }
-    // เวอร์ชันแยกแต่ละส่วน: ใช้เมื่อใหม่กว่าทั้งที่เคยใช้ และใหม่กว่าเวลาที่ apiBootstrap ตอบ
     var ver = S.boot.pubV || (S.boot.pubV = {});
     if ((ver[k] && v.v <= ver[k]) || (k !== 'recv' && k !== 'last' && k !== 'book' && S.boot.bootV && v.v <= S.boot.bootV)) { S.pubLive = true; return; }
     var d;
@@ -2335,7 +2279,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     pubRerender();
   }
   var BOOT_FIELDS = ['items', 'staff', 'zones', 'suppliers', 'fullCountDay', 'lineReady', 'publicUrl', 'ai', 'recipes', 'orders', 'storeFullDay'];
-  // apiBootstrap ตอบช้ากว่าสำเนาบน Firebase ที่เพิ่งเปลี่ยน → เก็บส่วนที่ใหม่กว่าไว้
   function keepNewerPub(b) {
     var o = S.boot, pv = o && o.pubV;
     if (!pv || !b.bootV) return;
@@ -2346,7 +2289,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     b.orders = L.mergeOrders(o.orders, b.orders);
     b.pubV = pv;
   }
-  // วาดใหม่เฉพาะหน้าที่เป็นรายการ และไม่ขัดตอนน้องกำลังพิมพ์/กดแป้น
   function pubRerender() {
     var a = document.activeElement;
     if (S.kp || (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName))) return;
@@ -2355,14 +2297,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
     }
   }
-  // ผลนับในเครื่อง = Firebase + ที่ยังส่งไม่ขึ้น (pending) ทับ
   function fbCompose() {
     var f = S.fb, ent = {};
     Object.keys(f.entries).forEach(function (k) { var e = f.entries[k]; if (e && !e.del) ent[k] = e; });
     Object.keys(S.pending).forEach(function (k) { var e = S.pending[k]; if (!e || e.del) delete ent[k]; else ent[k] = e; });
     S.draft = { entries: ent, submitted: f.submitted || null, subs: f.subs || null };
   }
-  // ครั้งแรกที่เปิด Firebase ของวันนั้น: ผลนับที่เคยบันทึกในหลังบ้านแบบเดิม (ที่ Firebase ยังไม่มี) ยกขึ้นไปด้วย
   function fbSeed(f) {
     Object.keys(f.seed).forEach(function (k) { if (!f.entries[k]) f.ref.child('e').child(k).set(f.seed[k]); });
     fbFlush();
@@ -2384,7 +2324,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
-  // ---------- บันทึกผลนับ: เก็บในเครื่องก่อน แล้วค่อยส่งขึ้นหลังบ้าน (เน็ตหลุดไม่หาย) ----------
   function applyServerDraft(d) {
     var merged = JSON.parse(JSON.stringify(d || { entries: {} }));
     merged.entries = merged.entries || {};
@@ -2420,7 +2359,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     S.saveTimer = setTimeout(flush, ms);
   }
 
-  // ผลนับของวันก่อนที่ยังไม่ขึ้นหลังบ้าน (ข้ามตี 5 ตอนเน็ตหลุด/แอพถูกปิด) → ส่งขึ้นวันของมันเอง แล้วค่อยลบ · เก่าเกิน 3 วันทิ้ง
   function flushOldPending() {
     var dates = [];
     try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (/^bkt:pending:\d{4}-\d{2}-\d{2}$/.test(k)) dates.push(k.slice(12)); } } catch (e) { return; }
@@ -2482,7 +2420,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   window.addEventListener('online', function () { if (S.boot && Object.keys(S.pending).length) scheduleSave(200); outboxRun(); });
 
-  // ---------- ดึงผลนับของคนอื่น: ถี่ขึ้นตอนกำลังนับ (5 วินาที) ห่างลงตอนไม่ได้แตะจอ ----------
   var pollT = null;
   function pollDelay() {
     var active = Date.now() - (S.lastTouch || 0) < 120000;
@@ -2516,10 +2453,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (bizToday() !== S.boot.date || Date.now() - S.bootAt > 30 * 60000) boot(S.pin, true).catch(bootFail);
   });
 
-  // ---------- เริ่มต้น / เข้าระบบ ----------
   function start() {
     if (S.pin) setTimeout(outboxRun, 800); // ของที่ค้างส่งจากรอบก่อน (ปิดแอพไปก่อนส่งเสร็จ)
-    // ลิงก์ "สร้างใบสั่งซื้อ" จาก LINE (…/#po) → เข้าหน้าบอส แท็บสั่งซื้อ
     if (location.hash === '#po') {
       try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* */ }
       var ap = store.get('apin');
@@ -2530,7 +2465,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       } else go('adminpin');
       return;
     }
-    // เปิดแอพทันทีด้วยข้อมูลที่เครื่องจำไว้ แล้วค่อยดึงของล่าสุดตามหลัง (ไม่ต้องรอ Google ตื่น)
     var cached = S.pin && store.get('boot');
     if (cached && cached.b && Date.now() - (cached.at || 0) < 7 * 86400000) {
       var b = cached.b, today = bizToday();
@@ -2584,7 +2518,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
-  // โหลดข้อมูลเบื้องหลังไม่สำเร็จ: รหัสเปลี่ยน → ออกไปใส่ใหม่ · ระบบยังไม่ตั้งค่า → หน้าตั้งค่าครั้งแรก · อื่นๆ = เน็ต
   function bootFail(e) {
     var m = errMsg(e);
     if (/FIRST_RUN/.test(m)) return go('firstrun');
@@ -2594,13 +2527,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function logout() {
     fbStop(); store.del('pin'); store.del('boot'); S.pin = null; S.boot = null; S.pinBuf = ''; S.pinMsg = ph('wrongPin');
-    // ล้างของรหัสเดิม (ครัว↔สโตร์ใช้เครื่องเดียวกันได้) — ใบสั่ง/ใบรับ/รายงาน/โน้ตไม่ติดไปอีกฝั่ง
     S.recvRecent = null; S.recvList = null; S.recv = null; S.result = null; S.note = ''; S.pubLive = false; S.pubAsked = false;
     S.draft = { entries: {} }; S.pending = {}; S.issue = null; S.waste = null;
     go('pin');
   }
 
-  // ---------- วาดหน้าจอ ----------
   function go(screen) {
     window.__bktScreen = screen; // ให้ตัวจับปัญหาเครื่อง (index.html) รู้ว่าค้างหน้าไหน
     if (screen !== 'pin' && screen !== 'adminpin') { S.pinState = ''; S.pinBuf = ''; }
@@ -2618,7 +2549,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     keepTabsInView();
   }
 
-  // แถบแท็บเลื่อนแนวนอน: วาดหน้าใหม่แล้วให้แท็บที่เลือกอยู่ยังอยู่ในจอ (ไม่เด้งกลับไปอันแรก)
   function keepTabsInView() {
     var bars = document.querySelectorAll('.tabs');
     for (var i = 0; i < bars.length; i++) {
@@ -2635,9 +2565,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     window.scrollTo(0, y);
   }
 
-  // อัปเดตเฉพาะส่วนที่เปลี่ยน (หลังบันทึก/ดึงผลของคนอื่น)
-  // keys = ช่องที่เปลี่ยน (ไม่ส่ง = ไม่รู้ → ทั้งหมด) · หลายครั้งที่มาติดกัน (หลายคนนับพร้อมกัน) รวมวาดครั้งเดียว
-  // ในตู้วาดเฉพาะแถวที่เปลี่ยน · หน้ารายงานที่แป้นเปิด/กำลังพิมพ์อยู่ จำไว้วาดตอนปิดแป้น
   function refreshLive(keys) {
     var q = S.liveQ || (S.liveQ = { all: false, keys: {} });
     if (!keys) q.all = true; else keys.forEach(function (k) { q.keys[k] = true; });
@@ -2646,7 +2573,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       S.liveTimer = null;
       var Q = S.liveQ; S.liveQ = null;
       var typing = document.activeElement && /^(TEXTAREA|INPUT)$/.test(document.activeElement.tagName);
-      // หน้าแรกก็เหมือนหน้าตรวจ: กำลังพิมพ์ค้นหาอยู่ = รอวาดตอนออกจากช่อง (คีย์บอร์ดไม่หุบทุกครั้งที่เพื่อนนับ)
       if ((S.screen === 'home' || S.screen === 'review') && !typing && !S.kp) rerenderKeepScroll();
       else if (S.screen === 'home' || S.screen === 'review') S.liveDirty = true;
       else if (S.screen === 'zone') {
@@ -2676,7 +2602,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div id="slow-note" class="note warn' + (S.net === 'slow' ? '' : ' hidden') + '" style="margin-top:10px">⏳ ' + bi1('serverSlow') + '</div></div>' + (['pin', 'who', 'home'].indexOf(S.screen) >= 0 ? newLinkBanner() : '');
   }
 
-  // ป้อนรหัส: ครบหลักปุ๊บขึ้น "กำลังตรวจรหัส" ทันที (ล็อกแป้นกันกดซ้ำ) · ผิด = สั่น + แดง · ถูก = ไปหน้าถัดไป
   function pinPad(len, act) {
     var st = S.pinState || '', dots = '';
     for (var i = 0; i < len; i++) dots += '<i class="' + (i < S.pinBuf.length ? 'on' : '') + '"></i>';
@@ -2709,7 +2634,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     try { if (navigator.vibrate) navigator.vibrate([60, 40, 60]); } catch (x) { /* */ }
   }
 
-  // ปลุกหลังบ้านไว้ก่อนตอนเปิดหน้าใส่รหัส (Google หลับถ้าไม่มีคนใช้สักพัก ปลุกครั้งแรกช้า)
   function warmUp() {
     var t0 = Date.now();
     if (t0 - (S.lastApi || 0) > 45000) api('apiStatus').then(function (st) { clockFrom(st && st.now, t0); }, function () { /* แค่ปลุก */ });
@@ -2761,7 +2685,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
             '<span class="av' + (L.canSend(s.role) ? ' lead' : '') + '">' + esc((s.name.replace(/[^A-Za-z0-9ก-๙]/g, '') || s.name).slice(0, 2)) + '</span>' +
             '<span><b>' + esc(s.name) + '</b><span class="muted">' + roleText(s) + '</span></span></button>';
         }).join('') + '</div>' +
-        // เครื่องจำรหัสไว้ → เปลี่ยนไปใช้รหัสอื่นได้ (เช่น รหัสร้าน ↔ รหัสสโตร์ของ BEAM)
         '<p class="center" style="margin-top:22px"><button class="muted" data-act="switchPin" style="text-decoration:underline;font-size:14px">🔑 ' +
         (isStore() ? 'ออกจากสโตร์ ใช้รหัสร้าน' : 'ใช้รหัสอื่น (เช่น รหัสสโตร์)') + '</button></p>' + bossLink() + '</div>';
     },
@@ -2781,7 +2704,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         h += '<div class="note ok sent-strip">✅ ' + bi1('sent') + ' ' + esc(L.bkkTime(sub.at)) + ' (' + esc(sub.by) + ') <small>· ' + bi1('resendHint') + '</small>' +
           (S.result && S.result.message ? '<br><button class="mini-link" data-act="toSent">💬 ข้อความที่บอสได้รับ</button>' : '') + '</div>';
       }
-      // หน้าแรกเห็นครบในจอเดียว: ความคืบหน้าบรรทัดเดียว → ที่เก็บเป็นปุ่ม 2 คอลัมน์ → งานอื่น 1 แถว → ค้นหา
       h += '<div class="prog"><div class="prog-t"><b>' + counted + ' / ' + total + '</b><span>' + bi1('counted') + '</span>' +
         (below ? '<span class="tag bad">▼ ' + below + ' ' + (isStore() ? 'ใกล้หมด/หมด' : bi1('belowMin')) + '</span>' : '') + '<span class="pct">' + pct + '%</span></div>' +
         '<span class="bar"><i style="width:' + pct + '%"></i></span></div>';
@@ -2791,6 +2713,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       h += '<div class="atiles">' + recvTile() + (isStore() ? issueTile() : prepTile(sum)) + actTile('toWaste', '🗑️', 'waste', 0, '') + (isStore() ? stockTile(sum) : '') + '</div>';
       h += '<div class="search-box" style="margin-top:14px"><input class="inp" id="home-q" data-input="homeQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(ph('searchItem')) + '" value="' + esc(S.homeQ || '') + '">' +
         '<div id="home-found">' + homeFound() + '</div></div>';
+      if (isLead()) h += '<button class="btn btn-ghost led-link" data-act="toLedger">📗 ' + bi1('ledTitle') + '</button>';
       if (isLead() && !isStore()) {
         var mmLeft = items().filter(function (it) { return inMyZones(it) && it.mm_auto !== 'mon'; }).length;
         h += '<p class="center" style="margin:22px 0 0"><button class="muted" data-act="toMmFix" style="text-decoration:underline;font-size:14px">✏️ ' + bi1('mmCheckTitle') +
@@ -2825,7 +2748,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var sum = summary();
       var lbl = myLabel();
       var h = top({ th: tr('reviewSend').th + (lbl ? ' · ' + lbl : ''), mm: tr('reviewSend').mm, back: 'toHome' }) + '<div class="wrap screen">';
-      // รายงานสรุปภาษาพม่า (ไทยกำกับ) — ตัวเลขชุดเดียวกับที่บอสได้รับ ให้หัวหน้าครัวตรวจก่อนส่ง · แตะรายการเพื่อแก้
       var st = isStore();
       h += '<div class="note info">📋 ' + (st ? 'ตรวจรายการก่อนส่งให้บอส · แตะรายการเพื่อแก้ตัวเลข · ของที่กด "ใกล้หมด"/"หมด" จะอยู่ในของต้องซื้อ' : bi1('reviewHow')) + '</div>';
       h += '<div class="rep-sum">' + [['toBuy', sum.buy.length], st ? null : ['toMake', sum.prep.length], ['notCounted', sum.uncounted.length]].filter(Boolean).map(function (x) {
@@ -2862,7 +2784,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
           : '<div class="note ok">✅ ' + bi1('nothingToMake') + '</div>';
       }
       h += recipeBuyHtml(sum);
-      // ยังไม่นับ: เยอะ (>15) = สรุปจำนวนต่อที่เก็บ แตะดูรายการ (รายการยาวทำให้หน้านี้วาดช้าบนมือถือ)
       var showUn = sum.uncounted.length <= 15 || S.showUncounted;
       if (sum.uncounted.length && !showUn) {
         var perZone = {};
@@ -2886,7 +2807,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return h;
     },
 
-    // หัวหน้าตรวจ/แก้ชื่อ + หน่วยพม่าเอง — กดแล้วเห็นทันที ส่งตามหลังเป็นชุด · กด ✓/แก้/บันทึก วาดใหม่แค่แถวนั้น (mmPatch)
     mmfix: function () {
       var F = S.mmfix || (S.mmfix = { tab: 'todo', q: '', edit: null });
       var all = items().filter(inMyZones), list = mmList(F);
@@ -2900,7 +2820,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return h + '</div>';
     },
 
-    // ของตัดแต่ง/ทำเอง ที่ต่ำกว่า Min → ทำให้ถึง Max · ทำครบแล้วกดปุ่ม = อัปเดตยอดนับให้เลย · ยังไม่นับ = ไปนับก่อน
     prep: function () {
       var sum = summary(), unPrep = sum.uncounted.filter(function (it) { return it.kind === 'prep'; });
       var h = top({ th: '🔪 ' + tr('prepToday').th, mm: tr('prepToday').mm, back: 'toHome' }) + '<div class="wrap screen">';
@@ -2938,7 +2857,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     sent: function () {
       var r = S.result || {};
       var st = r.status || '';
-      // ส่งเข้ากลุ่ม = group_ok · ทั้งกลุ่ม+บอส = group_ok+line_ok
       var note = /(line|group)_ok/.test(st) ? '<div class="note ok">ส่งเข้า LINE ' + (/group_ok/.test(st) ? 'กลุ่ม' : 'บอส') + 'แล้ว ✓</div>'
         : /email_ok/.test(st) ? '<div class="note warn">LINE ยังส่งไม่ได้ (' + esc(st.split('>')[0]) + ') — ส่งทางอีเมลบอสแทนแล้ว</div>'
           : '<div class="note bad">บันทึกแล้ว แต่ส่งแจ้งบอสไม่สำเร็จ (' + esc(st) + ') — บอกบอสด้วย</div>';
@@ -2966,13 +2884,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return h;
     },
 
-    // เบิกของออกจากสโตร์ (ผู้จัดการร้าน) — ส่งตามหลังผ่าน outbox · สรุปเบิกไปพร้อมรายงานนับ
     issue: function () {
       var w = S.issue;
       var h = top({ th: '📤 เบิกของ', back: 'toHome' }) + '<div class="wrap screen">';
       if (w.sent.length) h += '<div class="note ok">✅ บันทึกเบิกแล้ววันนี้<br>' + w.sent.map(esc).join('<br>') + '</div>';
       h += '<div class="note info">เลือกของที่เบิกออกจากสโตร์ ใส่จำนวน แล้วกดบันทึก · เบิกหลายอย่างพร้อมกันได้ · ตัวเลขนี้ไปอยู่ในรายงานถึงบอส</div>';
-      // วันที่เบิก: วันนี้ หรือย้อนหลังไม่เกิน ISSUE_BACK วัน (ลืมจด มาบันทึกทีหลัง) — ปฏิทินของมือถือ
       var back = w.day !== S.boot.date, ago = L.dayDiff(w.day, S.boot.date);
       h += '<div class="field"><label>📅 วันที่เบิก</label><div class="issue-day"><input type="date" class="inp" data-input="issueDay" value="' + esc(w.day) + '" min="' + L.addDays(S.boot.date, -ISSUE_BACK) + '" max="' + S.boot.date + '">' +
         (back ? '<button class="btn btn-ghost" data-act="issueToday">วันนี้</button>' : '') + '</div>' +
@@ -3050,6 +2966,8 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
     stock: function () { return stockScreen(); },
     additem: function () { return addScreen(); },
+    ledger: function () { return ledgerScreen(); },
+    ledgerItem: function () { return ledgerItemScreen(); },
     apoedit: function () { return poEditScreen(); },
     apoimport: function () { return poImportScreen(); },
     adash: function () { return dashItemScreen(); },
@@ -3067,13 +2985,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return '<p class="center" style="margin-top:28px"><button class="muted" data-act="toAdminPin" style="text-decoration:underline;font-size:14px">⚙️ หน้าตั้งค่า (บอส)</button></p>';
   }
 
-  // ================= รับของ =================
-  // ผลค้นหาหน้าแรก: ชื่อ + ทุกที่ที่เก็บ (แตะที่ไหน = ไปตู้นั้น เปิดแป้นนับเลย)
   function homeFound() {
     var q = S.homeQ || '';
     if (!normQ(q)) return '';
     var hits = items().filter(function (it) { return inMyZones(it) && matchItem(it, q); }).sort(bySearch(q)).slice(0, 12);
-    // ผู้จัดการร้าน: ค้นแล้วไม่มี (หรือไม่ใช่ตัวที่หา) → เพิ่มเป็นรายการใหม่ได้เลย ชื่อติดไปให้
     var add = canAddItem() ? '<button class="btn btn-ghost" style="margin-top:10px" data-act="addItemOpen" data-name="' + esc(q.trim()) + '">➕ เพิ่ม "' + esc(q.trim()) + '" เป็นรายการใหม่</button>' : '';
     if (!hits.length) return '<p class="muted" style="margin:8px 4px 0">' + bi1('notFound', { q: q.trim() }) + '</p>' + add;
     return '<p class="muted" style="margin:8px 4px 6px;font-size:13px">' + bi1('tapPlace') + '</p><div class="list">' + hits.map(function (it) {
@@ -3086,7 +3001,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }).join('') + '</div>' + (add && !hits.some(function (it) { return sameName(it.name_th, q); }) ? add : '');
   }
 
-  // เปลี่ยนสถานะใบสั่งในเครื่องทันที (หน้ารายละเอียด + รายการใบสั่ง) แล้วส่งหลังบ้านตามหลัง · พลาด = คืนค่าเดิม + เตือน
   function poSync(po) {
     var P = S.admin && S.admin.po;
     if (!P || !P.pos) return;
@@ -3124,7 +3038,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="po-items">' + names + (lines.length > 4 ? ' …' : '') + '</div></div></button>';
   }
 
-  // mine = บรรทัดของใบรับที่กำลังแก้ (ไม่นับรวมใน "ได้แล้ว")
   function recvFromPo(po, mineByKey) {
     mineByKey = mineByKey || {};
     return {
@@ -3143,7 +3056,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     };
   }
 
-  // เปิดใบรับเดิมมาแก้ (ทั้งน้องและบอสใช้หน้าเดียวกัน)
   function recvFromReceipt(rc, po, admin) {
     var mine = {};
     rc.lines.forEach(function (l) { mine[l.key] = l; });
@@ -3172,7 +3084,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return true;
   }
   function receiptLoading(el) { el.disabled = true; var n = el.querySelector('.po-no') || el; n.insertAdjacentHTML('afterbegin', '<span class="spin-sm"></span>'); }
-  // ใส่แค่ "นับได้" (หน่วยนับ) ไม่ใส่จำนวนหน่วยสั่ง → คิดจำนวนหน่วยสั่งให้ (ของมาไม่ตรงขนาด เช่น สั่งกระปุก 5 กก. ได้ 1 กก. มา 3 ถุง = นับได้ 3 กก.)
   function recvQtyOf(l) { return Number(l.qty) > 0 ? Number(l.qty) : Number(l.count) > 0 && l.factor > 0 && l.factor !== 1 ? L.round2(Number(l.count) / l.factor) : 0; }
   function recvPayloadLines(R) {
     return R.lines.filter(function (l) { return recvQtyOf(l) > 0; }).map(function (l) {
@@ -3184,7 +3095,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return !p.void && JSON.stringify(p.lines) === R.edit.lines0 && String(p.amount) === String(R.edit.amount0 ? Number(R.edit.amount0) : '') &&
       !(p.photos && p.photos.length) && p.note === undefined && p.supplier_name === undefined;
   }
-  // ใบรับในเครื่อง (รายการล่าสุดของน้อง/ประวัติหน้าบอส/หน้าใบสั่ง) ให้ตรงกับที่เพิ่งแก้ทันที · คืนฟังก์ชันย้อนกลับ
   function patchReceipt(list, id, p) {
     var i = (list || []).map(function (r) { return r.id; }).indexOf(id);
     if (i < 0) return function () {};
@@ -3202,8 +3112,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return function () { var j = list.indexOf(rc); if (j >= 0) list[j] = old; };
   }
 
-  // แก้/ยกเลิกใบรับ: กลับหน้าเดิมทันที แล้วส่งตามหลัง (เดิมรอหลังบ้าน 1.5–3 วิ + หน้าบอสโหลดใหม่ทั้งหน้าอีกรอบ)
-  // น้อง = ผ่าน outbox (เน็ตหลุดก็ไม่หาย) · บอส = ส่งตามหลัง พลาด → เปิดหน้าแก้เดิมพร้อมที่แก้ไว้ + แจ้ง ⚠️
   function recvSaveEdit(p) {
     var R = S.recv, ed = R.edit;
     if (recvUnchanged(R, p)) { // ไม่ได้แก้อะไร — ไม่ต้องรอหลังบ้านบอกว่า "ไม่มีอะไรเปลี่ยน"
@@ -3242,7 +3150,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function recvIsShort(l) { var q = Number(l.qty); return !l.extra && l.ordered > 0 && q > 0 && q < l.remaining - 1e-9 && !(l.g && Math.round((l.remaining - q) * l.g) === 0); }
 
-  // ของชั่งน้ำหนัก (สั่งเป็น กก./ขีด/กรัม): น้องใส่กรัมตามตาชั่ง แอพแปลงเป็นหน่วยที่สั่งเอง (l.g = 1 หน่วยสั่งกี่กรัม)
   function recvWeigh(l) {
     l.g = L.gramsPer(l.unit);
     var cg = L.gramsPer(l.count_unit);
@@ -3251,7 +3158,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   function gramsTxt(n) { return L.fmtNum(L.round2(n)) + ' กรัม'; }
 
-  // ใส่จำนวนแล้ว: ตรง/เกิน = บอกเฉยๆ · ขาด = เลือก "ถือว่าครบ" (ค่าตั้งต้นของชั่งน้ำหนัก) หรือ "รอของมาเพิ่ม" (ค่าตั้งต้นของนับชิ้น)
   function recvShortHtml(l, i) {
     var q = Number(l.qty);
     if (l.extra || !(l.ordered > 0) || !(q > 0)) return '';
@@ -3269,7 +3175,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function recvLineHtml(l, i) {
     var done = l.locked || (!l.extra && l.ordered > 0 && l.remaining <= 0 && !(Number(l.qty) > 0));
     var unit = esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + (l.unit_mm ? ' <span class="mm">' + esc(l.unit_mm) + '</span>' : '');
-    // ช่องหน้าชื่อ = แค่บอกสถานะ (ใส่ตัวเลขแล้วขึ้น ✓ เอง) ไม่ต้องกด
     var h = '<div class="card rline' + (l.ticked ? ' on' : '') + (done ? ' done' : '') + '" id="rl-' + i + '">' +
       '<span class="tick' + (l.ticked || done ? ' on' : '') + '" aria-hidden="true">' + (l.ticked || done ? '✓' : l.g ? '⚖️' : '') + '</span>' +
       '<div class="nm"><b>' + esc(l.name_th) + '</b><span class="mm">' + esc(l.name_mm) + '</span>' +
@@ -3284,7 +3189,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     if (done) h += '<div class="hint" style="color:var(--ok)">' + bi1('allArrived') + '</div>';
     else if (l.g) {
-      // ของชั่ง: ใส่กรัมตามตาชั่งช่องเดียว
       h += '<div class="rqty"><span>⚖️ ' + bi1('weighGot') + '</span><span class="rq-in"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm wide" data-input="recvGrams" data-k="' + i + '" value="' + esc(l.grams) + '" placeholder="0">' +
         '<span>กรัม <span class="mm">' + esc(UNITS['กรัม'] || '') + '</span></span></span></div>';
     } else {
@@ -3311,7 +3215,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       factor: conv ? it.buy_factor : 1, count_unit: it.unit, qty: '', count: '', ticked: false, extra: true });
   }
 
-  // ---------- อ่านบิลด้วย Claude: ใส่จำนวน (แปลงหน่วย) + ยอดเงินให้ แล้วน้องตรวจก่อนกดยืนยัน ----------
   function billSetLine(l, x) {
     var u = x.unit || l.unit;
     if (l.g) {
@@ -3412,7 +3315,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return fallback();
   }
 
-  // ปุ่มที่เก็บบนหน้าแรก: ไอคอน + ชื่อ + นับแล้วกี่รายการ + แถบ · สีบอกสถานะ (เขียว = ครบ, ขอบเขียวเข้ม = กำลังนับ)
   function zoneTile(z, sum, optional) {
     var st = sum.zones[z.id];
     var pct = st.total ? Math.round(st.counted / st.total * 100) : 0;
@@ -3439,7 +3341,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return actTile('toPrep', '🔪', 'prepToday', sum.prep.length, sum.prep.length ? 'urge' : '');
   }
 
-  // วัตถุดิบตามสูตร (จำนวนรอบที่ต้องทำ) — ชื่อพม่าถ้ามีในรายการของ
   function recipeUseHtml(it, need) {
     var rc = S.boot && S.boot.recipes && S.boot.recipes[it.id], n = L.recipeRounds(rc, need);
     if (!n) return '';
@@ -3453,7 +3354,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return '<small class="rc-use">🧾 ' + esc(t.th) + ': ' + esc(th.join(' · ')) + '</small><small class="mm rc-use">' + esc(t.mm) + ': ' + esc(mm.join(' · ')) + '</small>';
   }
 
-  // ทำเสร็จรายการอื่น (ไม่อยู่ในรายการต้องทำเพิ่ม) — ค้นหาของทำเอง/ตัดแต่ง แล้วใส่จำนวนที่ทำได้
   function prepPicks() {
     var q = (S.prepQ || '').trim().toLowerCase();
     if (!q) return '';
@@ -3464,19 +3364,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
 
   function needLabel(it) { return it.kind === 'prep' ? 'toMake' : 'toBuy'; }
 
-  // หน่วยพม่า: ของรายการ (ถ้าเป็นอักษรพม่าจริง) ไม่งั้นจากตารางหน่วย — น้องต้องเห็นหน่วยภาษาตัวเองทุกที่ที่ใส่ตัวเลข กันนับผิดหน่วย
   function unitMm(it) {
     if (it.unit_mm && L.hasBurmese(it.unit_mm)) return it.unit_mm;
     return UNITS[it.unit] || '';
   }
-  // หน่วยพม่าของหน่วยใดก็ได้ — ทุกหน้าใช้ตัวนี้ ไม่งั้นของชิ้นเดียวขึ้นคนละคำ: หน่วยนับของรายการ = คำในรายการ (MON แก้ได้) · หน่วยซื้อ/แพ็ค = ตารางหน่วย
   function unitMmFor(unit, it) { return it && unit === it.unit ? unitMm(it) : UNITS[unit] || ''; }
-  // "หลอด (500g) · ချောင်း"
   function unitBi(it) {
     var mm = unitMm(it);
     return esc(L.unitText(it)) + (mm ? ' <span class="mm nw">(' + esc(mm) + ')</span>' : '');
   }
-  // ป้ายหน่วยใต้/ข้างตัวเลข: พม่าก่อน ไทยตามหลัง
   function unitTag(it) {
     var mm = unitMm(it);
     return (mm ? '<span class="mm">' + esc(mm) + '</span> ' : '') + '<span class="th">' + esc(it.unit) + '</span>';
@@ -3523,8 +3419,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h + '</div>';
   }
 
-  // ของหลายที่ นับไปแค่บางที่ → ต้องนับให้ครบ หรือกด "หมด" ที่ที่ไม่มีของ ถึงจะส่งได้ (บอสสั่ง 22 ต.ค. 69: วันนั้นไข่เป็ดนับแค่ตู้เย็น ชั้นของแห้งไม่ได้นับ)
-  // ปุ่ม "หมด" ติดชื่อที่เก็บ = หมดเฉพาะที่นั้น (ที่อื่นยังมีของ)
   function partialHtml(sum) {
     if (!sum.partial.length) return '';
     var names = function (zs, lang) { return zs.map(function (z) { var o = zoneOf(z); return o.icon + ' ' + ((lang === 'mm' && o.mm) || o.th); }).join(', '); };
@@ -3541,7 +3435,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }).join('') + '</div>';
   }
 
-  // "เก็บ 2 ที่ · นับแล้ว 1/2 ที่ · ยังไม่นับที่: ❄️ ตู้ฟรีซ" หรือ "รวมทุกที่ 5"
   function multiHint(it, e) {
     var locs = L.itemLocs(it), parts = (e && e.parts) || {}, c = Object.keys(parts).length;
     var u = ' ' + esc(it.unit) + (unitMm(it) ? ' <span class="mm">' + esc(unitMm(it)) + '</span>' : '');
@@ -3573,13 +3466,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="q">' + right + (sub ? '<small>' + sub + '</small>' : '') + '</div></div>';
   }
 
-  // จำนวนเป็นภาษาพม่า: ของชั่ง 1 กก. ขึ้นไป = ကီလို · ต่ำกว่านั้นเป็นกรัม (ขีดเป็นหน่วยไทย ทีมพม่าคุ้นกับกรัมตามตาชั่ง — บรรณาธิการพม่าแนะนำ)
   function qtyMm(qty, unit, it, size) {
     var sp = !size && L.spokenWeight(qty, unit), m = sp && /^(.+) (กก\.|ขีด|กรัม)$/.exec(sp);
     if (m) return m[2] === 'กก.' ? m[1] + ' ကီလို' : L.fmtNum(L.round2(Number(m[1].replace(/,/g, '')) * (m[2] === 'ขีด' ? 100 : 1))) + ' ' + (UNITS['กรัม'] || 'ဂရမ်');
     return L.fmtNum(qty) + ' ' + (unitMmFor(unit, it) || unit) + (size ? ' (' + size + ')' : '');
   }
-  // แถวรายงาน: บรรทัดพม่า (ชื่อ จำนวนสั่ง/ทำ — เหลือ) + บรรทัดไทยกำกับ · แยกตามที่เก็บ หมดขึ้นก่อน · แตะเพื่อแก้ตัวเลข
   function reportRows(rows, buy) {
     var h = '';
     ZONES.forEach(function (z) {
@@ -3602,14 +3493,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
     return h;
   }
-  // สโตร์: ภาษาไทยบรรทัดเดียว · ของนับแบบระดับบอกระดับ+ที่เหลือ (ยังไม่ตั้ง Min/Max ไม่มีจำนวนสั่ง)
   function storeRepRow(r) {
     var it = r.item, out = r.level ? r.level === 'out' : !(r.qty > 0), t;
     if (r.need === null || r.need === undefined) t = out ? 'หมด' : 'ใกล้หมด' + (r.qty > 0 ? ' · เหลือ ' + L.fmtNum(r.qty) + ' ' + it.unit : '');
     else { var b = L.buyQty(it, r.need); t = 'สั่ง ' + L.orderQtyText(b.qty, b) + ' — ' + (r.qty > 0 ? 'เหลือ ' + L.fmtNum(r.qty) + ' ' + it.unit : 'หมด'); }
     return '<div class="rep-row' + (out ? ' out' : '') + '" data-act="kp" data-id="' + esc(it.id) + '"><div><b>' + esc(it.name_th) + '</b> — ' + esc(t) + '</div></div>';
   }
-  // วัตถุดิบที่ต้องซื้อเพิ่มตามสูตร (เหมือนในรายงานบอส)
   function recipeBuyHtml(sum) {
     var byId = {};
     items().forEach(function (it) { byId[it.id] = it; });
@@ -3657,7 +3546,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (b) b.disabled = !!m;
     if (t) t.textContent = m;
   }
-  // ยังขาดอะไรถึงจะส่งได้ (ว่าง = ส่งได้)
   function wasteMissing() {
     var w = S.waste;
     if (!w.lines.length) return bi1('wasteNeedItem');
@@ -3671,7 +3559,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (t) t.innerHTML = m;
   }
 
-  // ---------- รูปแนบ (ของเสีย / รับของ) ----------
   function photoField(u, target, labelKey, compact) {
     var lb = tr(labelKey || 'photo');
     var h = '<div class="field"><label>📷 ' + esc(lb.th) + '<span class="mm">' + esc(lb.mm) + '</span></label>';
@@ -3685,7 +3572,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h + '</div>' + (compact ? '' : '<div class="muted" style="font-size:13px;margin-top:6px">' + bi1('maxPhotos') + '</div>') + '</div>';
   }
 
-  // ย่อรูปในเครื่องก่อนส่ง (ด้านยาวสุด 1280px) — รูปมือถือ 3-5MB เหลือราว 150-300KB
   function resizeImage(file, maxSide, quality) {
     return new Promise(function (res, rej) {
       var url = URL.createObjectURL(file), img = new Image();
@@ -3712,7 +3598,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     document.body.appendChild(el);
   }
 
-  // ---------- แป้นตัวเลข ----------
   function keypadHtml() {
     var it = itemById(S.kp.id);
     if (!it) return '';
@@ -3744,8 +3629,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<button class="btn btn-primary stack" data-act="kpNext">' + bi('next') + '</button></div></div>';
   }
 
-  // ================= สโตร์: สต็อคการ์ด + แพ็ค =================
-  // ยอดตามบัญชี = ยอดยกมา (นับล่าสุดก่อนวันนี้) + รับเข้า − เบิก − ของเสีย (หลังบ้านคิด ส่งมาทาง Firebase)
   function bookOf(it) { return S.boot && S.boot.book ? S.boot.book[it.id] || null : null; }
   function fullDay() { var d = S.boot && S.boot.storeFullDay; return isStore() && d !== null && d !== undefined && L.dayOfWeek(S.boot.date) === Number(d); }
   function bookHtml(it) {
@@ -3756,12 +3639,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   function shortDateTh(d) { var n = L.dayDiff(d, S.boot.date); return n === 1 ? 'นับเมื่อวาน' : 'นับ ' + n + ' วันก่อน'; }
 
-  // ================= สโตร์: ยอดคงเหลือตอนนี้ + ผู้จัดการร้านเพิ่มรายการเอง (บอส 5 พ.ย.69) =================
   function canAddItem() { var m = meStaff(); return isStore() && !!m && m.role === 'manager'; }
   function sameName(a, b) { return normQ(a) === normQ(b); }
   function myItems() { return items().filter(inMyZones); }
-  // คงเหลือของรายการ: นับวันนี้แล้ว = ตัวเลขที่นับ (เทียบยอดตามบัญชี ณ เวลานับ) · ยังไม่นับ = ตามบัญชี · ไม่เคยนับ = ยังไม่รู้
-  // st: ok = นับวันนี้ตรง/ยอดแรก · diff = นับไม่ตรงบัญชี · book = ตามบัญชี (วันนี้ยังไม่นับ) · none = ยังไม่เคยนับ
   function stockOf(it) {
     var e = entry(it.id), b = bookOf(it), sale = isSaleItem(it), u = ' ' + it.unit, f = L.fmtNum;
     var lv = e && (e.lv === 'low' || e.lv === 'out') ? e.lv : '';
@@ -3779,7 +3659,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return { st: 'none', v: null, lv: lv, sub: 'ยังไม่เคยนับ' };
   }
-  // ป้ายจำนวนไม่ตรงบัญชี: วนรายการครั้งเดียว ไม่เรียง (หน้าแรกวาดบ่อย — กฎทอง)
   function stockTile(sum) {
     var n = 0, book = S.boot.book, zs = {};
     if (book) {
@@ -3827,14 +3706,185 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h + '</div>';
   }
 
-  // เพิ่มรายการใหม่ (ผู้จัดการร้าน): ขึ้นในตู้ทันที แล้วเปิดแป้นให้ใส่ยอดตอนนี้ · ส่งหลังบ้านตามหลัง (outbox)
+  var LED_TTL = 120000, LED_COLOR = { recv: 'var(--led-recv)', out: 'var(--led-out)', waste: 'var(--led-waste)' };
+  var LED_KEY = { recv: 'ledIn', out: 'ledOut', waste: 'ledWaste' };
+  var LED_TYPE = { receive: 'ledIn', produce: 'ledProduce', adjust: 'ledAdjust', issue: 'ledOut', waste: 'ledWaste' };
+  function ledInit(admin, pin) {
+    var p = S.led, same = !!p && p.admin === admin && p.pin === pin;
+    S.led = { admin: admin, pin: pin, days: same ? p.days : 30, sc: same ? p.sc : 'all', f: 'all', q: '', y: 0, id: null, data: same ? p.data : null, at: same ? p.at : 0, err: '', busy: false };
+  }
+  function ledLoad() {
+    var K = S.led;
+    if (K.busy || (K.data && Date.now() - K.at < LED_TTL)) return;
+    K.busy = true; K.err = '';
+    api('apiLedger', K.pin).then(function (d) {
+      K.busy = false; K.data = d; K.at = Date.now();
+      if (S.led === K) ledPaint();
+    }, function (e) {
+      K.busy = false; K.err = errMsg(e);
+      if (S.led === K) ledPaint();
+    });
+  }
+  function ledPaint() {
+    if (S.screen === 'ledgerItem') return rerenderKeepScroll();
+    if (S.screen !== 'ledger' && !(S.screen === 'admin' && S.admin && S.admin.tab === 'ledger')) return;
+    var t = document.getElementById('led-top'), l = document.getElementById('led-list');
+    if (t) t.innerHTML = ledTopHtml();
+    if (l) l.innerHTML = ledListHtml();
+  }
+  function ledT(k, vars) { return S.led.admin ? esc(tr(k, vars).th) : bi1(k, vars); }
+  function ledBi(k) { return S.led.admin ? esc(tr(k).th) : bi(k); }
+  function ledPlain(k) { var x = tr(k); return S.led.admin || thOnly() ? x.th : x.th + ' ' + x.mm; }
+  function ledV() {
+    var K = S.led, k = K.days + K.sc + K.at;
+    if (K.vk !== k) {
+      var sc = K.sc;
+      K.vk = k; K.v = L.ledgerView(K.data, K.days, sc === 'all' ? null : function (it) { return !!it.st === (sc === 'store'); });
+    }
+    return K.v;
+  }
+  function ledCols() { var K = S.led; return K.sc !== 'kitchen' && K.data && K.data.scope !== 'kitchen' ? ['recv', 'out', 'waste'] : ['recv', 'waste']; }
+  function ledChips(act, cur, opts) {
+    return '<div class="tabs">' + opts.map(function (o) { return '<button class="' + (cur === o[0] ? 'on' : '') + '" data-act="' + act + '" data-v="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>';
+  }
+  function ledDayChips() { return ledChips('ledDays', S.led.days, [[7, ledT('ledDays', { n: 7 })], [30, ledT('ledDays', { n: 30 })]]); }
+  function ledLegend(cols) {
+    return '<div class="legend small">' + cols.map(function (c) { return '<span><i style="background:' + LED_COLOR[c] + '"></i>' + ledT(LED_KEY[c]) + '</span>'; }).join('') + '</div>';
+  }
+  function ledRound(v) { return Math.round(v * 10) / 10; }
+  function ledBar(x, yA, yB, w, fill, round) {
+    var h = Math.abs(yB - yA), r = round ? Math.min(4, w / 2, h) : 0, dir = yB < yA ? -1 : 1, f = ledRound;
+    return '<path fill="' + fill + '" d="M' + f(x) + ' ' + f(yA) + 'V' + f(yB - dir * r) + 'Q' + f(x) + ' ' + f(yB) + ' ' + f(x + r) + ' ' + f(yB) + 'H' + f(x + w - r) + 'Q' + f(x + w) + ' ' + f(yB) + ' ' + f(x + w) + ' ' + f(yB - dir * r) + 'V' + f(yA) + 'Z"/>';
+  }
+  function ledXLabels(days, W, pl, pr, H) {
+    var n = days.length, step = (W - pl - pr) / n, y = H - 5;
+    if (n <= 7) return days.map(function (x, i) { return '<text x="' + ledRound(pl + step * (i + 0.5)) + '" y="' + y + '" text-anchor="middle" class="cl">' + (+x.d.slice(8)) + '</text>'; }).join('');
+    return [[0, 'start', pl], [Math.floor(n / 2), 'middle', pl + step * (n / 2)], [n - 1, 'end', W - pr]].map(function (t) {
+      return '<text x="' + ledRound(t[2]) + '" y="' + y + '" text-anchor="' + t[1] + '" class="cl">' + esc(shortDate(days[t[0]].d)) + '</text>';
+    }).join('');
+  }
+  function ledTip(x, unit) {
+    var f = L.fmtNum, u = unit ? ' ' + unit : '', parts = [];
+    ['recv', 'out', 'waste'].forEach(function (c) { if (x[c]) parts.push(ledPlain(LED_KEY[c]) + ' ' + f(x[c]) + u); });
+    return shortDate(x.d) + ' · ' + parts.join(' · ');
+  }
+  function ledBars(days, unit) {
+    var W = 340, pl = 34, pr = 6, pt = 10, pb = 20, up = 0, dn = 0, f = L.fmtNum;
+    days.forEach(function (x) { up = Math.max(up, x.recv); dn = Math.max(dn, x.out + x.waste); });
+    var plot = dn ? 120 : 84, H = pt + plot + pb, k = plot / ((up + dn) || 1), y0 = pt + up * k, bw = (W - pl - pr) / days.length, w = Math.max(3, Math.min(18, bw - 2));
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img"><line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + ledRound(y0) + '" y2="' + ledRound(y0) + '" stroke="var(--line)"/>';
+    if (up) s += '<text x="' + (pl - 5) + '" y="' + (pt + 8) + '" text-anchor="end" class="cl">' + f(up) + '</text>';
+    if (dn) s += '<text x="' + (pl - 5) + '" y="' + (pt + plot) + '" text-anchor="end" class="cl">' + f(dn) + '</text>';
+    var hits = '';
+    days.forEach(function (x, i) {
+      if (!x.recv && !x.out && !x.waste) return;
+      var cx = pl + bw * i + (bw - w) / 2, y = y0;
+      if (x.recv > 0) s += ledBar(cx, y0, y0 - Math.max(2, x.recv * k), w, LED_COLOR.recv, true);
+      if (x.out > 0) { var yo = y + Math.max(2, x.out * k); s += ledBar(cx, y, yo, w, LED_COLOR.out, !(x.waste > 0)); y = yo + (x.waste > 0 ? 2 : 0); }
+      if (x.waste > 0) s += ledBar(cx, y, y + Math.max(2, x.waste * k), w, LED_COLOR.waste, true);
+      var t = esc(ledTip(x, unit));
+      hits += '<rect data-act="ledTip" data-t="' + t + '" x="' + ledRound(pl + bw * i) + '" y="0" width="' + ledRound(bw) + '" height="' + (H - pb) + '" fill="transparent"><title>' + t + '</title></rect>';
+    });
+    return s + hits + ledXLabels(days, W, pl, pr, H) + '</svg>';
+  }
+  function ledLine(days, unit) {
+    var W = 340, pl = 34, pr = 6, pt = 10, pb = 20, H = 116, n = days.length, step = (W - pl - pr) / n, f = L.fmtNum, mx = 0;
+    var pts = [];
+    days.forEach(function (x, i) { if (L.isNum(x.count)) { mx = Math.max(mx, x.count); pts.push({ x: pl + step * (i + 0.5), v: x.count, d: x.d }); } });
+    mx = mx || 1;
+    var y = function (v) { return ledRound(pt + (1 - v / mx) * (H - pt - pb)); };
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="chart" role="img"><line x1="' + pl + '" x2="' + (W - pr) + '" y1="' + y(0) + '" y2="' + y(0) + '" stroke="var(--line)"/>' +
+      '<text x="' + (pl - 5) + '" y="' + (y(0) + 4) + '" text-anchor="end" class="cl">0</text><text x="' + (pl - 5) + '" y="' + (pt + 8) + '" text-anchor="end" class="cl">' + f(mx) + '</text>';
+    if (pts.length > 1) s += '<polyline fill="none" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="' + pts.map(function (p) { return ledRound(p.x) + ',' + y(p.v); }).join(' ') + '"/>';
+    pts.forEach(function (p, i) {
+      if (pts.length <= 14 || i === pts.length - 1) s += '<circle cx="' + ledRound(p.x) + '" cy="' + y(p.v) + '" r="4" fill="var(--muted)" stroke="var(--card)" stroke-width="2"/>';
+      var t = esc(shortDate(p.d) + ' · ' + ledPlain('ledCount') + ' ' + f(p.v) + ' ' + unit);
+      s += '<rect data-act="ledTip" data-t="' + t + '" x="' + ledRound(p.x - step / 2) + '" y="0" width="' + ledRound(step) + '" height="' + (H - pb) + '" fill="transparent"><title>' + t + '</title></rect>';
+    });
+    return s + ledXLabels(days, W, pl, pr, H) + '</svg>';
+  }
+  function ledChart(title, body) { return '<div class="section-h">' + title + '</div><div class="card led-chart">' + body + '<div class="led-read">' + ledT('ledTapBar') + '</div></div>'; }
+  function ledTopHtml() {
+    var K = S.led;
+    if (!K.data) {
+      return K.err ? '<div class="note warn" style="margin-top:12px">⚠️ ' + ledT('ledLoadFail') + ' <small>' + esc(K.err) + '</small><br><button class="mini-link" data-act="ledRetry">' + ledT('ledRetry') + '</button></div>'
+        : '<p class="muted" style="margin-top:14px"><span class="spin-sm"></span> ' + ledT('ledLoading') + '…</p>';
+    }
+    var V = ledV(), cols = ledCols(), c = { all: 0, recv: 0, out: 0, waste: 0 }, h = '';
+    V.items.forEach(function (r) { if (r.n) c.all++; cols.forEach(function (x) { if (r[x]) c[x]++; }); });
+    if (K.admin) h += ledChips('ledSc', K.sc, [['all', 'ครัว + สโตร์'], ['kitchen', 'ครัว'], ['store', 'สโตร์']]);
+    h += ledDayChips();
+    if (!c.all) {
+      var how = K.admin ? 'ทีมยังไม่ได้กดรับของ/เบิกของในแอพ' : isStore() ? 'กด 📦 รับของ และ 📤 เบิกของ ทุกครั้ง ข้อมูลจะขึ้นที่นี่' : '';
+      h += '<div class="note warn" style="margin-top:12px">' + ledT('ledEmpty') + (K.data.last ? ' · ' + ledT('ledLast', { d: shortDate(K.data.last) }) : '') + '<br><small>' + (how ? esc(how) : ledT('ledHowTo')) + '</small></div>';
+    } else {
+      h += ledChart('📊 ' + ledT('ledPerDay'), ledLegend(cols) + ledBars(V.days, ''));
+      h += '<div class="section-h">📋 ' + ledT('ledByItem') + ' <span class="n">(' + c.all + ')</span></div>';
+      h += ledChips('ledF', K.f, [['all', ledT('ledAll')]].concat(cols.map(function (x) { return [x, ledT(LED_KEY[x]) + ' (' + c[x] + ')']; })));
+    }
+    return h;
+  }
+  function ledListHtml() {
+    var K = S.led;
+    if (!K.data) return '';
+    var cols = ledCols(), q = normQ(K.q), f = L.fmtNum, rows = ledV().items.filter(function (r) {
+      if (r.off && !r.n) return false;
+      return q ? matchItem(r, K.q) : r.n > 0 && (K.f === 'all' || !!r[K.f]);
+    });
+    if (!rows.length) return q ? '<p class="muted" style="margin-top:12px">' + ledT('ledNoMatch') + '</p>' : '';
+    var grid = ' style="--c:' + cols.length + '"';
+    return '<div class="card led-table" style="margin-top:10px"><div class="led-head"' + grid + '><span></span>' + cols.map(function (c) { return '<span>' + ledBi(LED_KEY[c]) + '</span>'; }).join('') + '</div>' + rows.map(function (r) {
+      return '<button class="led-row"' + grid + ' data-act="ledItem" data-id="' + esc(r.id) + '"><span class="nm"><b>' + esc(r.name_th) + '</b>' + (!K.admin && r.name_mm ? '<small class="mm">' + esc(r.name_mm) + '</small>' : '') + '<small>' + esc(r.unit) + (r.old ? ' · ' + r.old + ' ⚠️' : '') + '</small></span>' +
+        cols.map(function (c) { return '<span class="v' + (r[c] ? '' : ' z') + '">' + (r[c] ? f(r[c]) : '–') + '</span>'; }).join('') + '</button>';
+    }).join('') + '</div>';
+  }
+  function ledgerBody() {
+    var K = S.led;
+    return '<div id="led-top">' + ledTopHtml() + '</div><input class="inp" style="margin:10px 0 0" data-input="ledQ" type="search" autocomplete="off" placeholder="🔍 ' + esc(K.admin ? tr('searchItem').th : ph('searchItem')) + '" value="' + esc(K.q) + '"><div id="led-list">' + ledListHtml() + '</div>';
+  }
+  function ledgerScreen() {
+    var t = tr('ledTitle');
+    return top({ th: '📗 ' + t.th, mm: t.mm, back: 'toHome', net: false }) + '<div class="wrap screen">' + ledgerBody() + '</div>';
+  }
+  function ledCell(v) { return v ? L.fmtNum(v) : '<span class="z">–</span>'; }
+  function ledCountCell(x) {
+    if (L.isNum(x.count)) return L.fmtNum(x.count) + (x.bk ? ' ✓' : '');
+    if (x.ou) return (x.oq === null ? '' : L.fmtNum(x.oq) + ' ') + '<small>' + esc(x.ou) + '</small>';
+    if (x.lv) return '<small>' + esc(L.LEVEL_TH[x.lv] || x.lv) + '</small>';
+    return '<span class="z">–</span>';
+  }
+  function ledgerItemScreen() {
+    var K = S.led, R = K.data && K.id ? L.ledgerItem(K.data, K.id, K.days) : null;
+    if (!R) return top({ th: tr('ledTitle').th, back: 'ledBack', net: false }) + '<div class="wrap screen"><div class="note">' + ledT('ledNoMatch') + '</div></div>';
+    var it = R.it, u = it.unit, f = L.fmtNum, cols = it.st || R.tot.out ? ['recv', 'out', 'waste'] : ['recv', 'waste'];
+    var unitMmTxt = K.admin ? '' : unitMmFor(u, it);
+    var h = top({ th: it.name_th, mm: K.admin ? '' : it.name_mm, back: 'ledBack', net: false }) + '<div class="wrap screen">' + ledDayChips();
+    h += '<div class="led-stats" style="--c:' + cols.length + '">' + cols.map(function (c) {
+      return '<div class="card"><span><i style="background:' + LED_COLOR[c] + '"></i>' + ledT(LED_KEY[c]) + '</span><b>' + f(R.tot[c]) + '</b><small>' + esc(u) + (unitMmTxt ? ' <span class="mm">' + esc(unitMmTxt) + '</span>' : '') + '</small></div>';
+    }).join('') + '</div>';
+    if (R.old) h += '<div class="note" style="margin-top:10px">' + ledT('ledOldUnit', { n: R.old }) + '</div>';
+    if (!R.rows.length) return h + '<div class="note" style="margin-top:12px">' + ledT('ledNoMove') + '</div></div>';
+    if (R.days.some(function (x) { return L.isNum(x.count); })) h += ledChart('📈 ' + ledT('ledLevelChart'), ledLine(R.days, u));
+    if (R.days.some(function (x) { return x.recv || x.out || x.waste; })) h += ledChart('📊 ' + ledT('ledFlowChart'), ledLegend(cols) + ledBars(R.days, u));
+    h += '<div class="section-h">🗓️ ' + ledT('ledDayTable') + '</div><div class="card led-tbl-wrap"><table class="led-tbl"><thead><tr><th>' + ledBi('ledDate') + '</th>' + cols.map(function (c) { return '<th class="n">' + ledBi(LED_KEY[c]) + '</th>'; }).join('') + '<th class="n">' + ledBi('ledCount') + '</th></tr></thead><tbody>' +
+      R.rows.map(function (x) { return '<tr><td>' + esc(shortDate(x.d)) + '</td>' + cols.map(function (c) { return '<td class="n">' + ledCell(x[c]) + '</td>'; }).join('') + '<td class="n">' + ledCountCell(x) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    if (R.rows.some(function (x) { return x.bk; })) h += '<small class="muted">✓ = กดตรงตามยอด ไม่ได้นับจริง</small>';
+    if (R.moves.length) {
+      h += '<div class="section-h">👤 ' + ledT('ledWho') + '</div><div class="card led-moves">' + R.moves.slice(0, 40).map(function (m) {
+        var col = L.LEDGER_COL[m.t], neg = col === 'recv' ? m.q < 0 : true, um = K.admin ? '' : unitMmFor(m.u, it);
+        return '<div class="led-mv"><i style="background:' + LED_COLOR[col] + '"></i><div><b>' + ledT(LED_TYPE[m.t]) + ' ' + (neg ? '−' : '+') + (m.est ? '≈' : '') + f(Math.abs(m.q)) + ' ' + esc(m.u) + (um ? ' <span class="mm">' + esc(um) + '</span>' : '') + '</b>' + (m.raw ? ' <small>(' + esc(m.raw) + ')</small>' : '') +
+          '<small>' + esc(shortDate(m.d)) + (/ย้อนหลัง/.test(m.why) ? '' : ' ' + esc(L.bkkTime(m.at))) + ' · ' + esc(m.by) + (m.why ? ' · ' + esc(m.why) : '') + '</small></div></div>';
+      }).join('') + '</div>';
+    }
+    return h + '</div>';
+  }
+
   function addUnits() {
     var n = {};
     myItems().forEach(function (it) { if (it.unit) n[it.unit] = (n[it.unit] || 0) + 1; });
     var top8 = Object.keys(n).sort(function (a, b) { return n[b] - n[a]; }).slice(0, 8);
     return top8.length ? top8 : ['ชิ้น', 'ถุง', 'ขวด', 'แพ็ค', 'กล่อง', 'กระป๋อง', 'แกลลอน', 'ห่อ'];
   }
-  // ชื่อคล้ายที่มีแล้ว (กันเพิ่มซ้ำ): ชื่อที่พิมพ์อยู่ในชื่อเดิม หรือชื่อเดิมอยู่ในชื่อที่พิมพ์
   function addSimilar() {
     var q = normQ(S.add.name);
     if (q.length < 2) return [];
@@ -3874,7 +3924,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var w = document.getElementById('edit-unit-warn'), it = S.add.edit && itemById(S.add.edit);
     if (w && it) w.style.display = S.add.unit.trim() && S.add.unit.trim() !== it.unit ? '' : 'none';
   }
-  // แก้หน่วย: อะไรเปลี่ยนบ้าง (เทียบกับรายการตอนเปิดหน้า)
   function editChanges() {
     var a = S.add, it = itemById(a.edit), out = [];
     if (!it) return out;
@@ -3909,7 +3958,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     h += '</div><div class="bottom"><div class="wrap"><div class="hint center" id="add-miss">' + esc(addMissing()) + '</div><button class="btn btn-primary" id="add-save" data-act="' + (ed ? 'editSave' : 'addSave') + '"' + (addMissing() ? ' disabled' : '') + '>' + (ed ? '💾 บันทึก' : '➕ เพิ่มรายการ') + '</button></div></div>';
     return h;
   }
-  // รายการที่เพิ่มแล้วแต่ยังส่งไม่ถึงหลังบ้าน → ใส่กลับเมื่อได้ข้อมูลชุดใหม่ (ไม่ให้หายจากตู้ระหว่างรอ)
   function addReapply() {
     if (!S.boot) return;
     outbox().forEach(function (j) {
@@ -3919,7 +3967,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (it) Object.keys(j.patch).forEach(function (k) { it[k] = j.patch[k]; });
     });
   }
-  // แพ็คที่ซื้อ: แพ็คหลัก (หน่วยซื้อ) + แพ็คอื่น — ปุ่มบวกบนแป้น
   function packsOf(it) {
     var out = [];
     if (it.buy_unit && it.buy_factor > 0 && it.buy_factor !== 1) out.push({ label: it.buy_unit + ' ×' + L.fmtNum(it.buy_factor), per: it.buy_factor });
@@ -3944,7 +3991,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<button class="btn btn-warn" data-act="kpLow">ใกล้หมด</button><button class="btn btn-primary" data-act="kpNext">ถัดไป ›</button></div></div>';
   }
 
-  // จำนวนที่นับครั้งก่อน (รอบที่ส่งรายงานแล้ว ก่อนวันนี้) — มาพร้อมข้อมูลบน Firebase ไม่ต้องเรียกหลังบ้าน
   function lastCountOf(it) { return S.boot && S.boot.lastCounts ? L.prevCount(S.boot.lastCounts, it.id, S.boot.date) : null; }
   function lastCountHtml(it) {
     var p = lastCountOf(it);
@@ -3957,7 +4003,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<span class="mm lc-mm">' + esc(tr('lastCount').mm) + (all ? ' (' + esc(all.mm) + ')' : '') + ': ' + esc(mm) + ' · ' + esc(when.mm) + '</span></div>';
   }
 
-  // ยอดรวมถ้าที่นี่นับได้ val (ของหลายที่: บวกที่อื่นที่นับแล้ว — ถ้าที่อื่นยังไม่ครบ ไม่เตือนสีแดง)
   function kpTotal(it, val) {
     if (!isMulti(it)) return val;
     var sum = val, ok = true;
@@ -3969,7 +4014,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return ok ? sum : Infinity;
   }
 
-  // "5+1+1" = รวม (สโตร์: ของชนิดเดียวกันหลายขนาด นับเป็น กก. แล้วบวกตามฉลาก)
   function parseBuf(buf) {
     var n = 0;
     String(buf).split('+').forEach(function (x) { var v = Number(x.replace(/\.$/, '') || 0); if (isFinite(v)) n += v; });
@@ -3981,8 +4025,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return segs.join(' + ') + (/\+$/.test(b) ? ' +' : '') + (segs.length > 1 ? ' = ' + L.fmtNum(parseBuf(b)) : '');
   }
 
-  // แป้นนับ: เปิด/ปิด/เปลี่ยนรายการ วาดใหม่เฉพาะแผ่นแป้น + แถวที่เกี่ยวข้อง — ไม่วาดทั้งหน้า
-  // (หน้ายาวที่มีอักษรพม่าเยอะ วาดใหม่ทั้งหน้าช้ามากบนมือถือ — บอสเจอที่หน้าตรวจก่อนส่ง)
   function kpDispUpdate() {
     var b = S.kp.buf, it = itemById(S.kp.id), disp = document.getElementById('kp-disp');
     if (!disp) return;
@@ -3994,7 +4036,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     ['kp-bg', 'kp-sheet'].forEach(function (x) { var el = document.getElementById(x); if (el) el.remove(); });
     if (S.kp) $app.insertAdjacentHTML('beforeend', keypadHtml());
   }
-  // ปิดแป้น: หน้าที่ไม่ต้องคำนวณใหม่ = แค่เอาแผ่นแป้นออก · changed + หน้ารายงาน/หน้าแรก = ปิดแป้นก่อนแล้วค่อยวาดหน้าใหม่ (กดแล้วแป้นหายทันที)
   function kpDone(changed) {
     var id = S.kp && S.kp.id;
     S.kp = null;
@@ -4032,8 +4073,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     openKp(next.id, 'zone');
   }
 
-  // ---------- แจ้งเตือนสั้น / กล่องยืนยัน ----------
-  // ข้อความใหม่แทนข้อความเก่าทันที (บันทึกทันทีแล้วหลังบ้านพลาด จะได้ไม่ซ้อนกัน) · คำเตือน ⚠️ ค้างนานขึ้นให้อ่านทัน
   function toast(text) {
     var old = document.querySelectorAll('.toast');
     for (var i = 0; i < old.length; i++) old[i].remove();
@@ -4062,7 +4101,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
-  // กล่องพิมพ์ของแอพเอง — แทน window.prompt ที่เบราว์เซอร์ใน LINE/บางเครื่องปิดไว้ (กดแล้วเงียบ)
   function promptBox(title, placeholder) {
     return new Promise(function (res) {
       var el = document.createElement('div');
@@ -4082,7 +4120,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
-  // หน้าตรวจชื่อ/หน่วยพม่า: รายการที่แสดง (แท็บ + ค้นหา) · แถวเดียว · วาดแถวเดียวแทนทั้งหน้า
   var MM_ROWS = 80;
   function mmList(F) {
     var all = items().filter(inMyZones);
@@ -4101,7 +4138,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
           (it.mm_auto === 'mon' ? '' : '<button class="btn btn-primary stack" data-act="mmOk" data-id="' + esc(it.id) + '">' + biIcon('✓', 'yesCorrect') + '</button>') + '</div>') +
       '</div>';
   }
-  // MON กด ✓ ทีละรายการเป็นร้อยครั้ง — เดิมวาดทั้งหน้า 80 แถวทุกครั้ง · ตรวจแล้วในแท็บ "ยังไม่ตรวจ" = เอาแถวออก แล้วต่อแถวถัดไปท้ายรายการ
   function mmPatch(id) {
     var F = S.mmfix, el = document.getElementById('mf-' + id), it = itemById(id), box = document.getElementById('mf-list');
     if (!F || !el || !it || !box) return rerenderKeepScroll();
@@ -4116,7 +4152,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var tb = document.querySelector('[data-act="mmTab"][data-v="todo"]');
     if (tb) tb.innerHTML = mmTodoLabel();
   }
-  // ชื่อพม่าที่หัวหน้ายืนยัน/แก้: เปลี่ยนในเครื่องทันที แล้วรวมส่งเป็นชุด (กดหลายรายการติดกัน = ส่งครั้งเดียว)
   function mmSet(it, mm, umm) {
     it.name_mm = mm; it.mm_auto = 'mon';
     if (umm) it.unit_mm = umm;
@@ -4124,7 +4159,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     clearTimeout(S.mmT); S.mmT = setTimeout(mmFlush, 4000);
     store.set('boot', { at: Date.now(), b: S.boot });
   }
-  // ชื่อที่แก้แล้วแต่ยังส่งไม่ถึงหลังบ้าน → ทับข้อมูลที่เพิ่งมา (ไม่ให้เด้งกลับเป็นชื่อเก่า)
   function mmReapply() {
     var pend = {};
     outbox().forEach(function (j) { if (j.fn === 'apiStaffSetMm' && !j.failed) (j.args[2] || []).forEach(function (c) { pend[c.id] = c; }); });
@@ -4141,7 +4175,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '✏️ ' + tr('mmSavedN', { n: ids.length }).th + ' · ' + tr('mmSavedN', { n: ids.length }).mm);
   }
 
-  // ---------- ส่งตามหลัง (outbox): กดยืนยันแล้วไปต่อได้เลย แอพส่งเองจนสำเร็จ — เก็บในเครื่อง เน็ตหลุด/ปิดแอพก็ไม่หาย (กฎ: ห้ามทำให้แอพช้าลง) ----------
   function outbox() { return S.outbox || (S.outbox = store.get('outbox') || []); }
   function outboxSave() { store.set('outbox', outbox()); }
   function outboxAdd(fn, args, label) {
@@ -4198,12 +4231,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     toast('✅ ' + job.label + ' — ' + ph('sent'));
   }
-  // จุดสถานะบนหัวจอ: ยังมีของค้างส่ง = กำลังบันทึก
   function outboxNet() {
     if (outbox().some(function (j) { return !j.failed; })) { if (S.net !== 'offline') setNet('saving'); }
     else if (S.net === 'saving' && !Object.keys(S.pending || {}).length && !S.inflight) setNet('ok');
   }
-  // ใบสั่งที่ยังมีรับของ/แก้ใบรับค้างส่ง → กันรับซ้ำ (ยอดค้างรับยังไม่ตรง)
   function poSending(id) {
     return outbox().some(function (j) {
       return !j.failed && ((j.fn === 'apiReceive' && j.args[2] && String(j.args[2].po_id) === String(id)) || (j.fn === 'apiReceiptEdit' && j.po && String(j.po) === String(id)));
@@ -4224,7 +4255,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
-  // กล่องใส่ตัวเลขของแอพเอง (สองภาษา) — คืนตัวเลข หรือ null ถ้ายกเลิก
   function numBox(titleHtml, def, unitHtml) {
     return new Promise(function (res) {
       var el = document.createElement('div');
@@ -4245,7 +4275,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     });
   }
 
-  // ---------- การกดต่างๆ ----------
   var ACT = {
     retry: function () { go('loading'); start(); },
     obRetry: function (el) { outbox().forEach(function (j) { if (j.id === el.dataset.id) { delete j.failed; j.tries = 0; } }); outboxSave(); outboxRun(); rerenderKeepScroll(); },
@@ -4308,7 +4337,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     toSent: function () { go('sent'); },
     openZoneTodo: function (el) { S.zone = el.dataset.z; S.onlyUncounted = true; S.zoneQ = ''; S.zoneBack = ''; go('zone'); pollNow(); },
-    // ทำเสร็จ → ใส่จำนวนที่ทำได้จริง → บวกเข้ายอดนับ (ที่เก็บหลัก) + บันทึกการผลิตตามหลัง (แดชบอร์ดคิดการใช้ได้)
     prepDone: function (el) {
       var it = itemById(el.dataset.id);
       if (!it) return;
@@ -4323,8 +4351,15 @@ if (typeof module !== 'undefined') module.exports = Logic;
       });
     },
     toWaste: function () { S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: [] }; go('waste'); },
-    // ยอดคงเหลือ (สโตร์): จากหน้าแรก = เริ่มบนสุด · กลับจากตู้ = ตำแหน่งเดิม
     openStock: function () { flush(); S.stk = { f: 'all', q: '', y: 0 }; go('stock'); },
+    toLedger: function () { flush(); ledInit(false, S.pin); ledLoad(); go('ledger'); },
+    ledBack: function () { var K = S.led; go(K.admin ? 'admin' : 'ledger'); window.scrollTo(0, K.y || 0); },
+    ledRetry: function () { ledLoad(); ledPaint(); },
+    ledDays: function (el) { S.led.days = Number(el.dataset.v) || 30; ledPaint(); },
+    ledSc: function (el) { S.led.sc = el.dataset.v; S.led.f = 'all'; ledPaint(); },
+    ledF: function (el) { S.led.f = el.dataset.v; ledPaint(); },
+    ledItem: function (el) { S.led.id = el.dataset.id; S.led.y = window.scrollY; go('ledgerItem'); },
+    ledTip: function (el) { var b = el.closest('.led-chart'), r = b && b.querySelector('.led-read'); if (r) r.textContent = el.getAttribute('data-t'); },
     toStock: function () { flush(); S.stk = S.stk || { f: 'all', q: '', y: 0 }; var y = S.stk.y || 0; S.zoneBack = ''; go('stock'); if (y) window.scrollTo(0, y); },
     stockF: function (el) { S.stk.f = el.dataset.v; rerenderKeepScroll(); },
     addItemOpen: function (el) {
@@ -4506,14 +4541,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (S.screen !== 'zone') setTimeout(function () { if (S.kp) rerenderKeepScroll(); }, 0); // รายงานข้างหลังเปลี่ยน
     },
     kpOut: function () { if (kpJustOpened()) return; setEntry(kpKey(), { v: 0 }); afterKp(S.kp.id); },
-    // สโตร์: ตรงตามยอดตามบัญชี (ไม่ได้นับจริง — รายงานบอกแยก)
     kpBook: function () {
       var b = bookOf(itemById(S.kp.id));
       if (!b || fullDay() || kpJustOpened() || isMulti(itemById(S.kp.id)) || isSaleItem(itemById(S.kp.id))) return;
       setEntry(kpKey(), { v: b.bal, bk: true });
       afterKp(S.kp.id);
     },
-    // สโตร์: บวกทีละแพ็ค (แพ็ค ×6 = +6) แล้วพิมพ์ชิ้นที่แกะแล้วต่อได้
     kpPack: function (el) {
       var b = S.kp.buf, per = el.dataset.v;
       if (b.split('+').length >= 10) return;
@@ -4522,7 +4555,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       buzz();
       kpDispUpdate();
     },
-    // สโตร์: ตัวเลขที่พิมพ์ (หรือที่นับไว้) + ติดว่าใกล้หมด แล้วไปรายการถัดไป
     kpLow: function () {
       if (kpJustOpened() && S.kp.buf === '') return;
       var kp = S.kp, it = itemById(kp.id), key = kpKey(), e = S.draft.entries[key];
@@ -4553,7 +4585,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         : Promise.resolve('send');
       go2.then(function (k) {
         if (k !== 'send') return;
-        // ส่งตามหลัง: กลับหน้าแรกเลย แอพรอผลนับขึ้นครบแล้วค่อยส่งรายงานเอง
         clearTimeout(S.saveTimer);
         flush();
         outboxAdd('apiSubmit', [S.pin, S.boot.date, S.me, S.note], '📤 ' + ph('reviewSend') + (myLabel() ? ' (' + myLabel() + ')' : ''));
@@ -4572,7 +4603,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       go('recvpo');
     },
     recvNoPo: function () { S.recv = { po_id: 0, supplier_name: '', lines: [], amount: '', photos: [], note: '', q: '', busy: false, sending: false }; go('recvpo'); },
-    // ปุ่ม "มาครบ" ข้างช่องใส่ (ของนับชิ้น) · กดซ้ำ = ล้าง
     recvFull: function (el) {
       var l = S.recv.lines[+el.dataset.k];
       var on = Number(l.qty) === l.remaining;
@@ -4623,7 +4653,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var box = document.getElementById('rl-sh-' + el.dataset.k);
       if (box) box.innerHTML = recvShortHtml(l, +el.dataset.k);
     },
-    // เปิดทันทีจากข้อมูลในเครื่อง (เดิมรอหลังบ้าน 1.5–3 วิ โดยจอไม่เปลี่ยน) · ใบสั่งที่รับครบแล้ว (ไม่อยู่ในรายการ) ต้องโหลด
     recvEditOpen: function (el) {
       var rc = (S.recvRecent || []).filter(function (x) { return x.id === el.dataset.id; })[0];
       if (rc && openReceiptLocal(rc, S.recvList || (S.boot && S.boot.pos), false)) return;
@@ -4683,14 +4712,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
       outboxAdd('apiWaste', [S.pin, S.me, { lines: lines, note: w.note, photos: w.photos }], '🗑️ ' + text);
       buzz();
       toast('✅ ' + ph('savedSending'));
-      // ส่งแล้วอยู่หน้าเดิม เผื่อทิ้งอีกรอบ (กดย้อนกลับไปหน้าแรกได้)
       S.waste = { q: '', lines: [], note: '', photos: [], busy: false, sent: w.sent.concat([text]) };
       render(); window.scrollTo(0, 0);
     }
   };
 
   function kpKey() { return L.slotKey(itemById(S.kp.id), S.kp.z); }
-  // แตะ "หมด"/ระดับ/ตามยอด ซ้ำเร็วๆ (มือถือช้า) → แป้นของรายการถัดไปเปิดตรงที่เดิม แตะที่สองจะไปลงรายการถัดไป — กันไว้ 250 ms (แตะซ้ำโดยไม่ตั้งใจห่างกัน ~100–250 ms)
   function kpJustOpened() { return !!S.kp && Date.now() - (S.kp.openedAt || 0) < 250; }
 
   var BIG_X = 3; // เกิน Max กี่เท่าถึงถาม
@@ -4704,7 +4731,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return confirmBox(msg, '',
       [{ key: 'fix', html: bi('fixIt') }, { key: 'ok', html: bi('yesCorrect'), cls: 'btn-primary' }]).then(function (k) { return k === 'ok'; });
   }
-  // บันทึกตัวเลขในแป้น (ผ่านการเช็คแล้ว) → then(true) · ถ้าให้แก้ใหม่ = ล้างแป้นรอพิมพ์ใหม่ → then(false)
   function kpCommit() {
     var kp = S.kp, it = itemById(kp.id), v = parseBuf(kp.buf), key = kpKey(), prev = S.draft.entries[key];
     return kpCheck(it, v).then(function (ok) {
@@ -4720,7 +4746,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     kpAdvance();
   }
 
-  // รอให้ผลนับทั้งหมดขึ้นหลังบ้านก่อนส่ง (สูงสุด ~20 วินาที)
   function waitSaved() {
     return new Promise(function (res, rej) {
       var tries = 0;
@@ -4786,6 +4811,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (p) p.innerHTML = issuePicks();
     },
     issueQty: function (el) { S.issue.lines[+el.dataset.i].qty = el.value; issueBtnUpdate(); },
+    ledQ: function (el) {
+      S.led.q = el.value;
+      clearTimeout(S.ledQT);
+      S.ledQT = setTimeout(function () { var l = document.getElementById('led-list'); if (l) l.innerHTML = ledListHtml(); }, 150);
+    },
     stockQ: function (el) {
       S.stk.q = el.value;
       clearTimeout(S.stkT); S.stkT = setTimeout(function () { var l = document.getElementById('stk-list'); if (l) l.innerHTML = stockListHtml(stockRows()); }, 150);
@@ -4822,7 +4852,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       l.qty = el.value;
       recvRowUpdate(+el.dataset.k);
     },
-    // ของชั่ง: กรัมตามตาชั่ง → จำนวนในหน่วยที่สั่ง (+ ยอดนับถ้าหน่วยนับเป็นน้ำหนัก)
     recvGrams: function (el) {
       var l = S.recv.lines[+el.dataset.k], g = Number(el.value), cg = L.gramsPer(l.count_unit);
       l.grams = el.value;
@@ -4841,7 +4870,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!files.length) return;
       u.busy = true; rerenderKeepScroll();
       files.reduce(function (p, f) {
-        // เก็บไฟล์ต้นฉบับไว้ในเครื่อง (รับของ) — ตอนกดอ่านบิลค่อยทำรูปละเอียด ไม่ให้การส่งช้าลง
         return p.then(function () { return resizeImage(f).then(function (d) { u.photos.push(d); if (el.dataset.target === 'recv') (u.files = u.files || [])[u.photos.length - 1] = f; }); });
       }, Promise.resolve()).catch(function (e) { toast(errMsg(e)); }).then(function () { u.busy = false; rerenderKeepScroll(); });
     }
@@ -4868,12 +4896,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (el && el.type !== 'file' && INPUT[el.dataset.input]) INPUT[el.dataset.input](el);
   });
 
-  // ================= หน้าบอส (ภาษาไทยอย่างเดียว) =================
-  // วาดหน้าบอสใหม่หลังโหลดเบื้องหลังได้ไหม — บอสพิมพ์ในแท็บตั้งค่าค้างอยู่ (รหัสใหม่ ฯลฯ) = ไม่วาดทับ ช่องจะได้ไม่ว่าง
   function adminBgOk() { var A = S.admin; return S.screen === 'admin' && !(A && A.tab === 'settings' && A.setDirty); }
   function loadAdmin(pin, tab) {
     var t = tab || (S.admin && S.admin.tab) || 'dash';
-    // ข้อมูลของแท็บที่จะเปิด ยิงพร้อมกันเลย (เดิมรอ apiAdminLoad เสร็จก่อนค่อยยิง = รอหลังบ้าน 2 รอบ)
     var early = t === 'dash' ? api('apiAdminDashboard', pin) : t === 'po' ? api('apiAdminPoData', pin) : null;
     if (early) early.catch(function () { /* รับผลใน adminTabLoad */ });
     return api('apiAdminLoad', pin, true).then(function (d) {
@@ -4892,10 +4917,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminTabLoad(early) {
     if (S.admin.tab === 'po') loadPoData(false, early);
     if (S.admin.tab === 'dash') loadDash(early);
+    if (S.admin.tab === 'ledger') ledLoad();
     if (S.admin.tab === 'history') loadReports();
     if (S.admin.tab === 'staff') loadCountStats();
   }
-  // ประวัติรับของ/แจ้งด่วน/ค่า Claude — ไม่ต้องรอตอนเข้าหน้า
   function loadExtras() {
     var A = S.admin;
     return api('apiAdminExtras', A.pin).then(function (x) {
@@ -4904,7 +4929,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (adminBgOk() && (A.tab === 'history' || A.tab === 'settings')) rerenderKeepScroll();
     }, function () { /* ไว้โหลดใหม่ตอนเปิดแท็บ */ });
   }
-  // เครื่องบอสที่จำรหัสไว้: จำข้อมูลหน้าบอสไว้ด้วย → ครั้งหน้าเปิดได้ทันที แล้วค่อยอัปเดตตามหลัง
   function adminCacheSave() {
     var A = S.admin;
     if (!A || !store.get('apin')) return;
@@ -4941,8 +4965,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return true;
   }
 
-  // ================= สั่งซื้อ (หน้าบอส) =================
-  // quiet = โหลดล่วงหน้าเงียบๆ (ไม่เตือนถ้าพลาด) · early = คำขอที่ยิงไว้แล้ว · ผลของคำขอเก่าที่มาช้ากว่าคำขอใหม่ → ทิ้ง
   function loadPoData(quiet, early) {
     var A = S.admin, n = A.poSeq = (A.poSeq || 0) + 1;
     return (early || api('apiAdminPoData', A.pin)).then(function (d) {
@@ -4953,9 +4975,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }, function (e) { if (!quiet) toast(errMsg(e)); });
   }
 
-  // ใบสั่งใหม่ (ใบเปล่า/วางรายการ) นับเป็นของรอบนับล่าสุด → ของในใบนั้นไม่ขึ้นซ้ำตอนสร้างใบจากรอบนี้
   function roundDate() { var P = S.admin && S.admin.po; return (P && P.round && P.round.date) || ''; }
-  // บันทึกใบสั่งแล้ว ติดป้าย "สั่งแล้ว" ในรายการรอบนี้ทันที ไม่ต้องรอโหลดใหม่ (กดสร้างใบร้านถัดไปได้เลย ของไม่ขึ้นซ้ำ)
   function markOrdered(po) {
     var P = S.admin && S.admin.po;
     if (S.admin) S.admin.dashAt = 0; // สร้าง/แก้ใบสั่งแล้ว → ใบถัดไปต้องเห็นยอด "สั่งไว้แล้ว" ใหม่
@@ -4968,7 +4988,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     adminCacheSave();
   }
 
-  // ================= ใครช่วยนับ (แท็บทีม) — โหลดตามหลัง ไม่ถ่วงการเปิดแท็บ =================
   function loadCountStats(range) {
     var A = S.admin, C = A.cstat || (A.cstat = { range: 30 });
     if (!range && C.data && C.at && Date.now() - C.at < 5 * 60000) return Promise.resolve(); // เพิ่งโหลด ไม่ต้องยิงซ้ำ
@@ -4989,7 +5008,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var h = '<div id="cstat"><div class="section-h">📊 ใครช่วยนับ <span class="n">(' + rng + ' วันล่าสุด' + (D && D.from ? ' · ครัวนับ ' + D.countDays + ' วัน' + (D.storeDays ? ' · สโตร์ ' + D.storeDays + ' วัน' : '') : '') + ')</span></div>' +
       '<div class="tabs" style="margin-bottom:8px">' + [30, 90].map(function (n) { return '<button class="' + (rng === n ? 'on' : '') + '" data-act="cstatRange" data-v="' + n + '">' + n + ' วัน</button>'; }).join('') + '</div>';
     if (!D) return h + (C.err ? '<div class="note bad">' + esc(C.err) + '</div>' : '<p class="muted"><span class="spin-sm"></span>กำลังรวบรวม…</p>') + '</div>';
-    // บ่อยสุด/น้อยสุด เทียบเฉพาะทีมครัว · เสมอกันได้ป้ายทุกคน · ถ้าทุกคนเท่ากันไม่ติดป้าย
     var kitchen = D.people.filter(function (p) { return p.staff && storeNames.indexOf(p.name) < 0; });
     var hi = kitchen.length ? kitchen[0].days : 0, lo = kitchen.reduce(function (m, p) { return Math.min(m, p.days); }, hi);
     h += '<div class="card cs-list">' + D.people.map(function (p, i) {
@@ -5013,7 +5031,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return h + '</div>';
   }
-  // หารายการ/แถวแดชบอร์ดตามรหัส — ตารางค้นทำครั้งเดียวต่อชุดข้อมูล (หน้าแก้ใบสั่งเรียกหลายครั้งต่อบรรทัด)
   function idMap(list) {
     if (!list) return {};
     if (list.__byId && list.__n === list.length) return list.__byId;
@@ -5026,14 +5043,10 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function idMapReset(list) { if (list && list.__byId) list.__n = -1; } // แก้รายการในอาร์เรย์เดิม → ตารางค้นต้องทำใหม่
   function admItem(id) { return S.admin && S.admin.data ? idMap(S.admin.data.items)[id] || null : null; }
   function dashOf(id) { return S.admin && S.admin.dash ? idMap(S.admin.dash.items)[id] || null : null; }
-  // ================= คำแนะนำจำนวนสั่ง (หน้าแก้ใบสั่ง) — คิดในเครื่องจากข้อมูลแดชบอร์ด ไม่ต้องรอหลังบ้าน =================
-  // ต้องพอใช้ถึงก่อนของรอบหน้ามา: บอสเลือกวันสั่งรอบหน้า (จำไว้เป็น "อีกกี่วัน") · วันรอของ = ค่าในแดชบอร์ด
   function poNextDate() {
     var A = S.admin, today = bizToday(), gap = Number(A.poNextGap || store.get('poNextGap') || 2);
     return L.addDays(today, Math.max(1, Math.min(14, gap)));
   }
-  // รายการเดียวกันหลายบรรทัด (ซื้อเติม + ตามสูตร ฯลฯ): คำแนะนำคิดครั้งเดียวที่บรรทัดหลัก (key = รหัสรายการ ไม่งั้นบรรทัดแรก)
-  // แล้วหักจำนวนที่บรรทัดอื่นของรายการเดียวกันใส่ไว้ — เดิมทุกบรรทัดได้คำแนะนำเต็ม กดใส่ทั้งหมดแล้วสั่งซ้ำ
   function adviceFor(l) {
     var A = S.admin, D = A.dash, E = A.poEdit;
     if (!D || !D.items) return null;
@@ -5066,7 +5079,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   function adviceTopHtml() {
     var A = S.admin, D = A.dash, today = bizToday(), nd = poNextDate();
-    // ข้อมูลการใช้ต้องสด (แคชเก่า/ยังไม่โหลดในรอบนี้ → โหลดตามหลัง แล้วอัปเดตเฉพาะข้อความแนะนำ)
     if ((!D || !A.dashAt || Date.now() - A.dashAt > 600000) && !A.dashLoading) {
       A.dashLoading = true;
       loadDash().then(function () { A.dashLoading = false; refreshAdvice(); }, function () { A.dashLoading = false; });
@@ -5076,7 +5088,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<small class="muted" id="pe-adv-win">ของมาหลังสั่ง ' + lead + ' วัน → รอบนี้ต้องพอใช้ ' + win + ' วัน (ถึง ' + esc(L.thaiDate(L.addDays(today, win))) + ') · คิดจากยอดใช้จริงที่นับ/รับของ + เผื่อวันขายดี 1 วัน</small>' +
       '<button class="btn btn-ghost" data-act="peUseAllAdvice" style="margin-top:8px">🤖 ใส่จำนวนตามคำแนะนำทั้งหมด</button></div>';
   }
-  // อัปเดตเฉพาะข้อความแนะนำ (ไม่วาดทั้งหน้า — ไม่กวนตอนกำลังพิมพ์)
   function refreshAdvice() {
     var E = S.admin && S.admin.poEdit;
     if (!E || S.screen !== 'apoedit') return;
@@ -5084,7 +5095,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (top) top.outerHTML = adviceTopHtml();
     E.lines.forEach(function (l, i) { var el = document.getElementById('pe-adv-' + i); if (el) el.innerHTML = adviceHtml(l, i); });
   }
-  // ใบสั่ง: เลือกแพ็คที่จะซื้อ (แพ็คหลักหมด → แพ็คอื่น) — จำนวนแปลงให้ตามปริมาณเดิม
   function poPacks(it) {
     var out = [{ unit: it.buy_unit || it.unit, factor: it.buy_unit && it.buy_factor > 0 ? it.buy_factor : 1, size: it.buy_unit ? '' : it.size || '', makro: it.makro || '', makro_name: it.makro ? it.makro_name || '' : '',
       label: (it.buy_unit || it.unit) + (it.makro_name ? ' · ' + it.makro_name : '') }];
@@ -5103,7 +5113,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       return '<option value="' + k + '"' + (k === (cur < 0 ? 0 : cur) ? ' selected' : '') + '>' + esc(p.label) + '</option>';
     }).join('') + '</select>';
   }
-  // แพ็คอื่น: "รหัส | ชื่อ | เท่ากับกี่หน่วยนับ" ทีละบรรทัด ↔ JSON ในรายการ
   function packsText(v) {
     var a = [];
     try { a = v ? JSON.parse(v) : []; } catch (e) { a = []; }
@@ -5118,15 +5127,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }).filter(Boolean);
     return a.length ? JSON.stringify(a) : '';
   }
-  // รหัส Makro ของบรรทัดใบสั่ง (ใบเก่า/ของที่เพิ่งเพิ่ม → ดูจากรายการ)
   function makroTag(l) {
     var it = !l.makro && l.item_id && S.admin && S.admin.data ? admItem(l.item_id) : null;
     var code = l.makro || (it && it.makro), nm = l.makro ? l.makro_name : it && it.makro_name;
     return code ? '<small class="muted">Makro ' + esc(code) + (nm ? ' · ' + esc(nm) : '') + '</small>' : '';
   }
   var PO_TAG = { open: 'brand', partial: 'warn', received: 'ok', closed: '' };
-  // ================= ร่างใบสั่งอัตโนมัติ (27 ต.ค.69) — หลังน้องส่งรายงาน ระบบจัดของต้องซื้อเข้าร้านประจำ บอสกดอนุมัติครั้งเดียว =================
-  // ที่บอสแก้ในร่าง (จำนวน/ติ๊ก/ย้ายร้าน) จำไว้ในเครื่องจนมีรอบนับใหม่ — ออกจากหน้าแล้วกลับมาไม่หาย
   function dEd() {
     var A = S.admin, P = A.po, k = (P.round ? P.round.date : '') + '|' + (P.sround ? P.sround.date : '');
     if (!A.dEd) A.dEd = store.get('poDraftEd') || {};
@@ -5135,7 +5141,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   function dEdSave() { store.set('poDraftEd', S.admin.dEd); }
   function dEdOf(key) { var D = dEd(); return D.ed[key] || (D.ed[key] = {}); }
-  // บรรทัดของรอบนับล่าสุด ครัว + สโตร์ (sc = ฝั่ง, rd = วันที่รอบ)
   function draftAll() {
     var P = S.admin.po, out = [];
     [[P.round, 'kitchen'], [P.sround, 'store']].forEach(function (x) {
@@ -5174,7 +5179,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="muted" style="margin-top:4px">ต้องซื้อ ' + all.length + ' · สั่งแล้ว ' + nOrd + (nSkip ? ' · ไม่สั่งรอบนี้ ' + nSkip : '') + ' · รออนุมัติ ' + nWait + '</div>' +
       (!all.length ? '<p style="margin:8px 0 0">✅ รอบนี้ไม่มีของต้องซื้อ</p>' : !nWait ? '<p style="margin:8px 0 0">✅ ของรอบนี้สั่งครบแล้ว</p>' :
         '<p class="muted" style="font-size:13.5px;margin:8px 0 0">จัดของเข้าร้านประจำให้แล้ว · จำนวน = เติมให้ถึง Max · แก้เลข / เอาติ๊กออก (= ไม่สั่งรอบนี้) / ย้ายร้าน ได้ แล้วกด <b>✓ อนุมัติทั้งหมด</b> ด้านล่าง</p>') + '</div>';
-    // ใบสั่งรอบก่อนที่ยังไม่ได้กดรับ: ของอาจมาแล้วแต่ไม่ได้บันทึก → ระบบไม่รู้ว่าของเข้า (คิดการใช้ผิด)
     var stale = (P.pos || []).filter(function (po) { return (po.status === 'open' || po.status === 'partial') && L.businessDate(new Date(po.created_at)) < rnd.date; });
     if (stale.length) h += '<div class="note warn" style="margin-top:10px">⏳ ใบสั่งรอบก่อนยังไม่ได้กดรับ ' + stale.length + ' ใบ (' + stale.slice(0, 6).map(function (po) { return '#' + po.id; }).join(' ') + (stale.length > 6 ? ' …' : '') + ') — ของมาแล้วให้น้องกดรับในแอพ ไม่งั้นระบบไม่รู้ว่าของเข้า · ไม่มาแล้วเปิดใบแล้วกดปิด</div>';
     groups.forEach(function (g) {
@@ -5195,11 +5199,9 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<div class="nm"><b>' + esc(l.name_th) + (l.sc === 'store' ? ' <span class="tag">🏬 สโตร์</span>' : '') + '</b>' + makroTag(l) +
       (info ? '<small class="muted">' + info + conv + '</small>' : conv ? '<small class="muted">' + conv + '</small>' : '') +
       (l.pend ? '<small style="color:var(--warn)">⏳ ใบ #' + l.pend.id + ' (' + esc(poDateTh(l.pend.at)) + ') ยังไม่ได้กดรับ — ของมาแล้วหรือยัง?</small>' : '') +
-      // ปุ่มเล็กแทนช่องเลือกร้านทุกบรรทัด (ช่องเลือก 24 อันทำให้แท็บสั่งซื้อช้าลง ~5 เท่าบนมือถือ) — แตะแล้วค่อยเปิดรายชื่อร้าน
       '<button class="mini-link" data-act="dMove" data-k="' + k + '">' + (l.sup ? '↪ ย้ายร้าน' : '🏪 เลือกร้าน') + '</button></div>' +
       '<div class="imp-q"><input type="number" inputmode="decimal" step="any" min="0" class="inp sm" data-input="dQty" data-k="' + k + '" value="' + esc(String(l.qty)) + '"><span>' + esc(l.unit) + (l.size ? ' (' + esc(l.size) + ')' : '') + '</span></div></div>';
   }
-  // หลังอนุมัติ: ใบที่สร้างแล้ว + ปุ่มส่งไลน์ทีละร้าน (เปิดไลน์ เลือกแชตร้าน ข้อความพิมพ์ไว้ให้)
   function approvedHtml() {
     var X = S.admin.approved;
     var h = '<div class="card" style="padding:16px;margin-bottom:12px;border:1.5px solid var(--ok)"><b>' + (X.pending ? '<span class="spin-sm"></span>กำลังสร้างใบสั่ง ' + X.list.length + ' ใบ…' : '✅ อนุมัติแล้ว ' + X.list.length + ' ใบ — ส่งให้แต่ละร้าน') + '</b>' +
@@ -5221,7 +5223,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (A.approved) h += approvedHtml();
     h += draftsHtml();
     h += '<div class="btn-row" style="margin-top:12px"><button class="btn btn-ghost" data-act="poBlank">＋ ใบสั่งเปล่า</button><button class="btn btn-ghost" data-act="impOpen">📋 วางรายการ</button></div>';
-    // ร้านค้า
     h += '<div class="section-h">🏪 ร้านค้า <button class="muted" data-act="supToggle" style="text-decoration:underline;font-size:14px;font-weight:500">' + (A.supDraft ? 'ปิด' : 'แก้ไข / เพิ่มร้าน') + '</button></div>';
     if (A.supDraft) {
       h += '<div class="list">' + A.supDraft.map(function (x, i) {
@@ -5231,7 +5232,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     } else {
       h += '<div class="picks" style="margin-top:0">' + P.suppliers.filter(function (x) { return x.active !== false; }).map(function (x) { return '<span class="tag">' + esc(x.name) + '</span>'; }).join('') + '</div>';
     }
-    // ใบสั่ง — โหมดเลือกหลายใบ: แตะเลือก แล้วคัดลอกรวมเป็นข้อความเดียว (ไม่ต้องเข้า-ออกคัดลอกทีละใบ)
     var pick = A.poPick;
     h += '<div class="section-h">📄 ใบสั่งซื้อ' + (P.pos.length ? ' <button class="muted" data-act="poPickToggle" style="text-decoration:underline;font-size:14px;font-weight:500">' +
       (pick ? 'ยกเลิกการเลือก' : '☑ เลือกหลายใบ คัดลอกรวม') + '</button>' : '') + '</div>';
@@ -5252,7 +5252,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }
     return h;
   }
-  // ข้อความรวมของใบที่เลือก (เรียงตามเลขใบสั่ง)
   function pickedPoText() {
     var A = S.admin, ids = (A.poPick && A.poPick.ids) || [];
     var pos = A.po.pos.filter(function (po) { return ids.indexOf(po.id) >= 0; }).sort(function (a, b) { return a.id - b.id; });
@@ -5264,7 +5263,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       function () { toast('คัดลอกไม่ได้ — เปิด "ดูข้อความที่จะคัดลอก" แล้วกดค้างเพื่อคัดลอก'); });
   }
 
-  // ---------- วางรายการสั่งซื้อเป็นข้อความ → หลายใบสั่งทีเดียว ----------
   function impVendor(v) {
     var sups = (S.admin.po && S.admin.po.suppliers || []).filter(function (x) { return x.active !== false; });
     if (!v || /^(ไม่ระบุ|-|ไม่มี)$/.test(v.trim())) return '';
@@ -5400,7 +5398,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h + '</div>';
   }
 
-  // การ์ดใบรับของในหน้าบอส (รายละเอียดใบสั่ง + ประวัติ) — แก้/ยกเลิกได้
   function receiptCard(r) {
     var voided = r.status === 'void';
     return '<div class="card hist"' + (voided ? ' style="opacity:.6"' : '') + '><div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b>' + esc(r.id) + ' · ' + esc(r.by) + ' · ' + poDateTh(r.at) + ' ' + esc(L.bkkTime(r.at)) + '</b>' +
@@ -5415,7 +5412,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (voided ? '<span class="tag bad">ยกเลิกแล้ว</span>' : '<button data-act="aRecvEdit" data-id="' + esc(r.id) + '">✏️ แก้ / ยกเลิก</button>') + '</div></div>';
   }
 
-  // ================= แดชบอร์ด (หน้าบอส) — กราฟวาดเองด้วย SVG ไม่ต้องโหลดไลบรารี =================
   var ST = {
     low: { th: 'ต่ำกว่า Min', c: 'var(--bad)', tag: 'bad' },
     near: { th: 'ใกล้ Min', c: 'var(--warn)', tag: 'warn' },
@@ -5451,7 +5447,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function qtyText(q, unit) { return q === null || q === undefined ? '–' : L.fmtNum(q) + ' ' + unit; }
   function dashItemById(id) { return S.admin.dash.items.filter(function (r) { return r.id === id; })[0]; }
 
-  // แถบระดับของ: 0 ── Min ── Max  (สีตามสถานะ)
   function gauge(r) {
     var q = r.estNow;
     if (q === null || !r.configured) return '<div class="gauge empty"></div>';
@@ -5472,7 +5467,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<small class="muted">' + (r.configured ? 'Min ' + L.fmtNum(r.min) + ' · Max ' + L.fmtNum(r.max) + (meta.length ? ' · ' : '') : '') + esc(meta.join(' · ')) + '</small></button>';
   }
 
-  // กราฟระดับของ: เส้นที่นับจริง + แถบ Min–Max + ของเข้า ▲ + คาดการณ์ (เส้นประ)
   function stockChart(r) {
     var W = 340, H = 180, pl = 40, pr = 12, pt = 14, pb = 28;
     var pts = r.series.slice(), fc = r.forecast || [];
@@ -5518,7 +5512,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return s + '</svg>';
   }
 
-  // กราฟแท่ง: [{label, v, c, title}] + เส้นค่าเฉลี่ย (ถ้ามี)
   function barChart(bars, opt) {
     opt = opt || {};
     var W = 340, H = opt.h || 150, pl = 34, pr = 8, pt = 12, pb = 24;
@@ -5562,21 +5555,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
       kpi(ready ? D.soon : '–', 'จะหมดใน 2 วัน', 'warn', 'dashFilter', 'soon', ready ? '' : 'รอข้อมูล') +
       kpi(D.openPos, 'ใบสั่งรอรับ', 'brand', 'dashToPo', '') +
       kpi(lastCov ? lastCov.n + '/' + D.total : '–', 'นับล่าสุด', '', '', '', lastCov ? shortDate(lastCov.date) : '') + '</div>';
-    // สุขภาพสต็อค
     var segs = ['low', 'near', 'ok', 'over', 'unknown'].filter(function (k) { return D.status[k]; });
     h += '<div class="card" style="padding:14px 16px;margin-top:12px"><b>สุขภาพสต็อค</b><div class="stack-bar">' + segs.map(function (k) {
       return '<i style="flex:' + D.status[k] + ';background:' + ST[k].c + '" title="' + ST[k].th + '"></i>';
     }).join('') + '</div><div class="legend">' + segs.map(function (k) {
       return '<button data-act="dashFilter" data-v="' + k + '"><i style="background:' + ST[k].c + '"></i>' + ST[k].th + ' <b>' + D.status[k] + '</b></button>';
     }).join('') + '</div></div>';
-    // ต้องดูก่อน
     var urgent = items.filter(function (r) { return r.status === 'low' || (r.runsOutIn !== null && r.runsOutIn <= 2); })
       .sort(function (a, b) { return (a.runsOutIn === null ? 9 : a.runsOutIn) - (b.runsOutIn === null ? 9 : b.runsOutIn) || (a.estNow / (a.min || 1)) - (b.estNow / (b.min || 1)); });
     if (urgent.length) {
       h += '<div class="section-h">⚠️ ต้องดูก่อน <span class="n">(' + urgent.length + ')</span></div><div class="list">' + urgent.slice(0, 6).map(dashRow).join('') + '</div>' +
         (urgent.length > 6 ? '<button class="btn btn-ghost" style="margin-top:10px" data-act="dashFilter" data-v="attn">ดูทั้งหมด ' + urgent.length + ' รายการ</button>' : '');
     }
-    // พอใช้อีกกี่วัน
     var cov = items.filter(function (r) { return r.daysCover !== null; }).sort(function (a, b) { return a.daysCover - b.daysCover; }).slice(0, 10);
     h += '<div class="section-h">⏱️ พอใช้อีกกี่วัน <span class="n">(น้อยสุด 10 รายการ)</span></div>';
     h += cov.length ? '<div class="card" style="padding:12px 14px">' + cov.map(function (r) {
@@ -5585,14 +5575,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }).join('') + '<small class="muted">คิดจาก ของที่มีตอนนี้ ÷ ใช้เฉลี่ยต่อวัน · แถบเต็ม = 7 วัน</small></div>'
       : '<div class="note">ยังคำนวณไม่ได้ — ต้องมีข้อมูลนับต่อเนื่องอย่างน้อย ' + D.minDays + ' วันต่อรายการ</div>';
     h += dashWasteCard(items, D) + dashTheoryCard(items, D) + dashIssueCard(items);
-    // การนับย้อนหลัง
     if (D.coverage.length) {
       var cv = D.coverage.slice(-14);
       h += '<div class="section-h">📅 นับกี่รายการ (14 วันล่าสุด)</div><div class="card" style="padding:10px 10px 4px">' +
         barChart(cv.map(function (c) { var p = c.n / (c.expected || D.total); return { label: String(+c.date.slice(8)), v: c.n, c: p >= 0.9 ? 'var(--ok)' : p >= 0.5 ? 'var(--warn)' : 'var(--bad)', title: shortDate(c.date) + ': นับ ' + c.n + ' จากที่ควรนับ ' + c.expected }; }), { max: D.total, h: 130 }) +
         '<small class="muted" style="display:block;padding:0 6px 8px">เขียว = นับครบ 90% ขึ้นไปของที่ต้องนับวันนั้น (โซนตู้ฟรีซของดิบ/ของแห้ง นับเฉพาะวันนับเต็มรอบ)</small></div>';
     }
-    // สูตร
     h += '<details class="card" style="padding:14px 16px;margin-top:22px"><summary><b>ℹ️ คำนวณยังไง / ตั้งค่า</b></summary><div class="form" style="margin-top:10px">' +
       '<p style="margin:0;font-size:14.5px"><b>ใช้ไป</b> = นับครั้งก่อน + รับเข้าระหว่างนั้น − นับครั้งนี้ ÷ จำนวนวันที่ร้านเปิด (วันที่มีการส่งรอบนับ) · ถ้าของเพิ่มขึ้นโดยไม่มีบันทึกรับเข้า ถือว่าผิดปกติ ไม่เอามาคิด<br>' +
       '<b>วันขายดี</b> = ค่าที่สูงกว่าระหว่าง วันที่ใช้มากที่ 90% (P90) กับค่าเฉลี่ยของวันในสัปดาห์ที่ใช้มากสุด<br>' +
@@ -5685,7 +5673,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     box.innerHTML = list.length ? list.map(dashRow).join('') : '<p class="muted">ไม่มีรายการ</p>';
   };
 
-  // ของสโตร์นับแบบระดับโดยตั้งใจ (บอสเลือกให้แอพแนะนำ Min/Max ทีหลัง) → ไม่ขึ้นใน "ต้องตั้งค่า"
   function isStoreItem(it) { var z = zoneOf(it.zone); return !!z && L.isStoreZone(z); }
   function needsSetup(it) { return it.active !== false && !L.isConfigured(it) && !isStoreItem(it); }
 
@@ -5700,13 +5687,16 @@ if (typeof module !== 'undefined') module.exports = Logic;
   function adminScreen() {
     var A = S.admin, d = A.data;
     var setupN = d.items.filter(needsSetup).length;
-    var tabs = [['dash', '📊 ภาพรวม'], ['po', '🛒 สั่งซื้อ'], ['setup', '⚠️ ต้องตั้งค่า (' + setupN + ')'], ['items', '📋 รายการของ'], ['staff', '👥 ทีม'], ['history', '🕘 ประวัติ'], ['settings', '⚙️ ตั้งค่า LINE · แปล · รหัส']];
+    var tabs = [['dash', '📊 ภาพรวม'], ['ledger', '📗 รับ-เบิก'], ['po', '🛒 สั่งซื้อ'], ['setup', '⚠️ ต้องตั้งค่า (' + setupN + ')'], ['items', '📋 รายการของ'], ['staff', '👥 ทีม'], ['history', '🕘 ประวัติ'], ['settings', '⚙️ ตั้งค่า LINE · แปล · รหัส']];
     var h = top({ th: 'ตั้งค่าร้าน (บอส)', back: 'adminExit', net: false }) + '<div class="wrap"><div class="tabs">' +
       tabs.map(function (t) { return '<button class="' + (A.tab === t[0] ? 'on' : '') + '" data-act="aTab" data-v="' + t[0] + '">' + esc(t[1]) + '</button>'; }).join('') +
       '</div></div><div class="wrap screen">';
     if (A.stale) h += '<p class="muted" style="margin:0 0 8px;font-size:13px"><span class="spin-sm"></span>เปิดจากข้อมูลในเครื่อง · กำลังอัปเดตล่าสุด…</p>';
     if (A.tab === 'dash') {
       h += dashTab();
+    } else if (A.tab === 'ledger') {
+      if (!S.led || !S.led.admin) ledInit(true, A.pin);
+      h += ledgerBody();
     } else if (A.tab === 'setup') {
       var need = d.items.filter(needsSetup);
       h += need.length
@@ -5805,7 +5795,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h + '</div>';
   }
 
-  // ที่เก็บจริงของร้าน (บอสกำหนด 9 ต.ค. 69) — เรียงตามทางเดินนับ · ทุกตู้นับทุกวัน (บอสตัดรอบนับรายสัปดาห์ออก) · ชื่อพม่า: ရေခဲသေတ္တာ = ตู้เย็น, ဖရီဇာ = ตู้ฟรีซ (รอ MON ยืนยัน)
   var SHOP_PLACES = [
     { th: 'CHILL-1', mm: 'ရေခဲသေတ္တာ 1', icon: '🧊', weekly: false },
     { th: 'FREEZER-1', mm: 'ဖရီဇာ 1', icon: '❄️', weekly: false },
@@ -5813,7 +5802,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     { th: 'FREEZER-2', mm: 'ဖရီဇာ 2', icon: '❄️', weekly: false },
     { th: 'ของแห้ง', mm: 'အခြောက်ပစ္စည်း', icon: '📦', weekly: false }
   ];
-  // ค้นหาวัตถุดิบในหน้าบอส (ทุกที่เก็บ · ชื่อไทย/พม่า)
   function adminFound() {
     var q = S.admin.itemQ || '';
     if (!normQ(q)) return '';
@@ -5822,7 +5810,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       : '<p class="muted">ไม่พบ "' + esc(q.trim()) + '" — ลองพิมพ์สั้นลง หรือกด ＋ เพิ่มรายการ</p>';
   }
 
-  // ตู้ชุดร้านจับคู่ด้วยชื่อก่อนวงเล็บ/ช่องว่าง — บอสต่อท้ายชื่อได้ เช่น CHILL-2(Checker) ยังเป็น CHILL-2
   function shopBase(th) { return String(th || '').split(/[\s(（]/)[0]; }
   function shopZoneOf(p) { return ZONES.filter(function (x) { return shopBase(x.th) === p.th; })[0] || null; }
   function shopZoneIds() {
@@ -5830,9 +5817,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   function inShop(it) { var ids = shopZoneIds(); return L.itemLocs(it).some(function (z) { return ids.indexOf(z) >= 0; }); }
 
-  // การ์ดในแท็บรายการของ: ยังไม่มีที่เก็บชุดใหม่ → สร้าง · มีแล้วแต่ยังจัดไม่ครบ → ไปจัด
   function shopPlacesCard() {
-    // ปุ่มสร้างตู้ขึ้นเฉพาะร้านที่ยังไม่เคยสร้างเลย — สร้างแล้ว (แม้เปลี่ยนชื่อ/ลบบางตู้) ไม่บังคับให้สร้างอีก
     var A = S.admin, missing = SHOP_PLACES.filter(function (p) { return !shopZoneOf(p); });
     if (SHOP_PLACES.length - missing.length <= 1) { // "ของแห้ง" มีมาตั้งแต่แรก — มีไม่เกิน 1 ที่ = ยังไม่เริ่มตั้ง
       return '<div class="card form" style="padding:16px;margin-bottom:12px"><b>📍 ตั้งที่เก็บของร้าน (นับตามตู้จริง)</b>' +
@@ -5871,7 +5856,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
-  // ที่เก็บของรายการระหว่างจัด: ถ้าติ๊กตู้ใหม่แล้ว ใช้เฉพาะตู้ใหม่ (หมวดเดิมหลุดไปเอง) · ยังไม่ติ๊กเลย = หมวดเดิม
   function plPlaces(it) {
     var c = S.admin.plAssign && S.admin.plAssign.changed[it.id];
     return c ? c.places : L.itemLocs(it);
@@ -5935,7 +5919,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
-  // สโตร์ หน้าตรวจ: เครื่องดื่มขายหน้าร้าน — ขายไปเท่าไหร่ (ยกมา + รับ − นับได้)
   function salesHtml(sales) {
     if (!sales.length) return '';
     return '<div class="section-h">🍺 ขายหน้าร้าน <span class="n">(คิดจากที่นับ · ' + sales.length + ')</span></div><div class="card sum-list">' + sales.map(function (x) {
@@ -5945,7 +5928,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         '<small class="muted">ยกมา ' + L.fmtNum(x.base) + (x.inQty ? ' + รับ ' + L.fmtNum(x.inQty) : '') + ' − เหลือ ' + L.fmtNum(x.counted) + ' · ตั้งแต่ ' + esc(L.thaiDate(x.baseDate)) + '</small></div>';
     }).join('') + '</div>';
   }
-  // แผนกทั้งหมด = จากที่เก็บ + ที่ตั้งให้พนักงานไว้ก่อน (ยังไม่มีที่เก็บ)
   function staffSecChoices(st) {
     var out = L.sectionList(ZONES);
     (st || []).forEach(function (s) { L.staffSections(s).forEach(function (x) { if (out.indexOf(x) < 0) out.push(x); }); });
@@ -5967,8 +5949,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<i class="tg k' + (it.kind === 'prep' ? ' prep' : '') + '">' + (it.kind === 'prep' ? '🔪 ตัดแต่งแล้ว' : '🛒 ยังไม่ตัดแต่ง') + '</i></span>';
   }
 
-  // ---------- รายงานการนับย้อนหลัง ----------
-  // รายงานรายวัน: จำไว้ในเครื่องระหว่างใช้ (เปิดซ้ำทันที) · ซ้อนคำขอเดียวกันไม่ยิงซ้ำ
   function repDayLoad(date) {
     var A = S.admin;
     A.repCache = A.repCache || {}; A.repReq = A.repReq || {};
@@ -5985,7 +5965,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return api('apiAdminReports', A.pin, before, 40).then(function (r) {
       R.list = more ? R.list.concat(r.list) : r.list; R.more = r.more; R.loading = false; R.err = '';
       if (!more) adminCacheSave();
-      // โหลดรายงานวันล่าสุดไว้ล่วงหน้า (ตามหลัง) — แตะเปิดแล้วขึ้นทันที
       if (!more && R.list.length && !(A.repCache || {})[R.list[0].date]) repDayLoad(R.list[0].date).then(null, function () { /* ไว้โหลดตอนแตะ */ });
       if (adminBgOk()) rerenderKeepScroll();
     }, function (e) { R.loading = false; R.err = errMsg(e); if (adminBgOk()) rerenderKeepScroll(); });
@@ -6158,7 +6137,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       (ok ? '<button class="btn btn-danger" data-act="aUnlinkGroup">ยกเลิกการเชื่อมกลุ่ม</button>' : '') + '</div>';
   }
 
-  // ของเสีย (waste) ในช่วงที่ดูย้อนหลัง — มูลค่าคิดจากราคาบิลรับของล่าสุด (ไม่มีราคา = บอกจำนวนอย่างเดียว)
   function dashWasteCard(items, D) {
     var W = D.waste || { n: 0 };
     var h = '<div class="section-h">🗑️ ของเสีย <span class="n">(' + D.lookback + ' วัน)</span></div>';
@@ -6175,7 +6153,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '<small class="muted">มูลค่าประมาณจากราคาในบิลรับของล่าสุด' + (W.unpriced ? ' · ' + W.unpriced + ' ครั้งไม่มีราคา (–)' : '') + ' · ดูรูปได้ที่แท็บประวัติ</small></div>';
   }
 
-  // ใช้ตามสูตร 7 วัน = ทำเสร็จ ÷ 1 รอบทำได้ × วัตถุดิบต่อรอบ — เทียบกับใช้ทั้งหมดจากการนับ
   function dashTheoryCard(items, D) {
     var list = items.filter(function (r) { return r.theory7 > 0; }).sort(function (a, b) { return b.theory7 - a.theory7; });
     var h = '<div class="section-h">🧾 ใช้ตามสูตร <span class="n">(7 วัน)</span></div>';
@@ -6188,7 +6165,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }).join('') + '<small class="muted">"ใช้ทั้งหมด" รวมที่ใช้ทำเมนูอื่นและของเสียด้วย — ถ้าวัตถุดิบนี้ใช้แต่ทำของในสูตร ส่วนที่เกินคือของหาย/ตัดแต่งเกิน</small></div>';
   }
 
-  // สโตร์: เบิกออก (ที่ BEAM บันทึก) เทียบกับที่หายไปจริงจากการนับ — ต่างกันมาก = เบิกไม่ได้จด/ของหาย/นับผิด
   function dashIssueCard(items) {
     var list = items.filter(function (r) { return r.issue7 > 0 || (isStoreItem(r) && r.use7 > 0); })
       .map(function (r) { return { r: r, gap: L.round2((r.use7 || 0) - (r.issue7 || 0) - ((r.waste && r.waste.qty) || 0)) }; })
@@ -6259,7 +6235,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '</div>';
   }
 
-  // ---------- ตรวจชื่อพม่าทั้งหมดด้วย Claude (ทีละ 25) → เลือกใช้ชื่อใหม่/คงเดิม → บันทึกเฉพาะชื่อพม่า ----------
   var MMREV_BATCH = 25;
   function mmRevScreen() {
     var R = S.admin.mmRev, all = S.admin.data.items.filter(function (it) { return it.active !== false && it.name_th; });
@@ -6287,7 +6262,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return h;
   }
 
-  // รอให้บอสพิมพ์รหัสในกลุ่ม แล้วเช็คว่าบอทยืนยันหรือยัง (ทุก 5 วินาที ไม่เกิน 30 นาที)
   function waitGroupLink() {
     var A = S.admin, started = Date.now();
     A.linkWaiting = true;
@@ -6306,7 +6280,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     })();
   }
 
-  // แท็กที่เก็บในฟอร์มแก้รายการ (แตะสลับ) + ปุ่มสร้างที่ใหม่
   function placeTags(it) {
     var home = it._places.length ? zoneOf(it._places[0]) : null, sec = home ? String(home.section || '') : null;
     return ZONES.filter(function (z) { return sec === null || String(z.section || '') === sec; }).map(function (z) { // ที่เก็บเพิ่มต้องแผนกเดียวกับที่หลัก
@@ -6356,7 +6329,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       '</div>' + (it.isNew ? '' : recipeEditCard(it)) + '</div>';
   }
 
-  // สูตร = วัตถุดิบต่อ 1 รอบผลิต — พิมพ์แบบเดียวกับใบสั่ง (ชื่อ จำนวน หน่วย ทีละบรรทัด) แอพจับคู่กับรายการของให้
   function recipeEditCard(it) {
     var rc = (S.admin.data.recipes || {})[it.id] || null;
     var text = rc ? rc.lines.map(function (l) { return l.name + ' ' + L.fmtNum(l.qty) + ' ' + l.unit; }).join('\n') : '';
@@ -6394,7 +6366,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var g = function (id) { return document.getElementById(id); };
     var n = function (id) { var v = g(id).value.trim(); return v === '' ? null : Number(v); };
     var it = JSON.parse(JSON.stringify(S.admin.edit));
-    // ที่เก็บเรียงตามลำดับหมวด — อันแรกเก็บใน zone ที่เหลือใน more_zones (บอสไม่ต้องรู้)
     var places = ZONES.map(function (z) { return z.id; }).filter(function (id) { return S.admin.edit._places.indexOf(id) >= 0; });
     it.zone = places[0] || ''; it.more_zones = places.slice(1).join(',');
     it.kind = S.admin.edit.kind === 'prep' ? 'prep' : 'buy';
@@ -6410,7 +6381,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return it;
   }
 
-  // วาดหน้าแก้รายการใหม่ (เช่นตอนบันทึกสูตร) — เก็บค่าที่บอสแก้ค้างในฟอร์ม (Min/Max/ชื่อ…) ไว้ก่อน ไม่งั้นกลับเป็นค่าเดิม
   function keepEditForm() {
     var A = S.admin;
     if (!A || !A.edit || !document.getElementById('e-th')) return;
@@ -6424,13 +6394,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
     return api('apiAdminSaveItems', S.admin.pin, list, { fast: true }).then(function (all) {
       S.admin.data.items = all;
       if (S.boot) S.boot.items = all.filter(function (i) { return i.active !== false; });
-      // ชื่อพม่าที่เพิ่งได้จาก Google (บันทึกเร็ว) → ให้ Claude แปลให้ดีขึ้นตามหลัง
       var ids = list.map(function (x) { return x.id; });
       var weak = all.filter(function (i) { return ids.indexOf(i.id) >= 0 && i.mm_auto === 'google'; }).map(function (i) { return i.id; });
       if (weak.length && S.admin.data.settings && S.admin.data.settings.claudeKey) upgradeMm(weak);
     });
   }
-  // บันทึกที่เก็บ: เร็ว (ชื่อพม่าว่าง = Google ก่อน) แล้วให้ Claude แปลตามหลัง
   function saveZones(pin, list) {
     var blank = list.filter(function (z) { return !L.hasBurmese(z.mm); }).map(function (z) { return z.th; });
     return api('apiAdminSaveZones', pin, list, { fast: true }).then(function (r) {
@@ -6458,7 +6426,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     }, function () { /* ไม่เป็นไร ชื่อจาก Google ยังใช้ได้ กดแปลใหม่ทีหลังได้ */ });
   }
 
-  // เปลี่ยนหน่วยไทย → เติมหน่วยพม่าให้ตาม (ยกเว้นบอสพิมพ์หน่วยพม่าเองแล้ว)
   var mmTimer = null;
   function mmTagText(engine) {
     return engine === 'mon' ? '✓ MON ตรวจแล้ว' : engine === 'claude' ? '✨ Claude แปล — ให้ MON ดูอีกที' : engine ? '🌐 Google แปล — ควรให้ MON ช่วยดู' : '';
@@ -6474,7 +6441,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     var th = (document.getElementById('e-th') || {}).value || '', mmEl = document.getElementById('e-mm');
     if (!th.trim() || !mmEl) return;
     var E = S.admin.edit;
-    // ชื่อพม่าที่คนพิมพ์/ตรวจแล้ว ไม่ทับเอง — เตือนให้กดแปลใหม่แทน
     if (!force && mmEl.value.trim() && !E.mm_auto) { mmNote('⚠️ เปลี่ยนชื่อไทยแล้ว — ชื่อพม่ายังเป็นของเดิม กด 🌐 แปล ถ้าต้องการแปลใหม่'); return; }
     mmNote('กำลังแปล…');
     api('apiAdminTranslate', S.admin.pin, th.trim()).then(function (r) {
@@ -6486,13 +6452,11 @@ if (typeof module !== 'undefined') module.exports = Logic;
   INPUT.aNameMm = function () { S.admin.edit.mm_auto = ''; mmTag(''); mmNote(''); };
   INPUT.aUnit = function (el) {
     var mm = document.getElementById('e-umm');
-    // เปลี่ยนหน่วยไทย = เปลี่ยนพม่าตามเสมอ (ไม่มีในตาราง → ว่าง ให้หลังบ้านเติม) — เคยค้างคำของหน่วยเก่า เช่น เสิร์ฟ แต่พม่ายังเป็น ဂရမ်
     if (mm.dataset.manual !== '1') mm.value = UNITS[el.value.trim()] || '';
     var lb = document.getElementById('e-bf-label');
     if (lb) lb.textContent = '1 หน่วยซื้อ ≈ กี่ ' + (el.value.trim() || 'หน่วยนับ');
   };
   INPUT.aUmm = function (el) { el.dataset.manual = '1'; };
-  // หลังบ้านคืนค่าตั้งค่าแบบเบา (ไม่มียอดใช้ Claude) → เก็บยอดเดิมไว้
   function setSettings(st) {
     S.admin.setDirty = false;
     var old = S.admin.data.settings || {};
@@ -6500,7 +6464,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     S.admin.data.settings = st;
     adminCacheSave();
   }
-  // เลือกปลายทางแล้วถือว่าบันทึกเลย (เดิมรอหลังบ้าน 1.5–3 วิ) · ไม่สำเร็จ → คืนค่าเดิม
   function saveSettingNow(el, key, prop, fallback) {
     var A = S.admin, st = A.data.settings, prev = st[key] || fallback;
     if (el.value === prev) return;
@@ -6514,7 +6477,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   }
   INPUT.aRecvTo = function (el) { saveSettingNow(el, 'recvTo', 'RECV_TO', 'boss'); };
   INPUT.aReportTo = function (el) { saveSettingNow(el, 'reportTo', 'REPORT_TO', ''); };
-  // เบราว์เซอร์เก่าที่ไม่รองรับ :has() — สลับไฮไลต์เอง
   INPUT.eKind = function (el) {
     var box = el.closest('.seg');
     if (box) box.querySelectorAll('label').forEach(function (l) { l.classList.toggle('on', l.contains(el)); });
@@ -6560,7 +6522,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   INPUT.dInc = function (el) { dEdOf(el.dataset.k).inc = el.checked; dEdSave(); el.closest('.imp-line').classList.toggle('off', !el.checked); dApproveLabel(); };
   INPUT.dQty = function (el) { dEdOf(el.dataset.k).qty = el.value; dEdSave(); dApproveLabel(); };
   INPUT.peInc = function (el) { S.admin.poEdit.lines[+el.dataset.i].include = el.checked; el.closest('.pe-line').classList.toggle('off', !el.checked); peSaveLabel(); };
-  // ของชั่ง: บอกว่าในข้อความส่งร้านจะเป็นกี่ขีด/กี่โล
   function peSpoken(l) { var t = L.spokenWeight(Number(l.qty) || 0, l.unit); return t && t !== L.fmtNum(Number(l.qty)) + ' ' + l.unit ? 'ส่งร้าน: ' + t : ''; }
   INPUT.peQty = function (el) {
     var l = S.admin.poEdit.lines[+el.dataset.i];
@@ -6587,7 +6548,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     if (el && (el.tagName === 'SELECT' || el.type === 'file' || el.type === 'checkbox' || el.type === 'date') && INPUT[el.dataset.input]) INPUT[el.dataset.input](el); // ปฏิทินบางเครื่องส่งแต่ change
   });
 
-  // ออกจากโหมดจัดลำดับโดยยังไม่บันทึก → ถามก่อน
   function leaveReorder(next) {
     var R = S.admin && S.admin.reorder;
     if (!R || !R.dirty) { if (S.admin) S.admin.reorder = null; return next(); }
@@ -6596,7 +6556,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     ]).then(function (k) { if (k === 'leave') { S.admin.reorder = null; next(); } });
   }
 
-  // ลากเรียงลำดับด้วยนิ้ว/เมาส์ที่ปุ่ม ≡ (สลับกับแถวข้างเคียงเมื่อเลยครึ่งแถว + เลื่อนจอเองเมื่อลากถึงขอบ)
   var DRAG = null, ROW_GAP = 8;
   document.addEventListener('pointerdown', function (ev) {
     var h = ev.target.closest('[data-drag]');
@@ -6650,7 +6609,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
 
-  // เพิ่มที่เก็บใหม่จากหน้าแก้รายการ (ชื่อจากกล่องพิมพ์)
   function tagNewPlaceAdd(el, name) {
     if (ZONES.some(function (z) { return z.th === name; })) return toast('มีที่เก็บชื่อนี้แล้ว');
     el.disabled = true; el.textContent = 'กำลังเพิ่ม…';
@@ -6682,6 +6640,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
         go('admin');
         if (S.admin.tab === 'po') loadPoData();
         if (S.admin.tab === 'dash') loadDash();
+        if (S.admin.tab === 'ledger') ledLoad();
         if (S.admin.tab === 'history') loadReports();
         if (S.admin.tab === 'staff') loadCountStats();
       });
@@ -6722,7 +6681,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         var A = S.admin, x = JSON.parse(JSON.stringify(it)), was = { min: r.min, max: r.max, configured: r.configured };
         x.min = r.suggest.min; x.max = r.suggest.max;
         if (!L.validateItem(x).length) x.setup_note = '';
-        // ใช้ค่าใหม่ในเครื่องทันที (เดิมรอหลังบ้าน ~2 วิ ค่อยขึ้น) แล้วบันทึก + คำนวณแดชบอร์ดใหม่ตามหลัง
         var put = function (item, v, differs) {
           var list = A.data.items, i = list.indexOf(item === x ? it : x);
           if (i >= 0) { list[i] = item; idMapReset(list); }
@@ -6740,7 +6698,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         });
       });
     },
-    // ขึ้น "กำลังคำนวณใหม่" ทันที (เดิมรอบันทึกเสร็จก่อนค่อยขึ้น)
     dashSaveParams: function () {
       var p = { DASH_LEAD_DAYS: document.getElementById('d-lead').value, DASH_CYCLE_DAYS: document.getElementById('d-cycle').value };
       toast('บันทึกแล้ว — กำลังคำนวณใหม่'); S.admin.dash = null; rerenderKeepScroll();
@@ -7002,9 +6959,7 @@ if (typeof module !== 'undefined') module.exports = Logic;
       if (!it.active && !it.name_th) { msg.textContent = 'ต้องมีชื่อไทย'; return; }
       if (L.validateItem(it, lvOk).length === 0) it.setup_note = '';
       delete it.isNew;
-      // ใส่ในเครื่องทันทีแล้วกลับหน้ารายการ — ส่งหลังบ้านตามหลัง (กฎ: ห้ามทำให้แอพช้าลง)
       var A = S.admin, list = A.data.items, i = list.map(function (x) { return x.id; }).indexOf(it.id);
-      // เปลี่ยนชื่อไทยแล้วกดบันทึกก่อนแปลเสร็จ → ชื่อพม่ายังเป็นของชื่อเก่า: ส่งว่างให้หลังบ้านแปลใหม่ (ไม่ติดป้าย MON ตรวจแล้ว)
       var orig = i >= 0 ? list[i] : null;
       if (orig && it.name_th !== orig.name_th && it.name_mm === orig.name_mm) { it.name_mm = ''; it.mm_auto = ''; }
       var local = JSON.parse(JSON.stringify(it));
@@ -7042,7 +6997,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     },
     cstatRange: function (el) { loadCountStats(Number(el.dataset.v)); },
     cstatAll: function () { S.admin.cstat.all = true; refreshCountStats(); },
-    // แก้ร่างของร้านนี้ในหน้าสร้างใบสั่งเต็ม (มีคำแนะนำจำนวนจากยอดใช้จริง · เลือกแพ็ค · เพิ่มของ)
     dEditGroup: function (el) {
       var A = S.admin, P = A.po, sup = el.dataset.s || '', g = L.poDrafts(draftAll(), dEd().ed).filter(function (x) { return x.sup === sup; })[0];
       if (!g) return;
@@ -7051,8 +7005,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         lines: g.lines.map(function (l) { var x = JSON.parse(JSON.stringify(l)); x.qty = String(l.qty); delete x.sup; return x; }) };
       go('apoedit');
     },
-    // อนุมัติทั้งหมด: ทุกร้านในคำขอเดียว · ไม่ติ๊ก/จำนวน 0 = ไม่สั่งรอบนี้ · ย้ายร้าน = จำเป็นร้านประจำ
-    // ขึ้นการ์ด "อนุมัติแล้ว" ทันที (ปุ่มส่งไลน์รอเลขใบ ~2 วิ) · พลาด = ร่างกลับมาเหมือนเดิม
     dApprove: function () {
       var A = S.admin, P = A.po, D = dEd(), all = draftAll(), gs = L.poDrafts(all, D.ed);
       var pos = [], names = [], skip = { kitchen: { date: P.round.date, keys: [] }, store: { date: P.sround ? P.sround.date : '', keys: [] } }, remember = {}, undo = [];
@@ -7095,7 +7047,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         toast('⚠️ อนุมัติไม่สำเร็จ (ร่างยังอยู่ กดอีกครั้งได้) — ' + errMsg(e));
       });
     },
-    // ย้ายบรรทัดไปร้านอื่น (= จำเป็นร้านประจำตอนอนุมัติ)
     dMove: function (el) {
       var k = el.dataset.k, l = draftAll().filter(function (x) { return x.key === k; })[0];
       if (!l) return;
@@ -7133,8 +7084,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
           if (!l.include || !(Number(l.qty) > 0)) return;
           var pl = impLine(l), cur = lines[pl.key];
           if (!cur) { lines[pl.key] = pl; order.push(pl.key); return; }
-          // รายการเดียวกันหลายบรรทัด: ชื่อที่สั่งตรงกัน + หน่วยนับเดียวกัน → แปลงเป็นหน่วยบรรทัดแรกแล้วบวก (2 กก. + 500 กรัม = 2.5 กก.)
-          // ไม่งั้นแยกบรรทัด (เดิมบวกตัวเลขตรงๆ ได้ "หมูสับ 502 กก." และชื่อที่สั่งอีกแบบหายจากใบ)
           if ((cur.order_name || '') === (pl.order_name || '') && cur.count_unit === pl.count_unit && cur.factor > 0 && pl.factor > 0) { cur.qty = L.round2(cur.qty + pl.qty * pl.factor / cur.factor); return; }
           var k2 = pl.key + '~' + order.length;
           pl.key = k2; lines[k2] = pl; order.push(k2);
@@ -7143,14 +7092,12 @@ if (typeof module !== 'undefined') module.exports = Logic;
       }).filter(function (b) { return b.lines.length; });
       if (!blocks.length) return toast('ไม่มีรายการที่ติ๊ก');
       I.saving = true; rerenderKeepScroll();
-      // ร้านใหม่ที่ยังไม่มี → เพิ่มก่อน
       var newNames = blocks.map(function (b) { return b.supplier; }).filter(function (v, i, a) { return v.indexOf('new:') === 0 && a.indexOf(v) === i; });
       var ready = newNames.length ? api('apiAdminSaveSuppliers', A.pin, A.po.suppliers.concat(newNames.map(function (v) { return { id: '', name: v.slice(4), active: true }; }))).then(function (rows) {
         A.po.suppliers = rows;
         blocks.forEach(function (b) { if (b.supplier.indexOf('new:') === 0) { var x = rows.filter(function (r) { return r.name === b.supplier.slice(4); })[0]; b.supplier = x ? x.id : ''; } });
       }) : Promise.resolve();
       var results = [];
-      // ทุกใบในคำขอเดียว (เดิมรอหลังบ้านทีละใบ ใบละ 1.5–3 วิ)
       ready.then(function () {
         var rd = roundDate();
         return api('apiAdminPoSaveMany', A.pin, blocks.map(function (b) { return { supplier_id: b.supplier, source_date: rd, note: '', lines: b.lines }; })).then(function (rs) {
@@ -7169,7 +7116,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
     poPickToggle: function () {
       var A = S.admin, P = A.po;
       if (A.poPick) { A.poPick = null; return rerenderKeepScroll(); }
-      // เลือกไว้ให้: ใบที่ยังไม่รับ (รอรับ/รับบางส่วน) ของรอบนับล่าสุด
       var rd = roundDate(), ids = P.pos.filter(function (po) {
         return (po.status === 'open' || po.status === 'partial') && (!rd || String(po.source_date || '').slice(0, 10) === rd);
       }).map(function (po) { return po.id; });
@@ -7209,7 +7155,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         return { key: l.key, item_id: l.item_id, name_th: l.name_th, name_mm: l.name_mm, unit: l.unit, unit_mm: l.unit_mm, size: l.size, qty: Number(l.qty), factor: l.factor, count_unit: l.count_unit, makro: l.makro || '', makro_name: l.makro_name || '' /* แพ็คที่เลือก */, order_name: l.order_name || '' };
       });
       if (!lines.length) return toast('ติ๊กและใส่จำนวนอย่างน้อย 1 รายการ');
-      // ขึ้นหน้าใบสั่งทันที (ปุ่มคัดลอกรอเลขใบจากหลังบ้าน ~2 วิ) · เดิมค้างที่ปุ่มบันทึกจนหลังบ้านตอบ
       var A = S.admin, P = A.po || {}, old = E.id && A.poView && A.poView.po.id === E.id ? A.poView : null;
       var sup = (P.suppliers || []).filter(function (x) { return x.id === E.supplier_id; })[0];
       var prev = old ? old.po : null, got = {};
@@ -7231,7 +7176,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         go('apoedit'); toast('⚠️ บันทึกใบสั่งไม่สำเร็จ (ข้อมูลยังอยู่ กดบันทึกอีกครั้ง) — ' + errMsg(e));
       });
     },
-    // เปิดใบสั่งทันทีจากข้อมูลที่มีในเครื่อง · ใบรับของโหลดตามหลัง (เดิมรอหลังบ้าน 2–4 วิ ทุกครั้ง)
     poOpen: function (el) {
       var A = S.admin, id = Number(el.dataset.id), po = ((A.po && A.po.pos) || []).filter(function (p) { return p.id === id; })[0];
       if (po) {
@@ -7288,7 +7232,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       rerenderKeepScroll();
     },
     supAdd: function () { S.admin.supDraft.push({ id: '', name: '', note: '', active: true }); rerenderKeepScroll(); },
-    // บันทึกในเครื่องทันที แล้วส่งหลังบ้านตามหลัง (ตั้งรหัสร้านใหม่เองแบบเดียวกับหลังบ้าน) · ไม่สำเร็จ → คืนค่า + เปิดฟอร์มเดิม
     supSave: function () {
       var A = S.admin, draft = A.supDraft, prev = A.po.suppliers, used = {};
       var rows = draft.map(function (x) {
@@ -7361,7 +7304,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
       var buy = !!(document.getElementById('e-rc-buy') || {}).checked;
       var lines = ls.map(function (l) { return { item_id: l.item ? l.item.id : '', name: l.item ? l.item.name_th : String(l.name || '').trim().slice(0, 60), qty: L.round2(l.qty), unit: String(l.unit || '').trim().slice(0, 12) }; })
         .filter(function (l) { return l.name; });
-      // บันทึกในเครื่องทันที (รูปแบบเดียวกับหลังบ้าน) แล้วส่งตามหลัง · ไม่สำเร็จ → คืนสูตรเดิม
       var prev = A.data.recipes || {}, next = Object.assign({}, prev);
       if (lines.length) next[it.id] = { yield: y > 0 ? L.round2(y) : null, buy: buy, lines: lines }; else delete next[it.id];
       var put = function (r) { A.data.recipes = r; if (S.boot) S.boot.recipes = r; adminCacheSave(); };
@@ -7398,7 +7340,6 @@ if (typeof module !== 'undefined') module.exports = Logic;
         rerenderKeepScroll();
       });
     },
-    // ตรวจแบบเดียวกับหลังบ้าน → บันทึกในเครื่องทันที แล้วส่งตามหลัง · ไม่สำเร็จ → คืนค่า + เปิดฟอร์มเดิม
     aStaffSave: function () {
       var A = S.admin, draft = A.staffDraft, prev = A.data.staff;
       var rows = draft.map(function (s) {
