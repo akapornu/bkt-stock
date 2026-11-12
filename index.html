@@ -13,7 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="สต็อคครัว">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<script>window.BKT_API = "https://script.google.com/macros/s/AKfycbz4xm8RxxVZgKTjjk6MesQgBJsy4bQO4wobnCwDxLOweGKVmgIYzwuv7UdI9Jeir8wavQ/exec"; window.BKT_BUILD = "2026-11-12T12:05";</script>
+<script>window.BKT_API = "https://script.google.com/macros/s/AKfycbz4xm8RxxVZgKTjjk6MesQgBJsy4bQO4wobnCwDxLOweGKVmgIYzwuv7UdI9Jeir8wavQ/exec"; window.BKT_BUILD = "2026-11-12T18:26";</script>
 <script>
 // มือถือที่เปิดแล้วค้าง/โค้ดพัง → ส่งบันทึกเข้าหลังบ้าน (แท็บ "บันทึกปัญหาเครื่อง") ไว้ดูสาเหตุจริง · ทำงานเฉพาะตอนพัง ไม่ถ่วงแอพ
 // เขียนแบบเก่าสุด (ES3/5 + XMLHttpRequest) ให้รันได้แม้เบราว์เซอร์ที่โค้ดหลักรันไม่ได้
@@ -696,6 +696,12 @@ details.card summary::after { content: ' ▾'; color: var(--muted); }
 .led-tbl td { padding: 8px 0; border-top: 1px solid var(--line); white-space: nowrap; }
 .led-tbl .n { text-align: right; padding-left: 8px; font-variant-numeric: tabular-nums; }
 .led-tbl small { font-size: 12.5px; color: var(--muted); }
+.led-tbl .bal { font-weight: 700; }
+.led-now { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; margin-top: 10px; padding: 12px 14px; }
+.led-now span { font-weight: 700; }
+.led-now b { font-size: 22px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.led-now b small { font-size: 14px; font-weight: 600; color: var(--muted); }
+.led-now > small { flex-basis: 100%; font-size: 12.5px; color: var(--muted); }
 .led-moves { padding: 2px 14px; }
 .led-mv { display: flex; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); line-height: 1.4; }
 .led-mv:first-child { border-top: 0; }
@@ -920,6 +926,9 @@ var I18N = {
   ledLoadFail: ['โหลดไม่สำเร็จ', 'ဖွင့်လို့မရဘူး'],
   ledRetry: ['ลองใหม่', 'ထပ်စမ်းကြည့်မယ်'],
   ledLoading: ['กำลังโหลด', 'ဖွင့်နေတယ်'],
+  ledBal: ['คงเหลือ', 'လက်ကျန်'],
+  ledNow: ['คงเหลือตอนนี้', 'အခု လက်ကျန်'],
+  ledNowHow: ['คิดจากนับวันที่ {d} + รับ − เบิก − เสีย หลังจากนั้น', '{d} ရက်နေ့ ရေတွက်ထားတာ + လက်ခံ − ထုတ်ယူ − ပစ်တာ'],
   recvDay: ['วันที่ของมา', 'ပစ္စည်းရောက်တဲ့နေ့'],
   today: ['วันนี้', 'ဒီနေ့'],
   recvBack: ['บันทึกย้อนหลัง · ลงเป็นของวันนั้น', 'နောက်မှ မှတ်နေတာ · ရွေးထားတဲ့နေ့က ရောက်တာလို့ စာရင်းသွင်းမယ်'],
@@ -1237,6 +1246,24 @@ var Logic = (function () {
       b.mv.push({ at: at, q: out1 ? -q : q });
     });
     Object.keys(out).forEach(function (k) { var b = out[k]; b.bal = round2(Math.max(0, b.base + b.inQty - b.outQty)); });
+    return out;
+  }
+  function bookSeries(o) {
+    var cBy = {}, mBy = {}, out = {};
+    (o.counts || []).forEach(function (c) { (cBy[c.item_id] = cBy[c.item_id] || []).push(c); });
+    (o.moves || []).forEach(function (m) { (mBy[m.item_id] = mBy[m.item_id] || []).push(m); });
+    (o.items || []).forEach(function (it) {
+      var cs = cBy[it.id];
+      if (!cs) return;
+      var ms = mBy[it.id] || [], days = {}, s = {}, base = '';
+      days[o.to] = true;
+      cs.concat(ms).forEach(function (x) { var d = String(x.date); if (d >= o.from && d <= o.to) days[d] = true; });
+      Object.keys(days).sort().forEach(function (d) {
+        var b = bookBalances({ items: [it], counts: cs, moves: ms.filter(function (m) { return String(m.date) <= d; }), before: addDays(d, 1) })[it.id];
+        if (b) { s[d] = b.bal; base = b.baseDate; }
+      });
+      if (base) out[it.id] = { s: s, b: base };
+    });
     return out;
   }
   function bookAt(b, atIso) {
@@ -2000,8 +2027,8 @@ var Logic = (function () {
   function ledgerItem(d, id, n) {
     var it = (d.items || []).filter(function (x) { return x.id === id; })[0];
     if (!it) return null;
-    var days = ledgerDays(d.today, n), dayOf = {}, tot = { recv: 0, out: 0, waste: 0 }, old = 0, moves = [];
-    days.forEach(function (x) { x.count = null; x.oq = null; x.ou = ''; x.lv = ''; x.bk = false; x.has = false; dayOf[x.d] = x; });
+    var days = ledgerDays(d.today, n), dayOf = {}, tot = { recv: 0, out: 0, waste: 0 }, old = 0, moves = [], bal = (d.bal || {})[id] || null;
+    days.forEach(function (x) { x.count = null; x.oq = null; x.ou = ''; x.lv = ''; x.bk = false; x.has = false; x.bal = bal && isNum(bal.s[x.d]) ? bal.s[x.d] : null; dayOf[x.d] = x; });
     (d.moves || []).forEach(function (m) {
       var x = dayOf[m.d], col = LEDGER_COL[m.t];
       if (m.id !== id || !x || !col) return;
@@ -2016,13 +2043,14 @@ var Logic = (function () {
       if (c[3] && c[3] !== it.unit) { x.oq = c[1]; x.ou = c[3]; } else x.count = c[1];
     });
     moves.sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; });
-    return { it: it, from: days[0].d, to: d.today, days: days, rows: days.filter(function (x) { return x.has; }).reverse(), moves: moves, tot: tot, old: old };
+    return { it: it, from: days[0].d, to: d.today, days: days, rows: days.filter(function (x) { return x.has; }).reverse(), moves: moves, tot: tot, old: old,
+      bal: bal && isNum(bal.s[d.today]) ? { now: bal.s[d.today], base: bal.b } : null };
   }
 
   return {
     businessDate: businessDate, bkkTime: bkkTime, dayOfWeek: dayOfWeek, thaiDate: thaiDate,
     isNum: isNum, isConfigured: isConfigured, needQty: needQty, zoneDue: zoneDue, hasCount: hasCount,
-    mergeEntries: mergeEntries, countStats: countStats, bookBalances: bookBalances, bookDiffs: bookDiffs, orderAdvice: orderAdvice, adviceQty: adviceQty, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
+    mergeEntries: mergeEntries, countStats: countStats, bookBalances: bookBalances, bookSeries: bookSeries, bookDiffs: bookDiffs, orderAdvice: orderAdvice, adviceQty: adviceQty, summarize: summarize, fmtNum: fmtNum, unitText: unitText,
     buildBossMessage: buildBossMessage, isMakroShop: isMakroShop, buildAlertMessage: buildAlertMessage, validateItem: validateItem,
     hasBurmese: hasBurmese, mmDigits: mmDigits,
     buyQty: buyQty, poLineFromNeed: poLineFromNeed, poStatus: poStatus, buildPoText: buildPoText,
@@ -3896,12 +3924,18 @@ if (typeof module !== 'undefined') module.exports = Logic;
     h += '<div class="led-stats" style="--c:' + cols.length + '">' + cols.map(function (c) {
       return '<div class="card"><span><i style="background:' + LED_COLOR[c] + '"></i>' + ledT(LED_KEY[c]) + '</span><b>' + f(R.tot[c]) + '</b><small>' + esc(u) + (unitMmTxt ? ' <span class="mm">' + esc(unitMmTxt) + '</span>' : '') + '</small></div>';
     }).join('') + '</div>';
+    if (R.bal) h += '<div class="card led-now"><span>📦 ' + ledT('ledNow') + '</span><b>' + f(R.bal.now) + ' <small>' + esc(u) + '</small></b><small>' + ledT('ledNowHow', { d: shortDate(R.bal.base) }) + '</small></div>';
     if (R.old) h += '<div class="note" style="margin-top:10px">' + ledT('ledOldUnit', { n: R.old }) + '</div>';
     if (!R.rows.length) return h + '<div class="note" style="margin-top:12px">' + ledT('ledNoMove') + '</div></div>';
     if (R.days.some(function (x) { return L.isNum(x.count); })) h += ledChart('📈 ' + ledT('ledLevelChart'), ledLine(R.days, u));
     if (R.days.some(function (x) { return x.recv || x.out || x.waste; })) h += ledChart('📊 ' + ledT('ledFlowChart'), ledLegend(cols) + ledBars(R.days, u));
-    h += '<div class="section-h">🗓️ ' + ledT('ledDayTable') + '</div><div class="card led-tbl-wrap"><table class="led-tbl"><thead><tr><th>' + ledBi('ledDate') + '</th>' + cols.map(function (c) { return '<th class="n">' + ledBi(LED_KEY[c]) + '</th>'; }).join('') + '<th class="n">' + ledBi('ledCount') + '</th></tr></thead><tbody>' +
-      R.rows.map(function (x) { return '<tr><td>' + esc(shortDate(x.d)) + '</td>' + cols.map(function (c) { return '<td class="n">' + ledCell(x[c]) + '</td>'; }).join('') + '<td class="n">' + ledCountCell(x) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    var hb = !!(K.data.bal && K.data.bal[it.id]);
+    h += '<div class="section-h">🗓️ ' + ledT('ledDayTable') + '</div><div class="card led-tbl-wrap"><table class="led-tbl"><thead><tr><th>' + ledBi('ledDate') + '</th>' + cols.map(function (c) { return '<th class="n">' + ledBi(LED_KEY[c]) + '</th>'; }).join('') + '<th class="n">' + ledBi('ledCount') + '</th>' + (hb ? '<th class="n">' + ledBi('ledBal') + '</th>' : '') + '</tr></thead><tbody>' +
+      R.rows.map(function (x) {
+        return '<tr><td>' + esc(shortDate(x.d)) + '</td>' + cols.map(function (c) { return '<td class="n">' + ledCell(x[c]) + '</td>'; }).join('') + '<td class="n">' + ledCountCell(x) + '</td>' +
+          (hb ? '<td class="n bal">' + (x.bal === null ? '<span class="z">–</span>' : L.fmtNum(x.bal)) + '</td>' : '') + '</tr>';
+      }).join('') + '</tbody></table></div>';
+    if (hb && R.rows.some(function (x) { return x.bal === null; })) h += '<small class="muted">– ในช่องคงเหลือ = ก่อนนับครั้งแรก ยังไม่มียอดตั้งต้น</small>';
     if (R.rows.some(function (x) { return x.bk; })) h += '<small class="muted">✓ = กดตรงตามยอด ไม่ได้นับจริง</small>';
     if (R.moves.length) {
       h += '<div class="section-h">👤 ' + ledT('ledWho') + '</div><div class="card led-moves">' + R.moves.slice(0, 40).map(function (m) {
